@@ -1,10 +1,8 @@
-library(testthat)
-
-context("mcpServer")
-
 test_that("mcpServer initializes correctly", {
   server <- mcpServer$new()
-  expect_s3_class(server, "mcpServer", "mcpServer$new() should return a mcpServer object")
+  expect_true(inherits(server, "mcpServer"),
+    info = "mcpServer$new() should return a mcpServer object"
+  )
   expect_false(server$is_running(), "Server should not be running after initialization")
 })
 

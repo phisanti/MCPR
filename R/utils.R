@@ -34,7 +34,7 @@ mcptools_log_file <- function() {
 
 # Check if the current session is interactive.
 check_not_interactive <- function(call = rlang::caller_env()) {
-  if (interactive()) {
+  if (rlang::is_interactive()) {
     cli::cli_abort(
       c(
         "This function is not intended for interactive use.",

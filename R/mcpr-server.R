@@ -55,7 +55,7 @@ mcpServer <- R6::R6Class("mcpServer",
 
     # === MESSAGE HANDLERS ===
 
-    #' Handle incoming messages from MCP clients
+    # Handle incoming messages from MCP clients
     handle_message_from_client = function(line) {
       if (length(line) == 0) {
         return()
@@ -106,7 +106,7 @@ mcpServer <- R6::R6Class("mcpServer",
       )
     },
 
-    #' Handle messages from R sessions
+    # Handle messages from R sessions
     handle_message_from_session = function(data) {
       if (!is.character(data)) {
         return()
@@ -118,7 +118,7 @@ mcpServer <- R6::R6Class("mcpServer",
 
     # === REQUEST HANDLING LOGIC ===
 
-    #' Handle tool execution requests locally on the server
+    # Handle tool execution requests locally on the server
     handle_request = function(data) {
       prepared <- private$append_tool_fn(data)
       result <- if (inherits(prepared, "jsonrpc_error")) {
@@ -130,7 +130,7 @@ mcpServer <- R6::R6Class("mcpServer",
       cat_json(result)
     },
 
-    #' Forward requests to an R session for execution
+    # Forward requests to an R session for execution
     forward_request = function(data) {
       logcat(c("TO SESSION: ", jsonlite::toJSON(data)))
       prepared <- private$append_tool_fn(data)
@@ -140,7 +140,7 @@ mcpServer <- R6::R6Class("mcpServer",
       nanonext::send_aio(the$server_socket, prepared, mode = "serial")
     },
 
-    #' Append the tool function to the request data
+    # Append the tool function to the request data
     append_tool_fn = function(data) {
       if (!identical(data$method, "tools/call")) {
         return(data)

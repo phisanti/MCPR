@@ -2,7 +2,7 @@
 # provided by the MCPR package.
 
 # --- Session Management Tools ---
-
+#' @title List R Sessions
 #' List available R sessions
 #'
 #' @description
@@ -41,10 +41,9 @@ list_r_sessions <- function() {
   sort(as.character(nanonext::collect_aio_(res)))
 }
 
-#' Select an R session to be the target for subsequent tool calls
-#'
+#' @title Select R Session
 #' @description
-#' This tool changes the active R session that the MCP server communicates with.
+#' Select an R session to be the target for subsequent tool calls. This tool changes the active R session that the MCP server communicates with.
 #' It is executed on the server side.
 #'
 #' @param session The integer ID of the session to select.
@@ -60,10 +59,7 @@ select_r_session <- function(session) {
   sprintf("Selected session %d successfully.", session)
 }
 
-# --- Code Execution Tool ---
-
-#' Execute arbitrary R code in the current session
-#'
+#' @title Execute R Code
 #' @description
 #' This tool allows an AI agent to execute any R code in the selected R session.
 #' It enables stateful, interactive programming.

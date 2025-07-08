@@ -19,7 +19,7 @@
 #'   mcp_session()
 #' }
 mcp_session <- function() {
-  if (!interactive()) {
+  if (!rlang::is_interactive()) {
     return(invisible())
   }
 

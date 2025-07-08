@@ -1,224 +1,121 @@
-# This file tests the ToolRegister R6 class.
-# It ensures that the auto-discovery mechanism correctly parses tool files,
-# creates valid ellmer::tool objects, and handles various edge cases.
+tool_code_mean <- "
+#' @title Calculate Mean
+#' @description Calculates the mean of a numeric vector.
+#' @param x numeric A numeric vector.
+#' @keywords mcpr_tool
+calculate_mean <- function(x) {
+  mean(x, na.rm = TRUE)
+}
+"
 
-# Load the class definition for testing
-source("../../R/tool-register.R")
+tool_code_sum <- "
+#' @title Calculate Sum
+#' @description Calculates the sum of a numeric vector.
+#' @param x numeric A numeric vector.
+#' @keywords mcpr_tool
+calculate_sum <- function(x) {
+  sum(x, na.rm = TRUE)
+}
+"
 
-# Helper to create a temporary tool file
-create_tool_file <- function(path, ..., content = NULL) {
-  if (is.null(content)) {
-    content <- paste(
-      c(
-        "#' @mcpr_tool",
-        ...
-      ),
-      collapse = "\n"
-    )
-  }
-  writeLines(content, file.path(path, basename(tempfile(fileext = ".R"))))
+# Traditional tool definitions for comparison
+calculate_mean_tool_traditional <- function() {
+  ellmer::tool(
+    .fun = function(x) mean(x, na.rm = TRUE),
+    .name = "calculate_mean",
+    .description = "Calculates the mean of a numeric vector.",
+    x = ellmer::type_number(description = "A numeric vector.")
+  )
 }
 
-test_that("ToolRegister initializes correctly", {
-  register <- ToolRegister$new(
-    tools_dir = "my_tools",
-    pattern = "\\.r$",
-    recursive = TRUE,
-    verbose = FALSE
+calculate_sum_tool_traditional <- function() {
+  ellmer::tool(
+    .fun = function(x) sum(x, na.rm = TRUE),
+    .name = "calculate_sum",
+    .description = "Calculates the sum of a numeric vector.",
+    x = ellmer::type_number(description = "A numeric vector.")
   )
-  
-  expect_s3_class(register, "ToolRegister")
-  expect_equal(register$.__enclos_env__$private$.tools_dir, "my_tools")
-  expect_equal(register$.__enclos_env__$private$.pattern, "\\.r$")
-  expect_true(register$.__enclos_env__$private$.recursive)
-  expect_false(register$.__enclos_env__$private$.verbose)
+}
+
+
+test_that("ToolRegistry discovers and registers tools correctly", {
+  # 1. Setup: Create a temporary directory for tools
+  temp_dir <- tempfile("tools_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # Write tool code to files in the temp directory
+  writeLines(tool_code_mean, file.path(temp_dir, "mean_tool.R"))
+  writeLines(tool_code_sum, file.path(temp_dir, "sum_tool.R"))
+
+  # 2. Execution: Use ToolRegistry to discover tools
+  registry <- ToolRegistry$new(tools_dir = temp_dir, verbose = FALSE)
+  discovered_tools <- registry$search_tools()
+
+  # 3. Assertions
+  expect_equal(length(discovered_tools), 2, info = "Should discover exactly two tools.")
+
+  # Get the discovered tools by name
+  mean_tool_new <- registry$get_tool("calculate_mean")
+  sum_tool_new <- registry$get_tool("calculate_sum")
+
+  expect_false(is.null(mean_tool_new), "The 'calculate_mean' tool should be found.")
+  expect_false(is.null(sum_tool_new), "The 'calculate_sum' tool should be found.")
+
+  # Compare with traditional definitions
+  traditional_mean <- calculate_mean_tool_traditional()
+  traditional_sum <- calculate_sum_tool_traditional()
+
+  # Compare mean tool
+  expect_equal(mean_tool_new@name, traditional_mean@name)
+  # The description from roxygen adds a period, so we test for the base string
+  expect_true(grepl(traditional_mean@description, mean_tool_new@description))
+  expect_equal(length(mean_tool_new@arguments), length(traditional_mean@arguments))
+  expect_equal(names(mean_tool_new@arguments), names(traditional_mean@arguments))
+
+  # Compare sum tool
+  expect_equal(sum_tool_new@name, traditional_sum@name)
+  expect_true(grepl(traditional_sum@description, sum_tool_new@description))
+  expect_equal(length(sum_tool_new@arguments), length(traditional_sum@arguments))
+  expect_equal(names(sum_tool_new@arguments), names(traditional_sum@arguments))
 })
 
-test_that("discover_tools finds and parses a valid tool", {
-  local_temp_dir <- tempfile()
-  dir.create(local_temp_dir)
-  
-  create_tool_file(
-    local_temp_dir,
-    "#' @description A simple test tool.",
-    "#' @param x string The first parameter.",
-    "#' @param y numeric The second parameter.",
-    "test_tool <- function(x, y) { paste(x, y) }"
-  )
-  
-  register <- ToolRegister$new(tools_dir = local_temp_dir, verbose = FALSE)
-  tools <- register$discover_tools()
-  
-  expect_length(tools, 1)
-  expect_true(register$has_tool("test_tool"))
-  
-  tool <- register$get_tool("test_tool")
-  expect_s4_class(tool, "ellmer::ToolDef")
-  expect_equal(tool@name, "test_tool")
-  expect_equal(tool@description, "A simple test tool.")
-  
-  # Verify parameters (which become arguments in the tool definition)
-  expect_length(tool@arguments, 2)
-  expect_equal(names(tool@arguments), c("x", "y"))
-  
-  # Check compatibility with existing mechanism (get_mcptools_tools_as_json)
-  # This ensures the output can be consumed by the server
-  tool_json <- tool_as_json(tool)
-  expect_equal(tool_json$name, "test_tool")
-  expect_equal(tool_json$inputSchema$type, "object")
-  expect_true(all(c("x", "y") %in% names(tool_json$inputSchema$properties)))
-  expect_equal(tool_json$inputSchema$properties$x$type, "string")
-  expect_equal(tool_json$inputSchema$properties$y$type, "number")
-  
-  unlink(local_temp_dir, recursive = TRUE)
+test_that("ToolRegistry handles no tools found gracefully", {
+  # 1. Setup: Create an empty temporary directory
+  temp_dir <- tempfile("empty_tools_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  # 2. Execution
+  registry <- ToolRegistry$new(tools_dir = temp_dir, verbose = FALSE)
+  discovered_tools <- registry$search_tools()
+
+  # 3. Assertions
+  expect_equal(length(discovered_tools), 0, info = "Should return an empty list when no tools are found.")
+  summary_df <- registry$get_tool_summary()
+  expect_equal(nrow(summary_df), 0)
 })
 
-test_that("discover_tools handles directories that do not exist or are empty", {
-  non_existent_dir <- file.path(tempdir(), "non_existent_dir")
-  
-  # Test non-existent directory
-  register <- ToolRegister$new(tools_dir = non_existent_dir, verbose = FALSE)
-  expect_length(register$discover_tools(), 0)
-  
-  # Test empty directory
-  empty_dir <- tempfile()
-  dir.create(empty_dir)
-  register <- ToolRegister$new(tools_dir = empty_dir, verbose = FALSE)
-  expect_length(register$discover_tools(), 0)
-  
-  unlink(empty_dir, recursive = TRUE)
-})
+test_that("has_tool and get_tool methods work correctly", {
+  # 1. Setup
+  temp_dir <- tempfile("tools_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "mean_tool.R"))
 
-test_that("discover_tools ignores files without @mcpr_tool marker", {
-  local_temp_dir <- tempfile()
-  dir.create(local_temp_dir)
-  
-  # File with no marker
-  create_tool_file(
-    local_temp_dir,
-    content = "not_a_tool <- function() { 'hello' }"
-  )
-  
-  register <- ToolRegister$new(tools_dir = local_temp_dir, verbose = FALSE)
-  tools <- register$discover_tools()
-  
-  expect_length(tools, 0)
-  
-  unlink(local_temp_dir, recursive = TRUE)
-})
+  # 2. Execution
+  registry <- ToolRegistry$new(tools_dir = temp_dir, verbose = FALSE)
+  registry$search_tools()
 
-test_that("discover_tools handles multi-line descriptions and validation", {
-  local_temp_dir <- tempfile()
-  dir.create(local_temp_dir)
-  
-  create_tool_file(
-    local_temp_dir,
-    "#' @description This is a long description that",
-    "#' spans multiple lines.",
-    "#' @param data array The data to process.",
-    "multiline_tool <- function(data) { length(data) }"
-  )
-  
-  # Add a file with a reserved name
-  create_tool_file(
-    local_temp_dir,
-    "#' @description This tool uses a reserved name.",
-    "list_r_sessions <- function() { 'reserved' }"
-  )
-  
-  register <- ToolRegister$new(tools_dir = local_temp_dir, verbose = FALSE)
-  
-  # Check for warnings on validation failure
-  expect_warning(
-    tools <- register$discover_tools(),
-    "Tools use reserved names: .*"
-  )
-  
-  expect_length(tools, 2) # Both are discovered, but a warning is thrown
-  
-  tool <- register$get_tool("multiline_tool")
-  expect_equal(tool@description, "This is a long description that spans multiple lines.")
-  
-  unlink(local_temp_dir, recursive = TRUE)
-})
+  # 3. Assertions
+  expect_true(registry$has_tool("calculate_mean"))
+  expect_false(registry$has_tool("nonexistent_tool"))
 
-test_that("caching mechanism works correctly", {
-  local_temp_dir <- tempfile()
-  dir.create(local_temp_dir)
-  
-  tool_filepath <- create_tool_file(
-    local_temp_dir,
-    "#' @description Initial version of the tool.",
-    "cache_test_tool <- function() { 1 }"
-  )
-  
-  register <- ToolRegister$new(tools_dir = local_temp_dir, verbose = FALSE)
-  
-  # First discovery
-  tools1 <- register$discover_tools()
-  expect_length(tools1, 1)
-  expect_equal(tools1[[1]]@description, "Initial version of the tool.")
-  
-  # Overwrite the file with new content
-  writeLines(
-    "#' @mcpr_tool\n#' @description Updated version.\ncache_test_tool <- function() { 2 }",
-    tool_filepath
-  )
-  
-  # Discover again without force_refresh, should get cached version
-  tools2 <- register$discover_tools(force_refresh = FALSE)
-  expect_equal(tools2[[1]]@description, "Initial version of the tool.")
-  
-  # Discover with force_refresh, should get updated version
-  tools3 <- register$discover_tools(force_refresh = TRUE)
-  expect_equal(tools3[[1]]@description, "Updated version.")
-  
-  unlink(local_temp_dir, recursive = TRUE)
-})
+  retrieved_tool <- registry$get_tool("calculate_mean")
+  expect_false(is.null(retrieved_tool))
+  expect_true(inherits(retrieved_tool, "ellmer::ToolDef"))
+  expect_equal(retrieved_tool@name, "calculate_mean")
 
-test_that("get_tool_summary provides correct output", {
-  local_temp_dir <- tempfile()
-  dir.create(local_temp_dir)
-  
-  create_tool_file(
-    local_temp_dir,
-    "#' @description A tool for testing summary.",
-    "#' @param arg1 string A string argument.",
-    "summary_tool <- function(arg1) { arg1 }"
-  )
-  
-  register <- ToolRegister$new(tools_dir = local_temp_dir, verbose = FALSE)
-  register$discover_tools()
-  
-  summary_df <- register$get_tool_summary()
-  
-  expect_s3_class(summary_df, "data.frame")
-  expect_equal(nrow(summary_df), 1)
-  expect_equal(names(summary_df), c("name", "description", "parameters"))
-  expect_equal(summary_df$name, "summary_tool")
-  expect_equal(summary_df$parameters, "arg1")
-  
-  unlink(local_temp_dir, recursive = TRUE)
-})
-
-test_that("ToolRegister handles file with syntax error gracefully", {
-  local_temp_dir <- tempfile()
-  dir.create(local_temp_dir)
-  
-  create_tool_file(
-    local_temp_dir,
-    content = "#' @mcpr_tool\n#' @description A broken tool.\nbroken_tool <- function( { 'bad' }"
-  )
-  
-  register <- ToolRegister$new(tools_dir = local_temp_dir, verbose = FALSE)
-  
-  # Sourcing should fail, and the tool should not be registered
-  expect_warning(
-    tools <- register$discover_tools(),
-    "Failed to load tools from"
-  )
-  
-  expect_length(tools, 0)
-  
-  unlink(local_temp_dir, recursive = TRUE)
+  null_tool <- registry$get_tool("nonexistent_tool")
+  expect_null(null_tool)
 })

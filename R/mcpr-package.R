@@ -2,11 +2,6 @@
 #' @keywords internal
 "_PACKAGE"
 
-## usethis namespace: start
-#' @import rlang
-## usethis namespace: end
-NULL
-
 .onLoad <- function(libname, pkgname) {
   the$socket_url <- switch(
     Sys.info()[["sysname"]],

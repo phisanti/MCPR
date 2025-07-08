@@ -2,12 +2,8 @@
 # This file implements the mcpClient R6 class, bringing existing functionality
 # from the functional implementation in client.R
 
-#' @import R6
-#' @import processx
-#' @import jsonlite
-#' @import cli
-
-#' MCP Client R6 Class
+#' @name mcpClient
+#' @title MCP Client R6 Class
 #'
 #' @description
 #' The mcpClient class provides a persistent, object-oriented interface for managing 
@@ -73,8 +69,6 @@
 #' @export
 mcpClient <- R6::R6Class("mcpClient",
   public = list(
-    #' Initialize mcpClient
-    #'
     #' @description Creates new mcpClient instance
     #' @param config Path to configuration file (character). Uses default location if NULL
     #' @return Self (invisible)
