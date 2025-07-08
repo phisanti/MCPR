@@ -33,6 +33,39 @@ test_that("mcpServer$stop sets the running flag to FALSE", {
   expect_false(server$is_running(), "stop() should set the server's running state to FALSE")
 })
 
+test_that("mcpServer accepts ToolRegistry", {
+  # Create a minimal ToolRegistry instance
+  registry <- ToolRegistry$new()
+  
+  # Test that server accepts registry parameter
+  expect_no_error(mcpServer$new(registry = registry))
+  
+  server <- mcpServer$new(registry = registry)
+  expect_true(inherits(server, "mcpServer"))
+})
+
+test_that("mcpServer rejects invalid registry parameter", {
+  # Test that server rejects non-ToolRegistry objects
+  expect_error(mcpServer$new(registry = "not_a_registry"),
+               "registry must be a ToolRegistry instance")
+  
+  expect_error(mcpServer$new(registry = list()),
+               "registry must be a ToolRegistry instance")
+})
+
+test_that("ToolRegistry takes precedence over tools parameter", {
+  # Create a temporary tool file
+  tool_file <- tempfile(fileext = ".R")
+  writeLines("list()", tool_file)
+  on.exit(unlink(tool_file), add = TRUE)
+  
+  # Create a registry
+  registry <- ToolRegistry$new()
+  
+  # When both are provided, registry should take precedence
+  expect_no_error(mcpServer$new(tools = tool_file, registry = registry))
+})
+
 test_that("mcp_server convenience function creates and returns a server instance", {
   # The mcp_server() function is a wrapper that calls the blocking `start()` method.
   # To test the initialization part of the function without blocking the test suite,

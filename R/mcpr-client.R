@@ -74,9 +74,9 @@ mcpClient <- R6::R6Class("mcpClient",
     #' @return Self (invisible)
     #' @examples
     #' \dontrun{
-#' client <- mcpClient$new()
-#' client <- mcpClient$new(config = "~/.config/mcptools/config.json")
-#' }
+    #' client <- mcpClient$new()
+    #' client <- mcpClient$new(config = "~/.config/mcptools/config.json")
+    #' }
     initialize = function(config = NULL) {
       # TODO: Add logging configuration
       # TODO: Implement connection pooling
@@ -105,10 +105,10 @@ mcpClient <- R6::R6Class("mcpClient",
     #' @return Self (invisible, enables method chaining)
     #' @examples
     #' \dontrun{
-#' client$connect_servers()
-#' # Method chaining
-#' client <- mcpClient$new()$connect_servers()
-#' }
+    #' client$connect_servers()
+    #' # Method chaining
+    #' client <- mcpClient$new()$connect_servers()
+    #' }
     connect_servers = function() {
       # TODO: Implement parallel connection establishment
       # TODO: Add connection retry logic
@@ -155,9 +155,9 @@ mcpClient <- R6::R6Class("mcpClient",
     #' @return List of ellmer tool objects
     #' @examples
     #' \dontrun{
-#' tools <- client$get_ellmer_tools()
-#' # Tools can be used with ellmer package for AI integration
-#' }
+    #' tools <- client$get_ellmer_tools()
+    #' # Tools can be used with ellmer package for AI integration
+    #' }
     get_ellmer_tools = function() {
       # TODO: Implement tool filtering
       # TODO: Add tool categorization
@@ -181,20 +181,20 @@ mcpClient <- R6::R6Class("mcpClient",
     #' @return Tool execution result
     #' @examples
     #' \dontrun{
-#' result <- client$call_tool(
-#'   path = "/home/user/file.txt",
-#'   server = "filesystem",
-#'   tool = "read_file"
-#' )
-#' 
-#' # With error handling
-#' result <- tryCatch({
-#'   client$call_tool(param = "value", server = "myserver", tool = "mytool")
-#' }, error = function(e) {
-#'   cat("Tool execution failed:", e$message)
-#'   NULL
-#' })
-#' }
+    #' result <- client$call_tool(
+    #'   path = "/home/user/file.txt",
+    #'   server = "filesystem",
+    #'   tool = "read_file"
+    #' )
+    #' 
+    #' # With error handling
+    #' result <- tryCatch({
+    #'   client$call_tool(param = "value", server = "myserver", tool = "mytool")
+    #' }, error = function(e) {
+    #'   cat("Tool execution failed:", e$message)
+    #'   NULL
+    #' })
+    #' }
     call_tool = function(..., server, tool) {
       # TODO: Add tool execution logging
       # TODO: Implement tool result caching
@@ -216,15 +216,15 @@ mcpClient <- R6::R6Class("mcpClient",
     #' @return Named list with server status details including name, connected status, tools_count, and last_id
     #' @examples
     #' \dontrun{
-#' status <- client$get_server_status()
-#' # Returns: list(server_name = list(name, connected, tools_count, last_id))
-#' 
-#' # Check server status before tool calls
-#' status <- client$get_server_status()
-#' if (status$filesystem$connected) {
-#'   result <- client$call_tool(server = "filesystem", tool = "list_files")
-#' }
-#' }
+    #' status <- client$get_server_status()
+    #' # Returns: list(server_name = list(name, connected, tools_count, last_id))
+    #' 
+    #' # Check server status before tool calls
+    #' status <- client$get_server_status()
+    #' if (status$filesystem$connected) {
+    #'   result <- client$call_tool(server = "filesystem", tool = "list_files")
+    #' }
+    #' }
     get_server_status = function() {
       # TODO: Implement comprehensive health checks
       # TODO: Add server performance metrics
@@ -245,8 +245,8 @@ mcpClient <- R6::R6Class("mcpClient",
     #' @param message Message to log (character)
     #' @examples
     #' \dontrun{
-#' client$log_communication("Custom debug message")
-#' }
+    #' client$log_communication("Custom debug message")
+    #' }
     log_communication = function(message) {
       # TODO: Implement proper logging system
       # TODO: Add log levels and filtering
@@ -262,9 +262,9 @@ mcpClient <- R6::R6Class("mcpClient",
     #' @return Converted tool types
     #' @examples
     #' \dontrun{
-#' # Internal method typically not called directly
-#' types <- client$as_ellmer_types(tool_definition)
-#' }
+    #' # Internal method typically not called directly
+    #' types <- client$as_ellmer_types(tool_definition)
+    #' }
     as_ellmer_types = function(tool) {
       # TODO: Implement proper schema conversion
       # TODO: Add support for all JSON Schema types

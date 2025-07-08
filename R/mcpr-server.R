@@ -170,9 +170,14 @@ mcpServer <- R6::R6Class("mcpServer",
     #'     \item A character path to an R file returning a list of tools
     #'     \item `NULL` to use only built-in tools
     #'   }
+    #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
+    #'   takes precedence over the `tools` parameter.
     #' @return A new `mcpServer` instance
-    initialize = function(tools = NULL) {
-      set_server_tools(tools)
+    initialize = function(tools = NULL, registry = NULL) {
+      if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
+        cli::cli_abort("registry must be a ToolRegistry instance")
+      }
+      set_server_tools(tools, registry = registry)
     },
 
     #' @description
@@ -242,6 +247,8 @@ mcpServer <- R6::R6Class("mcpServer",
 #' Equivalent to creating a new `mcpServer` instance and calling `start()`.
 #'
 #' @param tools Tools specification. See `mcpServer$new()` for details.
+#' @param registry A ToolRegistry instance to use for tool discovery. If provided,
+#'   takes precedence over the `tools` parameter.
 #' 
 #' @details
 #' This function is designed for non-interactive use in background processes
@@ -278,12 +285,16 @@ mcpServer <- R6::R6Class("mcpServer",
 #'   object = type_any("R object to summarize")
 #' )
 #' mcp_server(tools = list(summary_tool))
+#' 
+#' # Server with ToolRegistry
+#' registry <- ToolRegistry$new()
+#' mcp_server(registry = registry)
 #' }
 #' 
 #' @return The server instance (invisibly)
 #' @export
-mcp_server <- function(tools = NULL) {
-  server <- mcpServer$new(tools = tools)
+mcp_server <- function(tools = NULL, registry = NULL) {
+  server <- mcpServer$new(tools = tools, registry = registry)
   server$start()
   invisible(server)
 }
