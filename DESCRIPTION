@@ -1,0 +1,25 @@
+Package: MCPR
+Type: Package
+Title: Model Context Protocol for R
+Version: 0.0.1
+Authors@R: 
+    person("Santiago", "Cano-Muniz", , "tisalon@outlook.com", role = c("aut", "cre"))
+Description: Provides Model Context Protocol (MCP) tools to enable models to access and interact with R sessions.
+License: CC BY 4.0 + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    R6,
+    cli,
+    nanonext (>= 1.6.0),
+    base64enc,
+    jsonlite,
+    processx,
+    promises,
+    rlang,
+    tools,
+    promises
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
