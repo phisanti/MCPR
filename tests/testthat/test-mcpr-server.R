@@ -90,4 +90,9 @@ test_that("mcp_server convenience function creates and returns a server instance
   # Test with a list of tools
   server_instance_list <- mcp_server(tools = list())
   expect_s3_class(server_instance_list, "mcpServer")
+  
+  # Test with registry
+  registry <- ToolRegistry$new()
+  server_instance_registry <- mcp_server(registry = registry)
+  expect_s3_class(server_instance_registry, "mcpServer")
 })
