@@ -4,6 +4,8 @@ Title: Model Context Protocol for R
 Version: 0.0.1
 Authors@R: 
     person("Santiago", "Cano-Muniz", , "tisalon@outlook.com", role = c("aut", "cre"))
+Author: Santiago Cano-Muniz [aut, cre]
+Maintainer: Santiago Cano-Muniz <tisalon@outlook.com>
 Description: Provides Model Context Protocol (MCP) tools to enable models to access and interact with R sessions.
 License: CC BY 4.0 + file LICENSE
 Encoding: UTF-8
@@ -21,7 +23,11 @@ Imports:
     tools,
     promises,
     roxygen2,
-    ellmer
+    ellmer,
+    utils,
+    grDevices,
+    methods,
+    stats
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
