@@ -1,29 +1,34 @@
-# Modify server initialization tests to handle auto-discovery gracefully
-test_that("mcpServer initializes correctly", {
-  # Use explicit empty registry to avoid auto-discovery during tests
-  registry <- ToolRegistry$new(tools_dir = tempdir(), verbose = FALSE)
-  server <- mcpServer$new(registry = registry)
+## Modify server initialization tests to handle auto-discovery gracefully
+get_test_tools_dir <- function() {
+  # Try to find the tools directory relative to test location
+  if (dir.exists("../../inst")) {
+    return("../../inst")
+  } else if (dir.exists("inst")) {
+    return("inst") 
+  } else {
+    return(tempdir())  # fallback
+  }
+}
+
+tools_dir <- get_test_tools_dir()
+test_that("mcpServer initializes with default tools", {
+  server <- mcpServer$new(.tools_dir = tools_dir)
   expect_true(inherits(server, "mcpServer"))
-  expect_false(server$is_running())
+  
+  # Should have default built-in tools
+  server_tools <- get_mcptools_tools()
+  expect_true("list_r_sessions" %in% names(server_tools))
+  expect_true("select_r_session" %in% names(server_tools))
 })
 
-test_that("mcpServer accepts different tool configurations on initialization", {
-  # Test 1: Initialization with NULL tools (default)
-  expect_no_error(mcpServer$new(tools = NULL))
-
-  # Test 2: Initialization with an empty list of tools
-  expect_no_error(mcpServer$new(tools = list()))
-
-  # Test 3: Initialization with a path to a valid tool file
-  tool_file <- tempfile(fileext = ".R")
-  # The file should return a list of tools. An empty list is sufficient for this test.
-  writeLines("list()", tool_file)
-  on.exit(unlink(tool_file), add = TRUE)
-  expect_no_error(mcpServer$new(tools = tool_file))
+test_that("mcpServer initializes with ToolRegistry", {
+  registry <- ToolRegistry$new()
+  server <- mcpServer$new(registry = registry)
+  expect_true(inherits(server, "mcpServer"))
 })
 
 test_that("mcpServer$stop sets the running flag to FALSE", {
-  server <- mcpServer$new()
+  server <- mcpServer$new(.tools_dir = tools_dir)
 
   # To properly test the stop() method, we first need to simulate a "running" state.
   # We do this by directly manipulating the private .running field for this test.
@@ -39,9 +44,9 @@ test_that("mcpServer accepts ToolRegistry", {
   registry <- ToolRegistry$new()
   
   # Test that server accepts registry parameter
-  expect_no_error(mcpServer$new(registry = registry))
+  expect_no_error(mcpServer$new(registry = registry, .tools_dir = tools_dir))
   
-  server <- mcpServer$new(registry = registry)
+  server <- mcpServer$new(registry = registry, .tools_dir = tools_dir)
   expect_true(inherits(server, "mcpServer"))
 })
 
@@ -61,7 +66,7 @@ test_that("ToolRegistry takes precedence over tools parameter", {
   on.exit(unlink(tool_file), add = TRUE)
   
   # Create a registry
-  registry <- ToolRegistry$new()
+  registry <- ToolRegistry$new(tools_dir = tools_dir)
   
   # When both are provided, registry should take precedence
   expect_no_error(mcpServer$new(tools = tool_file, registry = registry))
@@ -83,17 +88,17 @@ test_that("mcp_server convenience function creates and returns a server instance
     mcpServer$public_methods$start <- original_start
   })
 
-  # Test with default tools
-  server_instance_default <- mcp_server()
-  expect_s3_class(server_instance_default, "mcpServer")
-  expect_true(server_instance_default$is_running(), "Server started via convenience function should be running")
-
-  # Test with a list of tools
-  server_instance_list <- mcp_server(tools = list())
-  expect_s3_class(server_instance_list, "mcpServer")
-  
-  # Test with registry
-  registry <- ToolRegistry$new()
+  # Test with explicit ToolRegistry (recommended approach)
+  tools_dir <- "/Users/santiago/projects/MCPR/inst"  # or use get_test_tools_dir() helper
+  registry <- ToolRegistry$new(tools_dir = tools_dir)
   server_instance_registry <- mcp_server(registry = registry)
   expect_s3_class(server_instance_registry, "mcpServer")
+  expect_true(server_instance_registry$is_running(), "Server with registry should be running")
+
+  # Test with empty registry (no tools)
+  empty_registry <- ToolRegistry$new(tools_dir = tempdir())  # empty directory
+  server_instance_empty <- mcp_server(registry = empty_registry)
+  expect_s3_class(server_instance_empty, "mcpServer")
+  expect_true(server_instance_empty$is_running(), "Server with empty registry should be running")
+  
 })

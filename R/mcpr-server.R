@@ -171,12 +171,12 @@ mcpServer <- R6::R6Class("mcpServer",
     #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
     #'   takes precedence over the `tools` parameter.
     #' @return A new `mcpServer` instance
-    initialize = function(tools = NULL, registry = NULL) {
+    initialize = function(tools = NULL, registry = NULL, .tools_dir = NULL) {
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         cli::cli_abort("registry must be a ToolRegistry instance")
       }
       if (is.null(tools) && is.null(registry)) {
-        pkg_tools_dir <- find.package("MCPR")
+        pkg_tools_dir <- if (!is.null(.tools_dir)) .tools_dir else find.package("MCPR")        
         if (dir.exists(pkg_tools_dir)) {
           registry <- ToolRegistry$new(
             tools_dir = pkg_tools_dir,

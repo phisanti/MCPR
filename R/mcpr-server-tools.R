@@ -15,32 +15,23 @@ set_server_tools <- function(x, registry = NULL, x_arg = rlang::caller_arg(x), c
       cli::cli_abort("registry must be a ToolRegistry instance", call = call)
     }
     registry_tools <- registry$get_tools()
-    the$server_tools <- c(registry_tools)
+    the$server_tools <- registry_tools  # ONLY registry tools
     return()
   }
   
-  if (is.null(x)) {
-    the$server_tools <- c(list(list_r_sessions_tool, select_r_session_tool, execute_r_code_tool))
-    return()
+  # No registry provided - use empty tools (complete migration)
+  the$server_tools <- list()
+  
+  # Warn about deprecated usage
+  if (!is.null(x)) {
+    cli::cli_warn(
+      c(
+        "The 'tools' parameter is deprecated.",
+        "i" = "Use ToolRegistry instead: mcpServer$new(registry = ToolRegistry$new(tools_dir = 'path'))"
+      ),
+      call = call
+    )
   }
-
-  force(x_arg)
-  
-  # COMMENTED OUT FOR MIGRATION TO TOOL REGISTRY - Legacy tool assignment
-  # the$server_tools <- c(x, list(list_r_sessions_tool, select_r_session_tool))
-  
-  # *** CHANGE: When legacy path is reached, only load built-in tools ***
-  # This ensures that if someone tries to use the old system, they get a warning 
-  # and only the core functionality, encouraging migration to ToolRegistry
-  # the$server_tools <- c(list(list_r_sessions_tool, select_r_session_tool, execute_r_code_tool))
-  
-  cli::cli_warn(
-    c(
-      "Legacy tool loading is deprecated and will be removed.",
-      "i" = "Please use ToolRegistry for tool discovery: registry <- ToolRegistry$new(); mcp_server(registry = registry)"
-    ),
-    call = call
-  )
 }
 
 #' Get the currently configured server tools

@@ -116,14 +116,6 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
         cli::cli_warn("Duplicate tool names: {.field {unique(duplicates)}}")
         return(FALSE)
       }
-      
-      reserved_names <- c("list_r_sessions", "select_r_session")
-      if (any(tool_names %in% reserved_names)) {
-        cli::cli_warn(
-          "The tool names {.field list_r_sessions} and {.field select_r_session} are reserved by {.pkg mcptools}."
-        )
-        return(FALSE)
-      }
           
       TRUE
     }
