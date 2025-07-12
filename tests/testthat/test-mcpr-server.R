@@ -1,9 +1,10 @@
+# Modify server initialization tests to handle auto-discovery gracefully
 test_that("mcpServer initializes correctly", {
-  server <- mcpServer$new()
-  expect_true(inherits(server, "mcpServer"),
-    info = "mcpServer$new() should return a mcpServer object"
-  )
-  expect_false(server$is_running(), "Server should not be running after initialization")
+  # Use explicit empty registry to avoid auto-discovery during tests
+  registry <- ToolRegistry$new(tools_dir = tempdir(), verbose = FALSE)
+  server <- mcpServer$new(registry = registry)
+  expect_true(inherits(server, "mcpServer"))
+  expect_false(server$is_running())
 })
 
 test_that("mcpServer accepts different tool configurations on initialization", {

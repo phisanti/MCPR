@@ -112,20 +112,19 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       
       tool_names <- vapply(tools, function(x) x@name, character(1))
       duplicates <- tool_names[duplicated(tool_names)]
-      
       if (length(duplicates) > 0) {
         cli::cli_warn("Duplicate tool names: {.field {unique(duplicates)}}")
         return(FALSE)
       }
       
       reserved_names <- c("list_r_sessions", "select_r_session")
-      conflicts <- intersect(tool_names, reserved_names)
-      
-      if (length(conflicts) > 0) {
-        cli::cli_warn("Reserved name conflicts: {.field {conflicts}}")
+      if (any(tool_names %in% reserved_names)) {
+        cli::cli_warn(
+          "The tool names {.field list_r_sessions} and {.field select_r_session} are reserved by {.pkg mcptools}."
+        )
         return(FALSE)
       }
-      
+          
       TRUE
     }
   ),
@@ -145,7 +144,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' )
     #' }
     initialize = function(tools_dir = "inst/mcpr_tools", 
-                         pattern = "\\.R$", 
+                         pattern = "tool-.*\\.R$", 
                          recursive = FALSE,
                          verbose = TRUE) {
       private$.tools_dir <- tools_dir
@@ -375,7 +374,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 #' @seealso \code{\link{ToolRegistry}} for the underlying class
 #' @export
 register_tools <- function(tools_dir = "inst/mcpr_tools", 
-                                       pattern = "\\.R$", 
+                                       pattern = "tool-.*\\.R$", 
                                        recursive = FALSE,
                                        verbose = TRUE) {
   registry <- ToolRegistry$new(tools_dir, pattern, recursive, verbose)

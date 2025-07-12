@@ -15,8 +15,7 @@ set_server_tools <- function(x, registry = NULL, x_arg = rlang::caller_arg(x), c
       cli::cli_abort("registry must be a ToolRegistry instance", call = call)
     }
     registry_tools <- registry$get_tools()
-    the$server_tools <- c(registry_tools, list(list_r_sessions_tool, select_r_session_tool))
-
+    the$server_tools <- c(registry_tools)
     return()
   }
   
@@ -26,37 +25,22 @@ set_server_tools <- function(x, registry = NULL, x_arg = rlang::caller_arg(x), c
   }
 
   force(x_arg)
-
-  if (looks_like_r_file(x)) {
-    x <- tryCatch(
-      source_tools(x),
-      error = function(err) {
-        cli::cli_abort(
-          "Sourcing the {.arg {x_arg}} file {.file x} failed.",
-          parent = err,
-          call = call
-        )
-      }
-    )
-  }
-
-  if (!rlang::is_list(x) || !all(vapply(x, inherits, logical(1), "ellmer::ToolDef"))) {
-    msg <- "{.arg {x_arg}} must be a list of tools created with {.fn ellmer::tool} or a .R file path that returns a list of ellmer tools when sourced."
-    if (inherits(x, "ellmer::ToolDef")) {
-      msg <- c(msg, "i" = "Did you mean to wrap {.arg {x_arg}} in `list()`?")
-    }
-    cli::cli_abort(msg, call = call)
-  }
-  # COMMENT OUT FOR MIGRATION TO TOOL REGISTRY
-  #reserved_names <- c("list_r_sessions", "select_r_session")
-  #if (any(vapply(x, \(tool) tool@name, character(1)) %in% reserved_names)) {
-  #  cli::cli_abort(
-  #    "The tool names {.field list_r_sessions} and {.field select_r_session} are reserved by {.pkg mcptools}.",
-  #    call = call
-  #  )
-  #}
-
-  the$server_tools <- c(x, list(list_r_sessions_tool, select_r_session_tool))
+  
+  # COMMENTED OUT FOR MIGRATION TO TOOL REGISTRY - Legacy tool assignment
+  # the$server_tools <- c(x, list(list_r_sessions_tool, select_r_session_tool))
+  
+  # *** CHANGE: When legacy path is reached, only load built-in tools ***
+  # This ensures that if someone tries to use the old system, they get a warning 
+  # and only the core functionality, encouraging migration to ToolRegistry
+  # the$server_tools <- c(list(list_r_sessions_tool, select_r_session_tool, execute_r_code_tool))
+  
+  cli::cli_warn(
+    c(
+      "Legacy tool loading is deprecated and will be removed.",
+      "i" = "Please use ToolRegistry for tool discovery: registry <- ToolRegistry$new(); mcp_server(registry = registry)"
+    ),
+    call = call
+  )
 }
 
 #' Get the currently configured server tools
@@ -73,4 +57,18 @@ get_mcptools_tools <- function() {
 get_mcptools_tools_as_json <- function() {
   tools <- lapply(unname(get_mcptools_tools()), tool_as_json)
   compact(tools)
+}
+
+
+tool_as_json <- function(tool) {
+  dummy_provider <- ellmer::Provider("dummy", "dummy", "dummy")
+  as_json <- getNamespace("ellmer")[["as_json"]]
+  inputSchema <- compact(as_json(dummy_provider, tool@arguments))
+  inputSchema$description <- NULL # This field is not needed
+
+  list(
+    name = tool@name,
+    description = tool@description,
+    inputSchema = inputSchema
+  )
 }

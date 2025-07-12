@@ -62,6 +62,11 @@ infer_ide <- function() {
   )
 }
 
+# NULL coalescing operator
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
 # Mocking for testing
 interactive <- NULL
 basename <- NULL

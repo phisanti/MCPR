@@ -180,8 +180,8 @@ mcpServer <- R6::R6Class("mcpServer",
         if (dir.exists(pkg_tools_dir)) {
           registry <- ToolRegistry$new(
             tools_dir = pkg_tools_dir,
-            pattern = "\\.R$",
-            recursive = TRUE,
+            pattern = "tool-.*\\.R$",
+            recursive = FALSE,
             verbose = TRUE
           )
           registry$search_tools()
