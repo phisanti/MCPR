@@ -1,6 +1,6 @@
 #' Tool Registry for MCPR
 #'
-#' The `ToolRegistry` class automatically discovers and registers R functions
+#' The `ToolRegistry` class automatically finds and registers R functions
 #' as tools for AI coding assistants within the MCPR framework. It scans R files
 #' for functions tagged with ` @keywords mcpr_tool` and converts their roxygen2
 #' documentation into ellmer tool specifications.
@@ -10,7 +10,7 @@
 #' parameter documentation into structured tool definitions. Tools are validated
 #' for naming conflicts and compatibility with the MCPR protocol.
 #'
-#' The discovery process looks for functions with the ` @keywords mcpr_tool` tag
+#' The registration process looks for functions with the ` @keywords mcpr_tool` tag
 #' and automatically converts ` @param` documentation into ellmer type specifications.
 #' Supported parameter types include: character/string, numeric/number, integer/int,
 #' logical/boolean/bool, list/array.
@@ -18,12 +18,12 @@
 #' @section Public Methods:
 #' \describe{
 #'   \item{`initialize(tools_dir, pattern, recursive, verbose)`}{Create new ToolRegistry instance}
-#'   \item{`search_tools(force_refresh = FALSE)`}{Scan directory and discover tools}
-#'   \item{`get_tools()`}{Return list of discovered tools}
+#'   \item{`search_tools(force_refresh = FALSE)`}{Scan directory and load tools}
+#'   \item{`get_tools()`}{Return list of loaded tools}
 #'   \item{`get_tool_summary()`}{Get data.frame summary of tools}
 #'   \item{`has_tool(name)`}{Check if tool exists by name}
 #'   \item{`get_tool(name)`}{Retrieve specific tool by name}
-#'   \item{`configure(tools_dir, pattern, recursive)`}{Update discovery configuration}
+#'   \item{`configure(tools_dir, pattern, recursive)`}{Update search configuration}
 #'   \item{`set_verbose(verbose)`}{Enable/disable verbose output}
 #' }
 #'
@@ -53,7 +53,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     .tools_dir = NULL,
     .pattern = NULL,
     .recursive = NULL,
-    .discovered_tools = NULL,
+    .tools = NULL,
     .tool_files = NULL,
     .verbose = NULL,
 
@@ -135,7 +135,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' @param tools_dir character. Directory path to scan for tool files. Default: "inst/mcpr_tools"
     #' @param pattern character. File pattern to match (regex). Default: "\\.R$"
     #' @param recursive logical. Whether to search subdirectories. Default: FALSE
-    #' @param verbose logical. Enable verbose output during discovery. Default: TRUE
+    #' @param verbose logical. Enable verbose output during the search. Default: TRUE
     #' @examples
     #' \dontrun{
     #' registry <- ToolRegistry$new(
@@ -152,13 +152,13 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       private$.pattern <- pattern
       private$.recursive <- recursive
       private$.verbose <- verbose
-      private$.discovered_tools <- list()
+      private$.tools <- list()
       private$.tool_files <- character()
     },
 
     #' @description Scan the configured directory for R files containing functions
     #' tagged with ` @keywords mcpr_tool` and convert them to ellmer tools.
-    #' @param force_refresh logical. Force re-discovery even if tools already cached. Default: FALSE
+    #' @param force_refresh logical. Force re-scanning even if tools are already cached. Default: FALSE
     #' @return list of ellmer tool objects
     #' @examples
     #' \dontrun{
@@ -167,8 +167,8 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' tools <- registry$search_tools(force_refresh = TRUE)
     #' }
     search_tools = function(force_refresh = FALSE) {
-      if (!force_refresh && length(private$.discovered_tools) > 0) {
-        return(private$.discovered_tools)
+      if (!force_refresh && length(private$.tools) > 0) {
+        return(private$.tools)
       }
       
       if (!dir.exists(private$.tools_dir)) {
@@ -194,15 +194,15 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       }
       
       if (private$.verbose) {
-        cli::cli_inform("Discovering tools from {length(private$.tool_files)} file{?s}...")
+        cli::cli_inform("Searching for tools in {length(private$.tool_files)} file{?s}...")
       }
       
-      private$.discovered_tools <- list()
+      private$.tools <- list()
       
       for (tool_file in private$.tool_files) {
         tryCatch({
           file_tools <- private$parse_file(tool_file)
-          private$.discovered_tools <- c(private$.discovered_tools, file_tools)
+          private$.tools <- c(private$.tools, file_tools)
           if (private$.verbose && length(file_tools) > 0) {
             cli::cli_inform("✓ Loaded {length(file_tools)} tool{?s} from {.file {basename(tool_file)}}")
           }
@@ -211,16 +211,16 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
         })
       }
       
-      private$validate_tools(private$.discovered_tools)
+      private$validate_tools(private$.tools)
       
       if (private$.verbose) {
-        cli::cli_inform("Successfully discovered {length(private$.discovered_tools)} tool{?s}.")
+        cli::cli_inform("Successfully found {length(private$.tools)} tool{?s}.")
       }
       
-      private$.discovered_tools
+      private$.tools
     },
 
-    #' @description Return the list of currently discovered tools without re-scanning.
+    #' @description Return the list of currently loaded tools without re-scanning.
     #' @return list of ellmer tool objects
     #' @examples
     #' \dontrun{
@@ -229,10 +229,10 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' tools <- registry$get_tools()
     #' }
     get_tools = function() {
-      private$.discovered_tools
+      private$.tools
     },
 
-    #' @description Generate a data.frame summary of discovered tools with names,
+    #' @description Generate a data.frame summary of loaded tools with names,
     #' descriptions, and parameter counts.
     #' @return data.frame with columns: name, description, parameters
     #' @examples
@@ -243,11 +243,11 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' print(summary)
     #' }
     get_tool_summary = function() {
-      if (length(private$.discovered_tools) == 0) {
+      if (length(private$.tools) == 0) {
         return(data.frame(name = character(), description = character(), stringsAsFactors = FALSE))
       }
       
-      tool_info <- lapply(private$.discovered_tools, function(tool) {
+      tool_info <- lapply(private$.tools, function(tool) {
         data.frame(
           name = tool@name,
           description = substr(tool@description, 1, 50),
@@ -259,7 +259,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       do.call(rbind, tool_info)
     },
 
-    #' @description Check if a tool with the specified name has been discovered.
+    #' @description Check if a tool with the specified name has been loaded.
     #' @param name character. Name of the tool to check
     #' @return logical. TRUE if tool exists, FALSE otherwise
     #' @examples
@@ -271,8 +271,8 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' }
     #' }
     has_tool = function(name) {
-      if (length(private$.discovered_tools) == 0) return(FALSE)
-      tool_names <- vapply(private$.discovered_tools, function(x) x@name, character(1))
+      if (length(private$.tools) == 0) return(FALSE)
+      tool_names <- vapply(private$.tools, function(x) x@name, character(1))
       name %in% tool_names
     },
 
@@ -289,13 +289,13 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' }
     #' }
     get_tool = function(name) {
-      for (tool in private$.discovered_tools) {
+      for (tool in private$.tools) {
         if (tool@name == name) return(tool)
       }
       NULL
     },
 
-    #' @description Update the discovery configuration and reset cached tools.
+    #' @description Update the search configuration and reset cached tools.
     #' @param tools_dir character. New directory path (optional)
     #' @param pattern character. New file pattern (optional)
     #' @param recursive logical. New recursive setting (optional)
@@ -313,12 +313,12 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       if (!is.null(pattern)) private$.pattern <- pattern
       if (!is.null(recursive)) private$.recursive <- recursive
       
-      private$.discovered_tools <- list()
+      private$.tools <- list()
       private$.tool_files <- character()
       invisible(self)
     },
 
-    #' @description Enable or disable verbose output during discovery operations.
+    #' @description Enable or disable verbose output during search operations.
     #' @param verbose logical. TRUE to enable verbose output, FALSE to disable
     #' @return self (invisibly) for method chaining
     #' @examples
@@ -333,14 +333,14 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 
     #' @description
     #' Prints a summary of the ToolRegistry, including the tools directory,
-    #' the number of discovered tools, and their names.
+    #' the number of loaded tools, and their names.
     #' @return The `ToolRegistry` object, invisibly.
     print = function() {
       cat("<ToolRegistry>\n")
       cat("  Directory: ", private$.tools_dir, "\n")
-      cat("  Tools: ", length(private$.discovered_tools), "\n")
-      if (length(private$.discovered_tools) > 0) {
-        names <- vapply(private$.discovered_tools, function(x) x@name, character(1))
+      cat("  Tools: ", length(private$.tools), "\n")
+      if (length(private$.tools) > 0) {
+        names <- vapply(private$.tools, function(x) x@name, character(1))
         cat("  Names: ", paste(names, collapse = ", "), "\n")
       }
       invisible(self)
@@ -350,13 +350,13 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 
 #' Register Tools (Convenience Function)
 #'
-#' A convenience function that creates a ToolRegistry instance, discovers tools,
-#' and returns the discovered tools in a single call.
+#' A convenience function that creates a ToolRegistry instance, finds tools,
+#' and returns the loaded tools in a single call.
 #'
 #' @param tools_dir character. Directory path to scan for tool files. Default: "inst/mcpr_tools"
 #' @param pattern character. File pattern to match (regex). Default: "\\.R$"
 #' @param recursive logical. Whether to search subdirectories. Default: FALSE
-#' @param verbose logical. Enable verbose output during discovery. Default: TRUE
+#' @param verbose logical. Enable verbose output during the tool search. Default: TRUE
 #' @return list of ellmer tool objects
 #'
 #' @examples

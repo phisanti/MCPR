@@ -116,8 +116,6 @@ mcpServer <- R6::R6Class("mcpServer",
       nanonext::write_stdout(data)
     },
 
-    # === REQUEST HANDLING LOGIC ===
-
     # Handle tool execution requests locally on the server
     handle_request = function(data) {
       prepared <- private$append_tool_fn(data)
@@ -177,6 +175,19 @@ mcpServer <- R6::R6Class("mcpServer",
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         cli::cli_abort("registry must be a ToolRegistry instance")
       }
+      if (is.null(tools) && is.null(registry)) {
+        pkg_tools_dir <- find.package("MCPR")
+        if (dir.exists(pkg_tools_dir)) {
+          registry <- ToolRegistry$new(
+            tools_dir = pkg_tools_dir,
+            pattern = "\\.R$",
+            recursive = TRUE,
+            verbose = TRUE
+          )
+          registry$search_tools()
+        }
+      }
+      tools = NULL
       set_server_tools(tools, registry = registry)
     },
 
@@ -294,6 +305,7 @@ mcpServer <- R6::R6Class("mcpServer",
 #' @return The server instance (invisibly)
 #' @export
 mcp_server <- function(tools = NULL, registry = NULL) {
+  # Auto-discovery logic is now handled in mcpServer$initialize()
   server <- mcpServer$new(tools = tools, registry = registry)
   server$start()
   invisible(server)
