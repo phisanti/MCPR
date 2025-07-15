@@ -138,7 +138,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     initialize = function(tools_dir = "inst/mcpr_tools", 
                          pattern = "tool-.*\\.R$", 
                          recursive = FALSE,
-                         verbose = TRUE) {
+                         verbose = FALSE) {
       private$.tools_dir <- tools_dir
       private$.pattern <- pattern
       private$.recursive <- recursive
