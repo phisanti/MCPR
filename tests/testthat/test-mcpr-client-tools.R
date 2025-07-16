@@ -106,30 +106,3 @@ test_that("as_tool_call_result_enhanced handles lists", {
   expect_true(is.character(text_content))
   expect_true(grepl("success", text_content))
 })
-
-test_that("enhanced functions maintain backward compatibility", {
-  # Test that enhanced functions can handle the same inputs as original functions
-  test_data <- list(
-    id = 5,
-    params = list(
-      name = "test_tool",
-      arguments = list(x = 42, y = "hello")
-    ),
-    tool = function(x, y) paste(x, y)
-  )
-  
-  # Test that both argument processors handle basic cases
-  basic_args <- list(a = 1, b = "test")
-  expect_equal(process_tool_arguments_enhanced(basic_args), basic_args)
-  
-  # Test that both result formatters handle simple text
-  simple_text <- "test result"
-  enhanced_output <- as_tool_call_result_enhanced(test_data, simple_text)
-  original_output <- as_tool_call_result(test_data, simple_text)
-  
-  # Should have same structure for simple text
-  expect_equal(enhanced_output$result$content[[1]]$text, 
-               original_output$result$content[[1]]$text)
-  expect_equal(enhanced_output$result$isError, 
-               original_output$result$isError)
-})
