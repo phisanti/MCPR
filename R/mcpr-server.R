@@ -170,6 +170,7 @@ mcpServer <- R6::R6Class("mcpServer",
     #'   }
     #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
     #'   takes precedence over the `tools` parameter.
+    #' @param .tools_dir Internal parameter for specifying tools directory path.
     #' @return A new `mcpServer` instance
     initialize = function(tools = NULL, registry = NULL, .tools_dir = NULL) {
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
@@ -182,7 +183,7 @@ mcpServer <- R6::R6Class("mcpServer",
             tools_dir = pkg_tools_dir,
             pattern = "tool-.*\\.R$",
             recursive = FALSE,
-            verbose = TRUE
+            verbose = FALSE
           )
           registry$search_tools()
         }
