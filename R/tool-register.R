@@ -368,7 +368,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 register_tools <- function(tools_dir = "inst/mcpr_tools", 
                                        pattern = "tool-.*\\.R$", 
                                        recursive = FALSE,
-                                       verbose = TRUE) {
+                                       verbose = FALSE) {
   registry <- ToolRegistry$new(tools_dir, pattern, recursive, verbose)
   registry$search_tools()
 }
