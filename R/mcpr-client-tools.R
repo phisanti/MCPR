@@ -1,3 +1,157 @@
+#' @title Decode Tool Arguments
+#' 
+#' @description
+#' Processes JSON arguments from MCP clients, reconstructing R object types
+#' that may have been serialized during transmission. Handles both legacy
+#' argument formats and enhanced type-aware arguments.
+#'
+#' @details
+#' This function addresses the challenge of maintaining R object types when
+#' arguments are transmitted via JSON-RPC. It detects MCP type markers
+#' (\_mcp_type) and reconstructs original R objects accordingly. For legacy
+#' compatibility, it falls back to the original argument structure when no
+#' type markers are present.
+#'
+#' @param arguments Named list of function arguments from JSON-RPC request
+#'
+#' @return Reconstructed R objects with proper types, or original arguments
+#'   if no type reconstruction is needed
+#'
+#' @examples
+#' \dontrun{
+#' # Arguments with MCP type markers
+#' args_with_types <- list(
+#'   data = list(
+#'     `_mcp_type` = "numeric",
+#'     value = c(1, 2, 3, 4, 5)
+#'   ),
+#'   method = "mean"
+#' )
+#' 
+#' processed <- decode_tool_args(args_with_types)
+#' # Returns: list(data = c(1, 2, 3, 4, 5), method = "mean")
+#' 
+#' # Legacy arguments without type markers
+#' legacy_args <- list(
+#'   data = list(1, 2, 3, 4, 5),  # unnamed list
+#'   method = "mean"
+#' )
+#' 
+#' processed <- decode_tool_args(legacy_args)
+#' # Applies legacy coercion for unnamed lists
+#' }
+#'
+#' @keywords internal
+#' @seealso \code{\link{from_mcp_json}} for type reconstruction details
+decode_tool_args <- function(arguments) {
+  if (is.list(arguments)) {
+    # Check if any arguments have MCP type markers
+    has_mcp_types <- any(sapply(arguments, function(x) {
+      is.list(x) && !is.null(x[["_mcp_type"]])
+    }))
+    
+    if (has_mcp_types) {
+      return(from_mcp_json(arguments))
+    }
+  }
+  
+  # Fallback
+  return(arguments)
+}
+
+#' @title Encode Tool Results
+#' @description
+#' Formats R function results into MCP-compatible response structures,
+#' preserving type information and handling various R object types
+#' appropriately for JSON-RPC transmission.
+#'
+#' @details
+#' This function handles multiple result types:
+#' \itemize{
+#'   \item Single character strings: Direct text content
+#'   \item Character vectors: Joined with newlines
+#'   \item Complex objects: Serialized with type preservation
+#'   \item Error results: Marked with isError flag
+#' }
+#'
+#' The function ensures all results are wrapped in proper MCP content
+#' structures with appropriate type annotations.
+#'
+#' @param data Original request data containing request ID
+#' @param result R object returned from tool execution
+#'
+#' @return JSON-RPC response object with:
+#'   \itemize{
+#'     \item \code{id}: Request identifier from original request
+#'     \item \code{result$content}: Array of content objects
+#'     \item \code{result$isError}: Boolean error flag
+#'   }
+#'
+#' @examples
+#' \dontrun{
+#' # Simple text result
+#' request_data <- list(id = 1)
+#' result <- "Analysis complete"
+#' response <- encode_tool_results(request_data, result)
+#' 
+#' # Character vector result
+#' result <- c("Line 1", "Line 2", "Line 3")
+#' response <- encode_tool_results(request_data, result)
+#' 
+#' # Complex object result
+#' result <- data.frame(x = 1:5, y = letters[1:5])
+#' response <- encode_tool_results(request_data, result)
+#' }
+#'
+#' @keywords internal
+#' @seealso \code{\link{mcp_serialize}} for complex object serialization
+encode_tool_results <- function(data, result) {
+  # Handle ellmer::ContentToolResult objects first
+  is_error <- FALSE
+  
+  # For simple text results
+  if (is.character(result) && length(result) == 1) {
+    return(jsonrpc_response(
+      data$id,
+      list(
+        content = list(list(
+          type = "text",
+          text = result  # Use result directly, not paste(result, collapse = "\n")
+        )),
+        isError = is_error
+      )
+    ))
+  }
+  
+  # For character vectors, join with newlines
+  if (is.character(result) && length(result) > 1) {
+    return(jsonrpc_response(
+      data$id,
+      list(
+        content = list(list(
+          type = "text",
+          text = paste(result, collapse = "\n")
+        )),
+        isError = is_error
+      )
+    ))
+  }
+  
+  # For complex objects, use rich type conversion
+  serialized_result <- mcp_serialize(result, pretty = TRUE)
+  
+  jsonrpc_response(
+    data$id,
+    list(
+      content = list(list(
+        type = "text",
+        text = serialized_result
+      )),
+      isError = is_error
+    )
+  )
+}
+
 #' Execute MCP Tool Call Request
 #'
 #' @description
@@ -50,254 +204,31 @@
 #' }
 #'
 #' @keywords internal
-#' @seealso \code{\link{as_tool_call_result}} for result formatting
+#' @seealso \code{\link{encode_tool_results}} for result formatting
 execute_tool_call <- function(data) {
   tool_name <- data$params$name
-  args <- data$params$arguments
-
-  # Argument coercion
-  args <- lapply(args, function(x) {
-    if (is.list(x) && is.null(names(x))) {
-      unlist(x, use.names = FALSE)
-    } else {
-      x
-    }
-  })
+  
+  # Enhanced argument processing with type reconstruction
+  args <- decode_tool_args(data$params$arguments)
+  
+  # Legacy fallback for compatibility
+  if (identical(args, data$params$arguments)) {
+    args <- lapply(args, function(x) {
+      if (is.list(x) && is.null(names(x))) {
+        unlist(x, use.names = FALSE)
+      } else {
+        x
+      }
+    })
+  }
 
   tryCatch(
-    as_tool_call_result(data, do.call(data$tool, args)),
+    encode_tool_results(data, do.call(data$tool, args)),
     error = function(e) {
       jsonrpc_response(
         data$id,
         error = list(code = -32603, message = conditionMessage(e))
       )
     }
-  )
-}
-
-
-#' Convert Tool Result to MCP Response Format
-#'
-#' @description
-#' Transforms tool execution results into the standardized MCP \code{tools/call}
-#' response format. This function ensures consistent response structure across
-#' all tool executions and properly handles both successful results and error
-#' conditions from \code{ellmer::ContentToolResult} objects.
-#'
-#' @details
-#' The function processes different result types:
-#' \itemize{
-#'   \item \strong{Standard results}: Converted to text content blocks
-#'   \item \strong{ellmer::ContentToolResult}: Extracts value or error appropriately
-#'   \item \strong{Vector results}: Joined with newlines for readability
-#' }
-#'
-#' The \code{isError} field in the response allows MCP clients to distinguish
-#' between successful tool execution and tool-level errors, enabling appropriate
-#' handling in AI agent workflows.
-#'
-#' @param data The original JSON-RPC request object containing the request ID
-#' @param result The tool execution result, which can be:
-#'   \itemize{
-#'     \item Any R object (converted to character representation)
-#'     \item An \code{ellmer::ContentToolResult} object with value/error slots
-#'   }
-#'
-#' @return A JSON-RPC response object structured as:
-#'   \itemize{
-#'     \item \code{content}: List of content blocks with type and text
-#'     \item \code{isError}: Boolean indicating if result represents an error
-#'   }
-#'
-#' @examples
-#' \dontrun{
-#' # Standard successful result
-#' request <- list(id = 1)
-#' result <- c("Mean: 2.5", "SD: 1.3")
-#' response <- as_tool_call_result(request, result)
-#' 
-#' # ellmer ContentToolResult with error
-#' error_result <- ellmer::ContentToolResult(error = "Invalid input")
-#' error_response <- as_tool_call_result(request, error_result)
-#' }
-#'
-#' @keywords internal
-#' @seealso \code{\link{execute_tool_call}} for the main execution workflow
-as_tool_call_result <- function(data, result) {
-  is_error <- FALSE
-  if (inherits(result, "ellmer::ContentToolResult")) {
-    is_error <- !is.null(result@error)
-    result <- result@value %||% result@error
-  }
-
-  jsonrpc_response(
-    data$id,
-    list(
-      content = list(
-        list(
-          type = "text",
-          text = paste(result, collapse = "\n")
-        )
-      ),
-      isError = is_error
-    )
-  )
-}
-
-
-#' Convert MCP Tool Schema to Ellmer Type Definitions
-#'
-#' @description
-#' Transforms MCP tool input schemas into \code{ellmer} type definitions for
-#' R function integration. This function bridges the gap between JSON Schema
-#' specifications used in MCP and the structured type system required by
-#' the \code{ellmer} package for AI tool integration.
-#'
-#' @details
-#' The conversion process involves:
-#' \itemize{
-#'   \item Extracting properties and required fields from the input schema
-#'   \item Mapping each property to an appropriate \code{ellmer} type
-#'   \item Preserving parameter descriptions and requirement constraints
-#'   \item Handling nested objects and array types recursively
-#' }
-#'
-#' This function is essential for dynamic tool registration where MCP tool
-#' definitions need to be converted to \code{ellmer} tools for R integration.
-#'
-#' @param tool A tool definition object containing:
-#'   \itemize{
-#'     \item \code{$inputSchema$properties}: Named list of parameter definitions
-#'     \item \code{$inputSchema$required}: Character vector of required parameter names
-#'   }
-#'
-#' @return A named list where:
-#'   \itemize{
-#'     \item Names correspond to parameter names from the input schema
-#'     \item Values are \code{ellmer} type objects (e.g., \code{type_string}, \code{type_number})
-#'   }
-#'
-#' @examples
-#' \dontrun{
-#' # MCP tool schema conversion
-#' mcp_tool <- list(
-#'   inputSchema = list(
-#'     properties = list(
-#'       filename = list(type = "string", description = "File path"),
-#'       count = list(type = "integer", description = "Number of lines")
-#'     ),
-#'     required = c("filename")
-#'   )
-#' )
-#' 
-#' ellmer_types <- as_ellmer_types(mcp_tool)
-#' # Returns list with ellmer type definitions
-#' }
-#'
-#' @keywords internal
-#' @seealso \code{\link{as_ellmer_type}} for individual property conversion
-as_ellmer_types <- function(tool) {
-  properties <- tool$inputSchema$properties
-  required_fields <- tool$inputSchema$required
-  result <- list()
-  for (prop_name in names(properties)) {
-    result[[prop_name]] <- as_ellmer_type(
-      prop_name,
-      properties[[prop_name]],
-      required_fields
-    )
-  }
-  result
-}
-
-
-#' Convert Single Property to Ellmer Type
-#'
-#' @description
-#' Converts an individual JSON Schema property definition to the corresponding
-#' \code{ellmer} type object. This function handles the detailed mapping between
-#' JSON Schema type specifications and R's type system as implemented in the
-#' \code{ellmer} package.
-#'
-#' @details
-#' Supported type mappings include:
-#' \itemize{
-#'   \item \strong{string}: \code{ellmer::type_string}
-#'   \item \strong{number}: \code{ellmer::type_number}
-#'   \item \strong{integer}: \code{ellmer::type_integer}
-#'   \item \strong{boolean}: \code{ellmer::type_boolean}
-#'   \item \strong{array}: \code{ellmer::type_array} with recursive item type detection
-#'   \item \strong{object}: \code{ellmer::type_object} with nested property handling
-#' }
-#'
-#' The function preserves important metadata including descriptions, required
-#' status, and nested structure constraints. For unsupported types, it defaults
-#' to \code{type_string} to ensure compatibility.
-#'
-#' @param prop_name Character string representing the parameter name
-#' @param prop_def List containing the JSON Schema property definition with:
-#'   \itemize{
-#'     \item \code{$type}: Type specification (string, number, integer, etc.)
-#'     \item \code{$description}: Human-readable parameter description
-#'     \item \code{$items}: For arrays, the schema for array elements
-#'     \item \code{$properties}: For objects, nested property definitions
-#'   }
-#' @param required_fields Character vector of required parameter names for
-#'   determining if this property is mandatory
-#'
-#' @return An \code{ellmer} type object appropriate for the specified JSON Schema type,
-#'   or \code{NULL} if the type specification is invalid
-#'
-#' @examples
-#' \dontrun{
-#' # String parameter conversion
-#' string_prop <- list(type = "string", description = "User name")
-#' ellmer_string <- as_ellmer_type("username", string_prop, c("username"))
-#' 
-#' # Array parameter conversion
-#' array_prop <- list(
-#'   type = "array",
-#'   description = "List of values",
-#'   items = list(type = "number")
-#' )
-#' ellmer_array <- as_ellmer_type("values", array_prop, character())
-#' }
-#'
-#' @keywords internal
-#' @seealso \code{\link{as_ellmer_types}} for processing complete tool schemas
-as_ellmer_type <- function(prop_name, prop_def, required_fields = character()) {
-  type <- prop_def$type
-  description <- prop_def$description
-  is_required <- prop_name %in% required_fields
-  if (length(type) == 0) return(NULL)
-
-  switch(type,
-    "string" = ellmer::type_string(description = description, required = is_required),
-    "number" = ellmer::type_number(description = description, required = is_required),
-    "integer" = ellmer::type_integer(description = description, required = is_required),
-    "boolean" = ellmer::type_boolean(description = description, required = is_required),
-    "array" = {
-      items_type <- if (!is.null(prop_def$items)) {
-        as_ellmer_type("", prop_def$items, required_fields)
-      } else {
-        ellmer::type_string()
-      }
-      ellmer::type_array(description = description, items = items_type, required = is_required)
-    },
-    "object" = {
-      obj_args <- list(.description = description, .required = is_required)
-      if (!is.null(prop_def$properties)) {
-        for (obj_prop_name in names(prop_def$properties)) {
-          obj_args[[obj_prop_name]] <- as_ellmer_type(
-            obj_prop_name,
-            prop_def$properties[[obj_prop_name]],
-            required_fields
-          )
-        }
-      }
-      do.call(ellmer::type_object, obj_args)
-    },
-    # Default fallback
-    ellmer::type_string(description = description, required = is_required)
   )
 }
