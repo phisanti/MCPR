@@ -32,11 +32,11 @@
 #' server$start()  # Blocking call
 #' 
 #' # Server with custom tools
-#' library(ellmer)
-#' my_tool <- tool(
-#'   mean,
-#'   "Calculate arithmetic mean",
-#'   x = type_number("Numeric vector")
+#' my_tool <- list(
+#'   name = "mean",
+#'   description = "Calculate arithmetic mean",
+#'   fun = mean,
+#'   arguments = list(x = "numeric")
 #' )
 #' server <- mcpServer$new(tools = list(my_tool))
 #' server$start()
@@ -164,7 +164,7 @@ mcpServer <- R6::R6Class("mcpServer",
     #' 
     #' @param tools Either:
     #'   \itemize{
-    #'     \item A list of tools created with `ellmer::tool()`
+    #'     \item A list of MCPR tool objects
     #'     \item A character path to an R file returning a list of tools
     #'     \item `NULL` to use only built-in tools
     #'   }
@@ -290,11 +290,11 @@ mcpServer <- R6::R6Class("mcpServer",
 #' mcp_server(tools = "inst/tools/analysis_tools.R")
 #' 
 #' # Server with inline tools
-#' library(ellmer)
-#' summary_tool <- tool(
-#'   summary,
-#'   "Generate object summary",
-#'   object = type_any("R object to summarize")
+#' summary_tool <- list(
+#'   name = "summary",
+#'   description = "Generate object summary",
+#'   fun = summary,
+#'   arguments = list(object = "any")
 #' )
 #' mcp_server(tools = list(summary_tool))
 #' 

@@ -106,7 +106,6 @@ decode_tool_args <- function(arguments) {
 #' @keywords internal
 #' @seealso \code{\link{mcp_serialize}} for complex object serialization
 encode_tool_results <- function(data, result) {
-  # Handle ellmer::ContentToolResult objects first
   is_error <- FALSE
   
   # For simple text results
