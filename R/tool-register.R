@@ -3,7 +3,7 @@
 #' The `ToolRegistry` class automatically finds and registers R functions
 #' as tools for AI coding assistants within the MCPR framework. It scans R files
 #' for functions tagged with ` @keywords mcpr_tool` and converts their roxygen2
-#' documentation into ellmer tool specifications.
+#' documentation into structured tool specifications for MCPR.
 #'
 #' @details
 #' This class uses roxygen2 parsing to extract function metadata and convert
@@ -11,7 +11,7 @@
 #' for naming conflicts and compatibility with the MCPR protocol.
 #'
 #' The registration process looks for functions with the ` @keywords mcpr_tool` tag
-#' and automatically converts ` @param` documentation into ellmer type specifications.
+#' and automatically converts ` @param` documentation into MCPR type specifications.
 #' Supported parameter types include: character/string, numeric/number, integer/int,
 #' logical/boolean/bool, list/array.
 #'
@@ -148,9 +148,9 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     },
 
     #' @description Scan the configured directory for R files containing functions
-    #' tagged with ` @keywords mcpr_tool` and convert them to ellmer tools.
-    #' @param force_refresh logical. Force re-scanning even if tools are already cached. Default: FALSE
-    #' @return list of ellmer tool objects
+#' tagged with ` @keywords mcpr_tool` and convert them to MCPR tool objects.
+#' @param force_refresh logical. Force re-scanning even if tools are already cached. Default: FALSE
+#' @return list of MCPR tool objects
     #' @examples
     #' \dontrun{
     #' registry <- ToolRegistry$new()
@@ -212,7 +212,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     },
 
     #' @description Return the list of currently loaded tools without re-scanning.
-    #' @return list of ellmer tool objects
+#' @return list of MCPR tool objects
     #' @examples
     #' \dontrun{
     #' registry <- ToolRegistry$new()
@@ -269,7 +269,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 
     #' @description Retrieve a specific tool by name.
     #' @param name character. Name of the tool to retrieve
-    #' @return ellmer tool object or NULL if not found
+#' @return MCPR tool object or NULL if not found
     #' @examples
     #' \dontrun{
     #' registry <- ToolRegistry$new()
@@ -345,10 +345,10 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 #' and returns the loaded tools in a single call.
 #'
 #' @param tools_dir character. Directory path to scan for tool files. Default: "inst/mcpr_tools"
-#' @param pattern character. File pattern to match (regex). Default: "\\.R$"
+#' @param pattern character. File pattern to match (regex). Default: "tool-.*\\.R$"
 #' @param recursive logical. Whether to search subdirectories. Default: FALSE
 #' @param verbose logical. Enable verbose output during the tool search. Default: TRUE
-#' @return list of ellmer tool objects
+#' @return list of MCPR tool objects
 #'
 #' @examples
 #' \dontrun{
