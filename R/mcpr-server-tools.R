@@ -2,7 +2,7 @@
 
 #' Set the tools that the MCP server will provide
 #'
-#' @param x A list of tools created with `ellmer::tool`, or a path to an R
+#' @param x A list of tools created with `tool()`, or a path to an R
 #'   file that returns such a list. If `NULL`, default tools are used.
 #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
 #'   takes precedence over the `x` parameter.
@@ -36,10 +36,10 @@ set_server_tools <- function(x, registry = NULL, x_arg = rlang::caller_arg(x), c
 
 #' Get the currently configured server tools
 #'
-#' @return A named list of `ellmer::ToolDef` objects.
+#' @return A named list of `ToolDef` objects.
 get_mcptools_tools <- function() {
   res <- the$server_tools
-  stats::setNames(res, vapply(res, \(x) x@name, character(1)))
+  stats::setNames(res, vapply(res, \(x) x$name, character(1)))
 }
 
 #' Get server tools formatted as a JSON list for the MCP protocol
@@ -52,14 +52,12 @@ get_mcptools_tools_as_json <- function() {
 
 
 tool_as_json <- function(tool) {
-  dummy_provider <- ellmer::Provider("dummy", "dummy", "dummy")
-  as_json <- getNamespace("ellmer")[["as_json"]]
-  inputSchema <- compact(as_json(dummy_provider, tool@arguments))
+  inputSchema <- convert_arguments_to_schema(tool$arguments)
   inputSchema$description <- NULL # This field is not needed
 
   list(
-    name = tool@name,
-    description = tool@description,
+    name = tool$name,
+    description = tool$description,
     inputSchema = inputSchema
   )
 }
