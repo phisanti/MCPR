@@ -153,7 +153,7 @@ mcpServer <- R6::R6Class("mcpServer",
           class = "jsonrpc_error"
         ))
       }
-      data$tool <- get_mcptools_tools()[[tool_name]]@fun
+      data$tool <- get_mcptools_tools()[[tool_name]]$fun
       data
     }
   ),
