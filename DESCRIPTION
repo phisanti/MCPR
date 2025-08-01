@@ -23,7 +23,6 @@ Imports:
     tools,
     promises,
     roxygen2,
-    ellmer,
     utils,
     grDevices,
     methods,
@@ -31,3 +30,22 @@ Imports:
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Collate: 
+    'aaa.R'
+    'tool-execution.R'
+    'mcpr-client.R'
+    'mcpr-package.R'
+    'mcpr-server-messenger.R'
+    'mcpr-server-tools.R'
+    'mcpr-server.R'
+    'mcpr-session.R'
+    'protocol.R'
+    'tool-definition-validators.R'
+    'type-conversion-utilities.R'
+    'utils.R'
+    'tool-definition.R'
+    'tool-register.R'
+    'tool-registry-helpers.R'
+    'type-conversion-from-json.R'
+    'type-conversion-serializers.R'
+    'type-conversion-to-json.R'

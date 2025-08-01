@@ -78,9 +78,6 @@ mcpClient <- R6::R6Class("mcpClient",
     #' client <- mcpClient$new(config = "~/.config/mcptools/config.json")
     #' }
     initialize = function(config = NULL) {
-      # TODO: Add logging configuration
-      # TODO: Implement connection pooling
-      # TODO: Add performance monitoring
       private$.servers <- list()
       private$.server_processes <- list()
       
@@ -93,7 +90,6 @@ mcpClient <- R6::R6Class("mcpClient",
       
       private$.config_path <- config
       
-      # TODO: Implement lazy loading - don't connect until needed
       if (file.exists(config)) {
         private$.config <- private$read_mcp_config(config)
       }
@@ -110,9 +106,6 @@ mcpClient <- R6::R6Class("mcpClient",
     #' client <- mcpClient$new()$connect_servers()
     #' }
     connect_servers = function() {
-      # TODO: Implement parallel connection establishment
-      # TODO: Add connection retry logic
-      # TODO: Add server discovery mechanisms
       if (is.null(private$.config) || length(private$.config) == 0) {
         cli::cli_warn("No servers configured")
         return(invisible(self))
@@ -196,16 +189,14 @@ mcpClient <- R6::R6Class("mcpClient",
     #' })
     #' }
     call_tool = function(..., server, tool) {
-      # TODO: Add tool execution logging
-      server_process <- private$.servers[[server]]$process
-      private$send_and_receive(
-        server_process,
-        private$mcp_request_tool_call(
-          id = private$jsonrpc_id(server),
-          tool = tool,
-          arguments = list(...)
-        )
-      )
+      # Delegate to unified execution engine
+      execute_tool_call(create_execution_context(
+        id = private$next_id(server),
+        tool_name = tool,
+        arguments = list(...),
+        process = private$.servers[[server]]$process,
+        client = self
+      ))
     },
     
     #' Get server status
@@ -224,9 +215,6 @@ mcpClient <- R6::R6Class("mcpClient",
     #' }
     #' }
     get_server_status = function() {
-      # TODO: Implement comprehensive health checks
-      # TODO: Add server performance metrics
-      # TODO: Add server capability reporting
       lapply(private$.servers, function(server) {
         list(
           name = server$name,
@@ -278,39 +266,13 @@ mcpClient <- R6::R6Class("mcpClient",
     .config_path = NULL,
     .config = NULL,
     
-    send_and_receive = function(process, message) {
-      # TODO: Add timeout configuration
-      # TODO: Implement proper error handling for network issues
-      # TODO: Add message queuing for high-frequency calls
-      json_msg <- jsonlite::toJSON(message, auto_unbox = TRUE)
-      self$log_communication(paste("FROM CLIENT:", json_msg))
-      process$write_input(paste0(json_msg, "\n"))
-
-      output <- NULL
-      attempts <- 0
-      max_attempts <- 20 # TODO: Make this configurable
-
-      while (length(output) == 0 && attempts < max_attempts) {
-        Sys.sleep(0.2) # TODO: Implement exponential backoff
-        output <- process$read_output_lines()
-        attempts <- attempts + 1
-      }
-
-      if (!is.null(output) && length(output) > 0) {
-        self$log_communication(paste("FROM SERVER:", output[1]))
-        return(jsonlite::parse_json(output[1]))
-      }
-
-      self$log_communication(paste("ALERT: No response received after", attempts, "attempts"))
-      return(NULL)
-    },
     
     add_mcp_server = function(process, name) {
       # TODO: Add server validation before adding
       # TODO: Implement server capability negotiation
       # TODO: Add server metadata storage
-      response_initialize <- private$send_and_receive(process, private$mcp_request_initialize())
-      response_tools_list <- private$send_and_receive(process, private$mcp_request_tools_list())
+      response_initialize <- send_and_receive_message(process, private$mcp_request_initialize(), self)
+      response_tools_list <- send_and_receive_message(process, private$mcp_request_tools_list(), self)
 
       private$.servers[[name]] <- list(
         name = name,
@@ -380,28 +342,8 @@ mcpClient <- R6::R6Class("mcpClient",
       )
     },
     
-    mcp_request_tool_call = function(id, tool, arguments) {
-      # TODO: Add argument schema validation
-      # TODO: Implement streaming for large responses
-      if (length(arguments) == 0) {
-        params <- list(name = tool)
-      } else {
-        params <- list(
-          name = tool,
-          arguments = arguments
-        )
-      }
-      list(
-        jsonrpc = "2.0",
-        id = id,
-        method = "tools/call",
-        params = params
-      )
-    },
-    
-    jsonrpc_id = function(server_name) {
-      # TODO: Implement proper ID management with overflow protection
-      # TODO: Add per-server ID tracking
+    next_id = function(server_name) {
+      # Simple ID management - increment and return
       current_id <- private$.servers[[server_name]]$id
       private$.servers[[server_name]]$id <- current_id + 1
       current_id
