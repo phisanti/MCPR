@@ -59,7 +59,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 
     # @description Parses a single R file to find functions with `@keywords mcpr_tool`.
     # @param file_path character. The path to the R file.
-    # @return A list of `ellmer::tool` objects found in the file.
+    # @return A list of `ToolDef` objects found in the file.
     parse_file = function(file_path) {
       if (!file.exists(file_path)) {
         cli::cli_abort("Tool file {.file {file_path}} does not exist.")
@@ -105,12 +105,12 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     },
 
     # @description Checks for duplicate names and conflicts with reserved names.
-    # @param tools A list of `ellmer::tool` objects.
+    # @param tools A list of `ToolDef` objects.
     # @return `TRUE` if validation passes, `FALSE` otherwise.
     validate_tools = function(tools) {
       if (length(tools) == 0) return(TRUE)
       
-      tool_names <- vapply(tools, function(x) x@name, character(1))
+      tool_names <- vapply(tools, function(x) x$name, character(1))
       duplicates <- tool_names[duplicated(tool_names)]
       if (length(duplicates) > 0) {
         cli::cli_warn("Duplicate tool names: {.field {unique(duplicates)}}")
@@ -240,9 +240,9 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       
       tool_info <- lapply(private$.tools, function(tool) {
         data.frame(
-          name = tool@name,
-          description = substr(tool@description, 1, 50),
-          parameters = length(tool@arguments),
+          name = tool$name,
+          description = substr(tool$description, 1, 50),
+          parameters = length(tool$arguments),
           stringsAsFactors = FALSE
         )
       })
@@ -263,7 +263,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' }
     has_tool = function(name) {
       if (length(private$.tools) == 0) return(FALSE)
-      tool_names <- vapply(private$.tools, function(x) x@name, character(1))
+      tool_names <- vapply(private$.tools, function(x) x$name, character(1))
       name %in% tool_names
     },
 
@@ -281,7 +281,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' }
     get_tool = function(name) {
       for (tool in private$.tools) {
-        if (tool@name == name) return(tool)
+        if (tool$name == name) return(tool)
       }
       NULL
     },
@@ -331,7 +331,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       cat("  Directory: ", private$.tools_dir, "\n")
       cat("  Tools: ", length(private$.tools), "\n")
       if (length(private$.tools) > 0) {
-        names <- vapply(private$.tools, function(x) x@name, character(1))
+        names <- vapply(private$.tools, function(x) x$name, character(1))
         cat("  Names: ", paste(names, collapse = ", "), "\n")
       }
       invisible(self)

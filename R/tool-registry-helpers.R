@@ -1,9 +1,9 @@
 #' Create a Tool from a Roxygen Block
-#' @description Constructs an `ellmer::tool` from a parsed roxygen block and its function.
+#' @description Constructs a `ToolDef` from a parsed roxygen block and its function.
 #' @param block A roxygen2 block object.
 #' @param env The environment where the function is defined.
 #' @param file_path The path of the file being parsed (for logging).
-#' @return An `ellmer::tool` object or NULL on failure.
+#' @return A `ToolDef` object or NULL on failure.
 create_tool_from_block <- function(block, env, file_path) {
   # Extract function name from the block object
   func_name <- block$object$alias
@@ -24,15 +24,16 @@ create_tool_from_block <- function(block, env, file_path) {
   
   # Extract parameters
   param_tags <- Filter(function(tag) inherits(tag, "roxy_tag_param"), block$tags)
-  ellmer_args <- convert_to_schema(param_tags)
+  mcpr_args <- convert_to_schema(param_tags)
   
   # Create the tool
   tryCatch({
-    tool_args <- c(
-      list(.fun = func, .description = description, .name = func_name),
-      ellmer_args
+    tool(
+      fun = func, 
+      description = description, 
+      name = func_name,
+      arguments = mcpr_args
     )
-    do.call(ellmer::tool, tool_args)
   }, error = function(e) {
     cli::cli_warn("Failed to create tool for {.fn {func_name}}: {conditionMessage(e)}")
     NULL
@@ -60,12 +61,12 @@ extract_description <- function(block) {
   return("No description available")
 }
 
-#' Convert Roxygen Params to Ellmer Types
-#' @description Converts a list of `@param` tags into a list of `ellmer` type definitions.
+#' Convert Roxygen Params to MCPR Types
+#' @description Converts a list of `@param` tags into a list of MCPR type definitions.
 #' @param param_tags A list of `roxy_tag_param` objects.
-#' @return A named list of `ellmer` type objects.
+#' @return A named list of MCPR type objects.
 convert_to_schema <- function(param_tags) {
-  ellmer_args <- list()
+  mcpr_args <- list()
   
   for (param_tag in param_tags) {
     # Parse the val field which contains "param_name type description"
@@ -92,31 +93,32 @@ convert_to_schema <- function(param_tags) {
       param_desc <- type_and_desc
     }
     
-    ellmer_args[[param_name]] <- map_type_schema(type_str, param_desc)
+    mcpr_args[[param_name]] <- map_type_schema(type_str, param_desc)
   }
   
-  ellmer_args
+  mcpr_args
 }
 
-#' Convert Type String to Ellmer Type
-#' @description Converts a string (e.g., "numeric") to an `ellmer` type object.
+
+#' Convert Type String to MCPR Type
+#' @description Converts a string (e.g., "numeric") to a MCPR type object.
 #' @param type_str The type string (e.g., "character", "numeric").
 #' @param description The parameter description.
-#' @return An `ellmer` type object.
+#' @return A MCPR type object.
 map_type_schema <- function(type_str, description) {
   switch(tolower(type_str),
-    "character" = , "string" = ellmer::type_string(description = description),
+    "character" = , "string" = type_string(description = description),
     "numeric" = , "number" = {
       # If description mentions "vector" or "array", create an array type
       if (grepl("vector|array", description, ignore.case = TRUE)) {
-        ellmer::type_array(description = description, items = ellmer::type_number())
+        type_array(description = description, items = type_number())
       } else {
-        ellmer::type_number(description = description)
+        type_number(description = description)
       }
     },
-    "integer" = , "int" = ellmer::type_integer(description = description),
-    "logical" = , "boolean" = , "bool" = ellmer::type_boolean(description = description),
-    "list" = , "array" = ellmer::type_array(description = description, items = ellmer::type_string()),
-    ellmer::type_string(description = description)
+    "integer" = , "int" = type_integer(description = description),
+    "logical" = , "boolean" = , "bool" = type_boolean(description = description),
+    "list" = , "array" = type_array(description = description, items = type_string()),
+    type_string(description = description)
   )
-}
+} 

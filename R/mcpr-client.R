@@ -46,7 +46,7 @@
 #' # Basic usage
 #' client <- mcpClient$new()
 #' client$connect_servers()
-#' tools <- client$get_ellmer_tools()
+#' tools <- client$get_mcpr_tools()
 #'
 #' # With custom configuration
 #' client <- mcpClient$new(config = "path/to/config.json")
@@ -149,16 +149,16 @@ mcpClient <- R6::R6Class("mcpClient",
       invisible(self)
     },
     
-    #' Get ellmer-compatible tools
+    #' Get MCPR-compatible tools
     #'
-    #' @description Retrieves all discovered tools in ellmer-compatible format
-    #' @return List of ellmer tool objects
+    #' @description Retrieves all discovered tools in MCPR-compatible format
+    #' @return List of MCPR tool objects
     #' @examples
     #' \dontrun{
-    #' tools <- client$get_ellmer_tools()
-    #' # Tools can be used with ellmer package for AI integration
+    #' tools <- client$get_mcpr_tools()
+    #' # Tools can be used with MCPR package for AI integration
     #' }
-    get_ellmer_tools = function() {
+    get_mcpr_tools = function() {
       # TODO: Implement tool filtering
       # TODO: Add tool categorization
       # TODO: Add tool usage analytics
@@ -167,7 +167,7 @@ mcpClient <- R6::R6Class("mcpClient",
       }
       
       unname(unlist(
-        lapply(private$.servers, private$server_as_ellmer_tools),
+        lapply(private$.servers, private$server_as_mcpr_tools),
         recursive = FALSE
       ))
     },
@@ -197,8 +197,6 @@ mcpClient <- R6::R6Class("mcpClient",
     #' }
     call_tool = function(..., server, tool) {
       # TODO: Add tool execution logging
-      # TODO: Implement tool result caching
-      # TODO: Add execution timeout
       server_process <- private$.servers[[server]]$process
       private$send_and_receive(
         server_process,
@@ -255,21 +253,21 @@ mcpClient <- R6::R6Class("mcpClient",
       cat(message, "\n\n", sep = "", append = TRUE, file = log_file)
     },
     
-    #' Convert tool schema to ellmer types
+    #' Convert tool schema to MCPR types
     #'
-    #' @description Converts tool schema definitions to ellmer-compatible types
+    #' @description Converts tool schema definitions to MCPR-compatible types
     #' @param tool Tool definition object
     #' @return Converted tool types
     #' @examples
     #' \dontrun{
     #' # Internal method typically not called directly
-    #' types <- client$as_ellmer_types(tool_definition)
+    #' types <- client$as_mcpr_types(tool_definition)
     #' }
-    as_ellmer_types = function(tool) {
+    as_mcpr_types = function(tool) {
       # TODO: Implement proper schema conversion
       # TODO: Add support for all JSON Schema types
-      # TODO: Add validation for ellmer compatibility
-      warning("as_ellmer_types not yet implemented")
+      # TODO: Add validation for MCPR compatibility
+      warning("as_mcpr_types not yet implemented")
       list()
     }
   ),
@@ -409,7 +407,7 @@ mcpClient <- R6::R6Class("mcpClient",
       current_id
     },
     
-    server_as_ellmer_tools = function(server) {
+    server_as_mcpr_tools = function(server) {
       # TODO: Add tool validation
       # TODO: Implement tool versioning
       # TODO: Add tool documentation generation
@@ -418,23 +416,17 @@ mcpClient <- R6::R6Class("mcpClient",
       
       for (i in seq_along(tools)) {
         tool <- tools[[i]]
-        tool_arguments <- self$as_ellmer_types(tool)
-        tools_out[[i]] <-
-          do.call(
-            ellmer::tool,
-            c(
-              list(
-                .fun = private$tool_ref(
-                  server = server$name,
-                  tool = tool$name,
-                  arguments = names(tool_arguments)
-                ),
-                .description = tool$description,
-                .name = tool$name
-              ),
-              tool_arguments
-            )
-          )
+        tool_arguments <- self$as_mcpr_types(tool)
+        tools_out[[i]] <- ToolDef$new(
+          fun = private$tool_ref(
+            server = server$name,
+            tool = tool$name,
+            arguments = names(tool_arguments)
+          ),
+          description = tool$description,
+          name = tool$name,
+          arguments = tool_arguments
+        )
       }
       
       tools_out
@@ -511,26 +503,26 @@ mcpClient <- R6::R6Class("mcpClient",
 #' @description
 #' This function maintains backward compatibility with the existing functional API
 #' while internally using the new mcpClient R6 class. It creates a client instance,
-#' connects to servers, and returns ellmer-compatible tools.
+#' connects to servers, and returns MCPR-compatible tools.
 #'
 #' @param config Path to configuration file (character). Uses default location if NULL
-#' @return List of ellmer tools
+#' @return List of MCPR tools
 #' @examples
 #' \dontrun{
 #' # Legacy usage - creates client internally
 #' tools <- mcp_tools()
 #' tools <- mcp_tools(config = "config.json")
 #' 
-#' # Integration with ellmer workflows
+#' # Integration with MCPR workflows
 #' tools <- mcp_tools()
-#' # ellmer::use_tools(tools)
+#' # Use tools with MCPR framework
 #' }
 #' @export
 mcp_tools <- function(config = NULL) {
   client <- mcpClient$new(config = config)
   
   client$connect_servers()
-  tools <- client$get_ellmer_tools()
+  tools <- client$get_mcpr_tools()
   # TODO: Add cleanup mechanism for long-running sessions
   
   return(tools)
