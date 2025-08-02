@@ -89,11 +89,3 @@ handle_message_from_server <- function(data) {
     pipe = pipe
   )
 }
-
-#' Create a descriptive string for the current R session
-#'
-#' Used for the `list_r_sessions` tool.
-#' @return A string like "1: /path/to/project (RStudio)"
-describe_session <- function() {
-  sprintf("%d: %s (%s)", the$session, basename(getwd()), infer_ide())
-}

@@ -8,6 +8,18 @@
 #' List available R sessions
 #' @keywords mcpr_tool
 #' @return A vector of session names/identifiers
+
+
+#' Create a descriptive string for the current R session
+#'
+#' Used for the `list_r_sessions` tool.
+#' @return A string like "1: /path/to/project (RStudio)"
+describe_session <- function() {
+  sprintf("%d: %s (%s)", the$session, basename(getwd()), infer_ide())
+}
+
+
+
 list_r_sessions <- function() {
   sock <- nanonext::socket("poly")
   on.exit(nanonext::reap(sock))
