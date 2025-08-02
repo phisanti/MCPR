@@ -57,9 +57,7 @@ tool <- function(
       name <- unique_tool_name()
     }
   }
-  if (!grepl("^[a-zA-Z0-9_-]+$", name)) {
-    cli::cli_abort("{.arg name} must contain only letters, numbers, - and _.")
-  }
+  validate_tool_name(name, "name")
 
   check_arguments(arguments, formals(fun))
 
@@ -89,13 +87,7 @@ ToolDef <- R6::R6Class("ToolDef",
       if (missing(value)) {
         private$.name
       } else {
-        # Inline validation equivalent to validate_tool_name
-        if (!is.character(value) || length(value) != 1 || is.na(value)) {
-          cli::cli_abort("Property {.field name} must be a single string, not {.obj_type_friendly {value}}")
-        }
-        if (!grepl("^[a-zA-Z0-9_-]+$", value)) {
-          cli::cli_abort("Property {.field name} must contain only letters, numbers, - and _, got {.val {value}}")
-        }
+        validate_tool_name(value, "name")
         private$.name <- value
       }
     },
@@ -104,10 +96,7 @@ ToolDef <- R6::R6Class("ToolDef",
       if (missing(value)) {
         private$.description
       } else {
-        # Inline validation equivalent to validate_tool_description
-        if (!is.character(value) || length(value) != 1 || is.na(value)) {
-          cli::cli_abort("Property {.field description} must be a single string, not {.obj_type_friendly {value}}")
-        }
+        validate_tool_description(value, "description")
         private$.description <- value
       }
     },
@@ -116,22 +105,7 @@ ToolDef <- R6::R6Class("ToolDef",
       if (missing(value)) {
         private$.arguments
       } else {
-        # Inline validation equivalent to validate_tool_arguments
-        if (!is.list(value)) {
-          cli::cli_abort("Property {.field arguments} must be a list, not {.obj_type_friendly {value}}")
-        }
-        if (length(value) > 0 && !rlang::is_named(value)) {
-          cli::cli_abort("Property {.field arguments} must be a named list when non-empty")
-        }
-        for (i in seq_along(value)) {
-          arg_name <- names(value)[i]
-          arg <- value[[i]]
-          if (!is.null(arg) && !inherits(arg, "mcpr_type")) {
-            cli::cli_abort(
-              "Property {.field arguments} element {.val {arg_name}} must be a type object or NULL, not {.obj_type_friendly {arg}}"
-            )
-          }
-        }
+        validate_tool_arguments(value, "arguments")
         private$.arguments <- value
       }
     },
@@ -179,10 +153,7 @@ ToolDef <- R6::R6Class("ToolDef",
       if (missing(value)) {
         private$.fun
       } else {
-        # Inline validation equivalent to validate_tool_fun
-        if (!is.function(value)) {
-          cli::cli_abort("Property {.field fun} must be a function, not {.obj_type_friendly {value}}")
-        }
+        validate_tool_fun(value, "fun")
         private$.fun <- value
       }
     }
@@ -257,14 +228,6 @@ check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()
   }
 }
 
-check_tools <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
-  if (!is.list(x)) {
-    cli::cli_abort("{.arg {arg}} must be a list", call = call)
-  }
-  for (i in seq_along(x)) {
-    check_tool(x[[i]], arg = paste0(arg, "[[", i, "]]"), call = call)
-  }
-}
 
 #' Tool annotations
 #'
