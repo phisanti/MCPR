@@ -51,6 +51,14 @@ compact <- function(.x) {
   Filter(length, .x)
 }
 
+#' Compact list - remove NULL values
+#' @param x List to compact
+#' @return List with NULL values removed
+compact_list <- function(x) {
+  Filter(Negate(is.null), x)
+}
+
+
 # Infer the current IDE.
 infer_ide <- function() {
   first_cmd_arg <- commandArgs()[1]
@@ -107,14 +115,6 @@ check_bool <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call =
   if (!is.logical(x) || length(x) != 1 || is.na(x)) {
     cli::cli_abort("{.arg {arg}} must be a single logical value, not {.obj_type_friendly {x}}", call = call)
   }
-}
-
-
-#' Compact list - remove NULL values
-#' @param x List to compact
-#' @return List with NULL values removed
-compact_list <- function(x) {
-  Filter(Negate(is.null), x)
 }
 
 # Mocking for testing
