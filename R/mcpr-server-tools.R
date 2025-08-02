@@ -52,10 +52,34 @@ get_mcptools_tools_as_json <- function() {
 }
 
 
+# Helper function to convert mcpr_type to JSON schema
+.mcpr_type_to_schema <- function(type) {
+  if (is.null(type)) return(list(type = "string"))
+  
+  schema <- list(type = type$type)
+  if (!is.null(type$description)) schema$description <- type$description
+  if (type$type == "array" && !is.null(type$items)) schema$items <- .mcpr_type_to_schema(type$items)
+  if (type$type == "enum" && !is.null(type$values)) schema$enum <- type$values
+  schema
+}
+
 tool_as_json <- function(tool) {
   check_tool(tool)
   
-  inputSchema <- convert_arguments_to_schema(tool$arguments)
+  if (length(tool$arguments) == 0) {
+    inputSchema <- list(type = "object", properties = list())
+  } else {
+    properties <- list()
+    for (name in names(tool$arguments)) {
+      arg <- tool$arguments[[name]]
+      if (inherits(arg, "mcpr_type")) {
+        properties[[name]] <- .mcpr_type_to_schema(arg)
+      } else {
+        properties[[name]] <- .mcpr_type_to_schema(map_type_schema("character"))
+      }
+    }
+    inputSchema <- list(type = "object", properties = properties)
+  }
   inputSchema$description <- NULL # This field is not needed
 
   list(
