@@ -21,6 +21,21 @@ test_that("mcpServer initializes with default tools", {
   expect_true("select_r_session" %in% names(server_tools))
 })
 
+test_that("tool functions can be accessed using R6 $ syntax", {
+  server <- mcpServer$new(.tools_dir = tools_dir)
+  server_tools <- get_mcptools_tools()
+  
+  # Test that we can access tool functions using $ syntax (R6)
+  if (length(server_tools) > 0) {
+    tool_name <- names(server_tools)[1]
+    tool_obj <- server_tools[[tool_name]]
+    
+    # Should be able to access function using $ syntax
+    expect_true(is.function(tool_obj$fun))
+    expect_no_error(tool_obj$fun)
+  }
+})
+
 test_that("mcpServer initializes with ToolRegistry", {
   registry <- ToolRegistry$new()
   server <- mcpServer$new(registry = registry)
