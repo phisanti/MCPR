@@ -29,7 +29,7 @@ has_mcp_types_deep <- function(obj) {
 #'
 #' @description
 #' Helper function to create properly structured execution contexts
-#' for both local and remote tool execution. Simple constructor function.
+#' (local or remote) tool execution. Simple constructor function.
 #'
 #' @param id Request ID
 #' @param tool_name Name of tool to execute
