@@ -24,6 +24,9 @@ mcp_session <- function() {
   }
 
   the$session_socket <- nanonext::socket("poly")
+  the$last_activity <- Sys.time()
+  reg.finalizer(environment(), function(e) mcp_session_stop(), onexit = TRUE)
+  
   i <- 1L
   # Attempt to find an available socket to listen on
   while (i < 1024L) {
@@ -40,6 +43,8 @@ mcp_session <- function() {
 
   # Start listening for messages from the server asynchronously
   schedule_handle_message_from_server()
+  # Schedule periodic cleanup check
+  later::later(check_session_timeout, delay = 900) # 15 min
 }
 
 
@@ -48,7 +53,8 @@ schedule_handle_message_from_server <- function() {
   the$raio <- nanonext::recv_aio(the$session_socket, mode = "serial")
   promises::as.promise(the$raio)$then(handle_message_from_server)$catch(
     \(e) {
-      # No-op, ensures promise is never rejected, keeping the listener alive
+      # Connection lost - cleanup and stop
+      if (!is.null(the$session_socket)) mcp_session_stop()
     }
   )
 }
@@ -56,6 +62,7 @@ schedule_handle_message_from_server <- function() {
 #' Process a message received from the MCP server
 handle_message_from_server <- function(data) {
   pipe <- nanonext::pipe_id(the$raio)
+  the$last_activity <- Sys.time()
   # Immediately schedule the next listen to be ready for the next message
   schedule_handle_message_from_server()
 
@@ -88,4 +95,25 @@ handle_message_from_server <- function(data) {
     mode = "raw",
     pipe = pipe
   )
+}
+
+
+#' Stop the MCP session and clean up resources
+mcp_session_stop <- function() {
+  if (!is.null(the$session_socket)) {
+    nanonext::reap(the$session_socket)
+    the$session_socket <- NULL
+    the$session <- NULL
+    the$raio <- NULL
+    the$last_activity <- NULL
+  }
+}
+
+check_session_timeout <- function() {
+  if (!is.null(the$last_activity) && 
+      difftime(Sys.time(), the$last_activity, units = "mins") > 15) {
+    mcp_session_stop()
+  } else if (!is.null(the$session_socket)) {
+    later::later(check_session_timeout, delay = 900) # Check again in 15 min
+  }
 }
