@@ -161,17 +161,11 @@ mcpServer <- R6::R6Class("mcpServer",
     #' @description
     #' Initialize the MCP server with optional tools.
     #' 
-    #' @param tools Either:
-    #'   \itemize{
-    #'     \item A list of MCPR tool objects
-    #'     \item A character path to an R file returning a list of tools
-    #'     \item `NULL` to use only built-in tools
-    #'   }
     #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
     #'   takes precedence over the `tools` parameter.
     #' @param .tools_dir Internal parameter for specifying tools directory path.
     #' @return A new `mcpServer` instance
-    initialize = function(tools = NULL, registry = NULL, .tools_dir = NULL) {
+    initialize = function(registry = NULL, .tools_dir = NULL) {
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         cli::cli_abort("registry must be a ToolRegistry instance")
       }
@@ -187,8 +181,7 @@ mcpServer <- R6::R6Class("mcpServer",
           registry$search_tools()
         }
       }
-      tools = NULL
-      set_server_tools(tools, registry = registry)
+      set_server_tools(registry = registry)
     },
 
     #' @description

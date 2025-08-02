@@ -3,36 +3,17 @@
 
 #' Set the tools that the MCP server will provide
 #'
-#' @param x A list of tools created with `tool()`, or a path to an R
-#'   file that returns such a list. If `NULL`, default tools are used.
 #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
 #'   takes precedence over the `x` parameter.
-#' @param x_arg The unevaluated expression for `x`, for use in error messages.
 #' @param call The calling environment.
-set_server_tools <- function(x, registry = NULL, x_arg = rlang::caller_arg(x), call = rlang::caller_env()) {
+set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
   # Handle ToolRegistry parameter - takes precedence over x
-  if (!is.null(registry)) {
-    if (!inherits(registry, "ToolRegistry")) {
-      cli::cli_abort("registry must be a ToolRegistry instance", call = call)
-    }
-    registry_tools <- registry$get_tools()
-    the$server_tools <- registry_tools  # ONLY registry tools
-    return()
+  if (!inherits(registry, "ToolRegistry")) {
+    cli::cli_abort("registry must be a ToolRegistry instance", call = call)
   }
-  
-  # No registry provided - use empty tools (complete migration)
-  the$server_tools <- list()
-  
-  # Warn about deprecated usage
-  if (!is.null(x)) {
-    cli::cli_warn(
-      c(
-        "The 'tools' parameter is deprecated.",
-        "i" = "Use ToolRegistry instead: mcpServer$new(registry = ToolRegistry$new(tools_dir = 'path'))"
-      ),
-      call = call
-    )
-  }
+
+  the$server_tools <- registry$get_tools()
+
 }
 
 #' Get the currently configured server tools
