@@ -69,30 +69,24 @@ convert_to_schema <- function(param_tags) {
   mcpr_args <- list()
   
   for (param_tag in param_tags) {
-    # Parse the val field which contains "param_name type description"
-    val_str <- paste(param_tag$val, collapse = " ")
-    val_parts <- trimws(strsplit(val_str, "\\s+", perl = TRUE)[[1]])
+    # The 'val' field of a roxy_tag_param is already parsed into name and description
+    param_name <- param_tag$val$name
+    param_desc <- param_tag$val$description
     
-    if (length(val_parts) < 2) {
-      next
+    # A more robust way to infer type is needed, but for now, we assume string
+    # or look for hints in the description. This part remains a weak point.
+    # A better convention would be {type} description, e.g., @param name [string] The name.
+    type_str <- "string" # Default type
+    
+    # Simple heuristic to guess type from description
+    if (grepl("\\b(numeric|number|integer|int)\\b", param_desc, ignore.case = TRUE)) {
+      type_str <- "numeric"
+    } else if (grepl("\\b(logical|boolean|bool)\\b", param_desc, ignore.case = TRUE)) {
+      type_str <- "boolean"
+    } else if (grepl("\\b(list|array|vector)\\b", param_desc, ignore.case = TRUE)) {
+      type_str <- "array"
     }
-    
-    param_name <- val_parts[1]
-    type_and_desc <- paste(val_parts[-1], collapse = " ")
-    
-    # Extract type from beginning of type_and_desc
-    type_pattern <- "^(character|string|numeric|number|integer|int|logical|boolean|bool|list|array)\\s+"
-    type_match <- regexpr(type_pattern, type_and_desc, ignore.case = TRUE)
-    
-    if (type_match != -1) {
-      type_str <- regmatches(type_and_desc, type_match)
-      type_str <- trimws(gsub("\\s+$", "", type_str))
-      param_desc <- sub(type_pattern, "", type_and_desc, ignore.case = TRUE)
-    } else {
-      type_str <- "string"  # default
-      param_desc <- type_and_desc
-    }
-    
+
     mcpr_args[[param_name]] <- map_type_schema(type_str, param_desc)
   }
   
