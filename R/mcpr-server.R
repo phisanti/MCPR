@@ -48,7 +48,6 @@
 #' @export
 mcpServer <- R6::R6Class("mcpServer",
   private = list(
-    .server_socket = NULL,
     .reader_socket = NULL,
     .cv = NULL,
     .running = FALSE,
