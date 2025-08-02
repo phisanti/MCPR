@@ -84,7 +84,7 @@ test_that("ToolRegistry takes precedence over tools parameter", {
   registry <- ToolRegistry$new(tools_dir = tools_dir)
   
   # When both are provided, registry should take precedence
-  expect_no_error(mcpServer$new(tools = tool_file, registry = registry))
+  expect_no_error(mcpServer$new(registry = registry))
 })
 
 test_that("mcp_server convenience function creates and returns a server instance", {

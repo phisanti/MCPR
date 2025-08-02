@@ -89,7 +89,7 @@ if (FALSE) {  # Skip actual server start in validation
 cat("8. Testing ToolRegistry precedence over tools parameter...\n")
 temp_tool_file <- tempfile(fileext = ".R")
 writeLines("list()", temp_tool_file)
-server_precedence <- mcpServer$new(tools = temp_tool_file, registry = registry)
+server_precedence <- mcpServer$new(registry = registry)
 precedence_tools <- get_mcptools_tools()
 if ("square_number" %in% names(precedence_tools)) {
   cat("   ✓ Registry tools take precedence\n")

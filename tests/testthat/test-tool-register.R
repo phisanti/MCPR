@@ -235,13 +235,13 @@ test_that("ToolRegistry handles non-existent directory gracefully", {
 test_that("set_server_tools validates ToolRegistry parameter", {
   # Test with valid ToolRegistry
   registry <- ToolRegistry$new()
-  expect_no_error(set_server_tools(NULL, registry = registry))
+  expect_no_error(set_server_tools(registry = registry))
   
   # Test with invalid registry parameter
-  expect_error(set_server_tools(NULL, registry = "not_a_registry"),
+  expect_error(set_server_tools(registry = "not_a_registry"),
                "registry must be a ToolRegistry instance")
   
-  expect_error(set_server_tools(NULL, registry = list()),
+  expect_error(set_server_tools(registry = list()),
                "registry must be a ToolRegistry instance")
 })
 
@@ -273,7 +273,7 @@ test_that("ToolRegistry precedence over tools parameter works correctly", {
   registry$search_tools()  # Populate registry
   
   # When both are provided, registry should take precedence
-  set_server_tools(temp_tools_file, registry = registry)
+  set_server_tools(registry = registry)
   
   # Verify registry tools are used
   server_tools <- get_mcptools_tools()

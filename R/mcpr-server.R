@@ -38,11 +38,13 @@
 #'   fun = mean,
 #'   arguments = list(x = "numeric")
 #' )
-#' server <- mcpServer$new(tools = list(my_tool))
+#' registry <- ToolRegistry$new(); registry$add_tool(my_tool)
+#' server <- mcpServer$new(registry = registry)
 #' server$start()
 #' 
 #' # Using convenience function
-#' mcp_server(tools = "path/to/tools.R")
+#' registry <- ToolRegistry$new(tools_dir = "path/to/tools")
+#' mcp_server(registry = registry)
 #' }
 #'
 #' @export
@@ -123,8 +125,13 @@ mcpServer <- R6::R6Class("mcpServer",
       } else {
         execute_tool_call(prepared)
       }
-      logcat(c("FROM SERVER: ", to_json(result)))
-      cat_json(result)
+      log_result <- if (inherits(result, "jsonrpc_error")) unclass(result) else result
+      logcat(c("FROM SERVER: ", to_json(log_result)))
+      if (inherits(result, "jsonrpc_error")) {
+        cat_json(unclass(result))
+      } else {
+        cat_json(result)
+      }
     },
 
     # Forward requests to an R session for execution
@@ -132,7 +139,7 @@ mcpServer <- R6::R6Class("mcpServer",
       logcat(c("TO SESSION: ", jsonlite::toJSON(data)))
       prepared <- private$append_tool_fn(data)
       if (inherits(prepared, "jsonrpc_error")) {
-        return(cat_json(prepared))
+        return(cat_json(unclass(prepared)))
       }
       nanonext::send_aio(the$server_socket, prepared, mode = "serial")
     },
@@ -169,7 +176,7 @@ mcpServer <- R6::R6Class("mcpServer",
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         cli::cli_abort("registry must be a ToolRegistry instance")
       }
-      if (is.null(tools) && is.null(registry)) {
+      if (is.null(registry)) {
         pkg_tools_dir <- if (!is.null(.tools_dir)) .tools_dir else find.package("MCPR")        
         if (dir.exists(pkg_tools_dir)) {
           registry <- ToolRegistry$new(
@@ -250,9 +257,7 @@ mcpServer <- R6::R6Class("mcpServer",
 #' Convenience function to initialize and start an MCP server in one call.
 #' Equivalent to creating a new `mcpServer` instance and calling `start()`.
 #'
-#' @param tools Tools specification. See `mcpServer$new()` for details.
-#' @param registry A ToolRegistry instance to use for tool discovery. If provided,
-#'   takes precedence over the `tools` parameter.
+#' @param registry A ToolRegistry instance to use for tool discovery.
 #' 
 #' @details
 #' This function is designed for non-interactive use in background processes
@@ -279,16 +284,9 @@ mcpServer <- R6::R6Class("mcpServer",
 #' mcp_server()
 #' 
 #' # Server with custom tools from file
-#' mcp_server(tools = "inst/tools/analysis_tools.R")
-#' 
-#' # Server with inline tools
-#' summary_tool <- list(
-#'   name = "summary",
-#'   description = "Generate object summary",
-#'   fun = summary,
-#'   arguments = list(object = "any")
-#' )
-#' mcp_server(tools = list(summary_tool))
+#' # Server with ToolRegistry from directory
+#' registry <- ToolRegistry$new(tools_dir = "inst/tools")
+#' mcp_server(registry = registry)
 #' 
 #' # Server with ToolRegistry
 #' registry <- ToolRegistry$new()
@@ -297,9 +295,9 @@ mcpServer <- R6::R6Class("mcpServer",
 #' 
 #' @return The server instance (invisibly)
 #' @export
-mcp_server <- function(tools = NULL, registry = NULL) {
+mcp_server <- function(registry = NULL) {
   # Auto-discovery logic is now handled in mcpServer$initialize()
-  server <- mcpServer$new(tools = tools, registry = registry)
+  server <- mcpServer$new(registry = registry)
   server$start()
   invisible(server)
 }
