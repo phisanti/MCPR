@@ -98,27 +98,3 @@ convert_to_schema <- function(param_tags) {
   
   mcpr_args
 }
-
-
-#' Convert Type String to MCPR Type
-#' @description Converts a string (e.g., "numeric") to a MCPR type object.
-#' @param type_str The type string (e.g., "character", "numeric").
-#' @param description The parameter description.
-#' @return A MCPR type object.
-map_type_schema <- function(type_str, description) {
-  switch(tolower(type_str),
-    "character" = , "string" = type_string(description = description),
-    "numeric" = , "number" = {
-      # If description mentions "vector" or "array", create an array type
-      if (grepl("vector|array", description, ignore.case = TRUE)) {
-        type_array(description = description, items = type_number())
-      } else {
-        type_number(description = description)
-      }
-    },
-    "integer" = , "int" = type_integer(description = description),
-    "logical" = , "boolean" = , "bool" = type_boolean(description = description),
-    "list" = , "array" = type_array(description = description, items = type_string()),
-    type_string(description = description)
-  )
-} 

@@ -252,11 +252,19 @@ mcpClient <- R6::R6Class("mcpClient",
     #' types <- client$as_mcpr_types(tool_definition)
     #' }
     as_mcpr_types = function(tool) {
-      # TODO: Implement proper schema conversion
-      # TODO: Add support for all JSON Schema types
-      # TODO: Add validation for MCPR compatibility
-      warning("as_mcpr_types not yet implemented")
-      list()
+      if (is.null(tool$inputSchema) || is.null(tool$inputSchema$properties)) {
+        return(list())
+      }
+      
+      properties <- tool$inputSchema$properties
+      mcpr_types <- list()
+      
+      for (prop_name in names(properties)) {
+        prop <- properties[[prop_name]]
+        mcpr_types[[prop_name]] <- map_type_schema(prop, input_type = "json")
+      }
+      
+      mcpr_types
     }
   ),
   
@@ -376,7 +384,6 @@ mcpClient <- R6::R6Class("mcpClient",
     
     read_mcp_config = function(config_path) {
       # TODO: Add config validation schema
-      # TODO: Implement config file watching for hot reloading
       # TODO: Add environment variable substitution
       if (!file.exists(config_path)) {
         private$error_no_mcp_config()
@@ -426,6 +433,7 @@ mcpClient <- R6::R6Class("mcpClient",
     default_mcp_client_config = function() {
       file.path("~", ".config", "mcptools", "config.json")
     },
+    
     
     finalize = function() {
       # TODO: Implement graceful shutdown
