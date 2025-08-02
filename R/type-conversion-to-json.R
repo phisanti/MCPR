@@ -234,8 +234,19 @@
 }
 
 # Handle data frames
-.mcp_convert_dataframe <- function(x, ...) {
+.mcp_convert_dataframe <- function(x, auto_stream = TRUE, stream_threshold = 500, ...) {
   if (!is.data.frame(x)) return(NULL)
+  
+  # Auto-stream if dataframe size (rows * cols) exceeds threshold
+  df_size <- nrow(x) * ncol(x)
+  if (auto_stream && df_size > stream_threshold) {
+    return(list(
+      `_mcp_type` = "streamed_dataframe",
+      nrow = nrow(x), ncol = ncol(x), columns = names(x),
+      size = df_size, threshold = stream_threshold
+    ))
+  }
+  
   result <- as.list(x)
   attr(result, "_mcp_type") <- "data.frame"
   attr(result, "_mcp_nrow") <- nrow(x)
