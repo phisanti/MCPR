@@ -1,3 +1,4 @@
+#' @include tool-definition.R
 # Functions related to the definition, management, and execution of tools.
 
 #' Set the tools that the MCP server will provide
@@ -52,6 +53,8 @@ get_mcptools_tools_as_json <- function() {
 
 
 tool_as_json <- function(tool) {
+  check_tool(tool)
+  
   inputSchema <- convert_arguments_to_schema(tool$arguments)
   inputSchema$description <- NULL # This field is not needed
 
