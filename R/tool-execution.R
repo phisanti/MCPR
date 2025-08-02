@@ -241,17 +241,6 @@ execute_local_tool <- function(data) {
   
   # Enhanced argument processing with type reconstruction
   args <- decode_tool_args(data$params$arguments)
-  
-  # Legacy fallback for compatibility
-  if (identical(args, data$params$arguments)) {
-    args <- lapply(args, function(x) {
-      if (is.list(x) && is.null(names(x))) {
-        unlist(x, use.names = FALSE)
-      } else {
-        x
-      }
-    })
-  }
 
   tryCatch(
     encode_tool_results(data, do.call(data$tool, args)),
