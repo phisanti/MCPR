@@ -269,7 +269,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 
     #' @description Retrieve a specific tool by name.
     #' @param name character. Name of the tool to retrieve
-#' @return MCPR tool object or NULL if not found
+    #' @return MCPR tool object or NULL if not found
     #' @examples
     #' \dontrun{
     #' registry <- ToolRegistry$new()
