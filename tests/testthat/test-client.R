@@ -61,12 +61,12 @@ test_that("mcpClient jsonrpc_id increments correctly", {
   expect_equal(id2, 2)
 })
 
-test_that("mcpClient as_ellmer_types shows appropriate warning", {
+test_that("mcpClient as_mcpr_types shows appropriate warning", {
   client <- mcpClient$new()
   
   # Should warn about not being implemented
   expect_warning(
-    client$as_ellmer_types(list()),
-    "as_ellmer_types not yet implemented"
+    client$as_mcpr_types(list()),
+    "as_mcpr_types not yet implemented"
   )
 })
