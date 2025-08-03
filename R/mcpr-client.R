@@ -293,7 +293,6 @@ mcpClient <- R6::R6Class("mcpClient",
     },
     
     tool_ref = function(server, tool, arguments) {
-      # TODO: Add argument validation
       # TODO: Implement tool caching
       # TODO: Add tool execution logging
       f <- function() {}
@@ -358,7 +357,6 @@ mcpClient <- R6::R6Class("mcpClient",
     },
     
     server_as_mcpr_tools = function(server) {
-      # TODO: Add tool validation
       # TODO: Implement tool versioning
       # TODO: Add tool documentation generation
       tools <- server$tools$tools
