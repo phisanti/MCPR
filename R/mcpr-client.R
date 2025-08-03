@@ -152,9 +152,6 @@ mcpClient <- R6::R6Class("mcpClient",
     #' # Tools can be used with MCPR package for AI integration
     #' }
     get_mcpr_tools = function() {
-      # TODO: Implement tool filtering
-      # TODO: Add tool categorization
-      # TODO: Add tool usage analytics
       if (length(private$.servers) == 0) {
         self$connect_servers()
       }
@@ -234,9 +231,6 @@ mcpClient <- R6::R6Class("mcpClient",
     #' client$log_communication("Custom debug message")
     #' }
     log_communication = function(message) {
-      # TODO: Implement proper logging system
-      # TODO: Add log levels and filtering
-      # TODO: Add log rotation
       log_file <- "~/mcp_client_test.txt"
       cat(message, "\n\n", sep = "", append = TRUE, file = log_file)
     },
@@ -281,8 +275,6 @@ mcpClient <- R6::R6Class("mcpClient",
         cli::cli_abort("Server process {.val {name}} is not running")
       }
       
-      # TODO: Implement server capability negotiation
-      # TODO: Add server metadata storage
       response_initialize <- send_and_receive_message(process, private$mcp_request_initialize(), self)
       
       # Validate initialization response
@@ -302,8 +294,6 @@ mcpClient <- R6::R6Class("mcpClient",
     },
     
     tool_ref = function(server, tool, arguments) {
-      # TODO: Implement tool caching
-      # TODO: Add tool execution logging
       f <- function() {}
       formals(f) <- setNames(
         rep(list(quote(expr = )), length(arguments)),
@@ -326,10 +316,7 @@ mcpClient <- R6::R6Class("mcpClient",
     },
     
     # JSON-RPC Protocol Methods
-    # TODO: Move these to a separate protocol handler class
     mcp_request_initialize = function() {
-      # TODO: Make protocol version configurable
-      # TODO: Add more client capabilities
       list(
         jsonrpc = "2.0",
         id = 1,
@@ -350,7 +337,6 @@ mcpClient <- R6::R6Class("mcpClient",
     },
     
     mcp_request_tools_list = function() {
-      # TODO: Add pagination support for large tool lists
       list(
         jsonrpc = "2.0",
         id = 2,
@@ -366,8 +352,6 @@ mcpClient <- R6::R6Class("mcpClient",
     },
     
     server_as_mcpr_tools = function(server) {
-      # TODO: Implement tool versioning
-      # TODO: Add tool documentation generation
       tools <- server$tools$tools
       tools_out <- list()
       
@@ -442,12 +426,23 @@ mcpClient <- R6::R6Class("mcpClient",
     
     
     finalize = function() {
-      # TODO: Implement graceful shutdown
-      # TODO: Add cleanup timeout
-      # TODO: Add resource leak prevention
+      timeout_ms <- 5000  
+      
       for (process in private$.server_processes) {
         if (process$is_alive()) {
-          process$kill()
+          # Attempt graceful shutdown
+          try(process$signal(tools::SIGTERM), silent = TRUE)
+          
+          # Wait with timeout, then force kill
+          start_time <- Sys.time()
+          while (process$is_alive() && 
+                 as.numeric(difftime(Sys.time(), start_time, units = "secs")) < (timeout_ms/1000)) {
+            Sys.sleep(0.1)
+          }
+          
+          if (process$is_alive()) {
+            process$kill()
+          }
         }
       }
     }
@@ -479,7 +474,6 @@ mcp_tools <- function(config = NULL) {
   
   client$connect_servers()
   tools <- client$get_mcpr_tools()
-  # TODO: Add cleanup mechanism for long-running sessions
   
   return(tools)
 }
