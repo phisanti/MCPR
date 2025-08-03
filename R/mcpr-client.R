@@ -276,10 +276,19 @@ mcpClient <- R6::R6Class("mcpClient",
     
     
     add_mcp_server = function(process, name) {
-      # TODO: Add server validation before adding
+      # Validate server process is alive
+      if (!process$is_alive()) {
+        cli::cli_abort("Server process {.val {name}} is not running")
+      }
+      
       # TODO: Implement server capability negotiation
       # TODO: Add server metadata storage
       response_initialize <- send_and_receive_message(process, private$mcp_request_initialize(), self)
+      
+      # Validate initialization response
+      if (is.null(response_initialize$result) || !is.list(response_initialize$result)) {
+        cli::cli_abort("Server {.val {name}} failed initialization")
+      }
       response_tools_list <- send_and_receive_message(process, private$mcp_request_tools_list(), self)
 
       private$.servers[[name]] <- list(
@@ -381,7 +390,6 @@ mcpClient <- R6::R6Class("mcpClient",
     },
     
     read_mcp_config = function(config_path) {
-      # TODO: Add config validation schema
       # TODO: Add environment variable substitution
       if (!file.exists(config_path)) {
         private$error_no_mcp_config()
