@@ -196,7 +196,7 @@ test_that("ToolRegistry integration with mcpServer provides tools", {
   server <- mcpServer$new(registry = registry)
   
   # Get the tools and verify they include our custom tool plus built-ins
-  server_tools <- get_mcptools_tools()
+  server_tools <- server$get_tools()
   tool_names <- names(server_tools)
   
   # Should include our custom tool plus built-in tools
@@ -276,6 +276,8 @@ test_that("ToolRegistry precedence over tools parameter works correctly", {
   set_server_tools(registry = registry)
   
   # Verify registry tools are used
-  server_tools <- get_mcptools_tools()
+  # Create a server instance to access the get_tools method
+  server <- mcpServer$new(registry = registry)
+  server_tools <- server$get_tools()
   expect_true("precedence_function" %in% names(server_tools))
 })

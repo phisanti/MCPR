@@ -85,7 +85,7 @@ mcpServer <- R6::R6Class("mcpServer",
         "tools/list" = {
           cat_json(jsonrpc_response(
             data$id,
-            list(tools = get_mcptools_tools_as_json())
+            list(tools = self$get_tools("json"))
           ))
         },
         "tools/call" = {
@@ -152,7 +152,7 @@ mcpServer <- R6::R6Class("mcpServer",
         return(data)
       }
       tool_name <- data$params$name
-      if (!tool_name %in% names(get_mcptools_tools())) {
+      if (!tool_name %in% names(self$get_tools())) {
         return(structure(
           jsonrpc_response(
             data$id,
@@ -161,7 +161,7 @@ mcpServer <- R6::R6Class("mcpServer",
           class = "jsonrpc_error"
         ))
       }
-      data$tool <- get_mcptools_tools()[[tool_name]]$fun
+      data$tool <- self$get_tools()[[tool_name]]$fun
       data
     }
   ),
@@ -255,6 +255,24 @@ mcpServer <- R6::R6Class("mcpServer",
     #' @return `TRUE` if server is running, `FALSE` otherwise
     is_running = function() {
       private$.running
+    },
+
+    #' @description
+    #' Get server tools in the specified format.
+    #' 
+    #' @param format Character string specifying output format: "list" (default) or "json"
+    #' @return For "list": named list of ToolDef objects. For "json": list suitable for JSON serialization
+    get_tools = function(format = c("list", "json")) {
+      format <- match.arg(format)
+      
+      if (format == "json") {
+        tools <- lapply(the$server_tools, tool_as_json)
+        return(compact(tools))
+      }
+      
+      # Default to list format
+      res <- the$server_tools  
+      stats::setNames(res, vapply(res, \(x) x$name, character(1)))
     }
   )
 )

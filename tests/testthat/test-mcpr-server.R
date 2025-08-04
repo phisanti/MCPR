@@ -16,14 +16,14 @@ test_that("mcpServer initializes with default tools", {
   expect_true(inherits(server, "mcpServer"))
   
   # Should have default built-in tools
-  server_tools <- get_mcptools_tools()
+  server_tools <- server$get_tools()
   expect_true("list_r_sessions" %in% names(server_tools))
   expect_true("select_r_session" %in% names(server_tools))
 })
 
 test_that("tool functions can be accessed using R6 $ syntax", {
   server <- mcpServer$new(.tools_dir = tools_dir)
-  server_tools <- get_mcptools_tools()
+  server_tools <- server$get_tools()
   
   # Test that we can access tool functions using $ syntax (R6)
   if (length(server_tools) > 0) {

@@ -17,21 +17,6 @@ set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
 
 }
 
-#' Get the currently configured server tools
-#'
-#' @return A named list of `ToolDef` objects.
-get_mcptools_tools <- function() {
-  res <- the$server_tools
-  stats::setNames(res, vapply(res, \(x) x$name, character(1)))
-}
-
-#' Get server tools formatted as a JSON list for the MCP protocol
-#'
-#' @return A list of tool definitions suitable for JSON serialization.
-get_mcptools_tools_as_json <- function() {
-  tools <- lapply(unname(get_mcptools_tools()), tool_as_json)
-  compact(tools)
-}
 
 
 tool_as_json <- function(tool) {
