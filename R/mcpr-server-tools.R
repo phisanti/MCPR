@@ -1,4 +1,5 @@
 #' @include tool-definition.R
+#' @include tool-execution.R
 # Functions related to the definition, management, and execution of tools.
 
 #' Set the tools that the MCP server will provide
@@ -33,17 +34,6 @@ get_mcptools_tools_as_json <- function() {
 }
 
 
-# Helper function to convert mcpr_type to JSON schema
-.mcpr_type_to_schema <- function(type) {
-  if (is.null(type)) return(list(type = "string"))
-  
-  schema <- list(type = type$type)
-  if (!is.null(type$description)) schema$description <- type$description
-  if (type$type == "array" && !is.null(type$items)) schema$items <- .mcpr_type_to_schema(type$items)
-  if (type$type == "enum" && !is.null(type$values)) schema$enum <- type$values
-  schema
-}
-
 tool_as_json <- function(tool) {
   check_tool(tool)
   
@@ -54,9 +44,19 @@ tool_as_json <- function(tool) {
     for (name in names(tool$arguments)) {
       arg <- tool$arguments[[name]]
       if (inherits(arg, "mcpr_type")) {
-        properties[[name]] <- .mcpr_type_to_schema(arg)
+        # Convert mcpr_type to JSON schema format
+        schema <- list(type = arg$type)
+        if (!is.null(arg$description)) schema$description <- arg$description
+        if (arg$type == "array" && !is.null(arg$items)) {
+          schema$items <- to_mcp_json(arg$items, auto_unbox = TRUE)
+        }
+        if (arg$type == "enum" && !is.null(arg$values)) {
+          schema$enum <- arg$values
+        }
+        properties[[name]] <- schema
       } else {
-        properties[[name]] <- .mcpr_type_to_schema(map_type_schema("character"))
+        # Default to string type for non-mcpr_type arguments
+        properties[[name]] <- list(type = "string")
       }
     }
     inputSchema <- list(type = "object", properties = properties)

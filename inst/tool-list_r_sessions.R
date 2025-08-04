@@ -3,13 +3,6 @@
 #' This file defines the list_r_sessions tool that allows AI agents to
 #' discover R sessions which have called `MCPR::mcp_session()`.
 
-#* @mcp_tool
-#' @description List the R sessions that are available to access. R sessions which have run `MCPR::mcp_session()` will appear here. In the output, start each session with 'Session #' and do NOT otherwise prefix any index numbers to the output. In general, do not use this tool unless asked to list or select a specific R session. Given the output of this tool, report the users to the user. Do NOT make a choice of R session based on the results of the tool and call select_r_session unless the user asks you to specifically.
-#' List available R sessions
-#' @keywords mcpr_tool
-#' @return A vector of session names/identifiers
-
-
 #' Create a descriptive string for the current R session
 #'
 #' Used for the `list_r_sessions` tool.
@@ -18,8 +11,11 @@ describe_session <- function() {
   sprintf("%d: %s (%s)", the$session, basename(getwd()), infer_ide())
 }
 
-
-
+#* @mcp_tool
+#' @description List the R sessions that are available to access. R sessions which have run `MCPR::mcp_session()` will appear here. In the output, start each session with 'Session #' and do NOT otherwise prefix any index numbers to the output. In general, do not use this tool unless asked to list or select a specific R session. Given the output of this tool, report the users to the user. Do NOT make a choice of R session based on the results of the tool and call select_r_session unless the user asks you to specifically.
+#' List available R sessions
+#' @keywords mcpr_tool
+#' @return A vector of session names/identifiers
 list_r_sessions <- function() {
   sock <- nanonext::socket("poly")
   on.exit(nanonext::reap(sock))

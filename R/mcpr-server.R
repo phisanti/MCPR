@@ -1,3 +1,5 @@
+#' @include mcpr-server-tools.R
+#' @include tool-execution.R
 #' @title MCP Server R6 Class
 #'
 #' @description
@@ -89,7 +91,7 @@ mcpServer <- R6::R6Class("mcpServer",
         "tools/call" = {
           tool_name <- data$params$name
           # Execute server-side tools directly, or if no session is active
-          if (tool_name %in% c("list_r_sessions", "select_r_session", "execute_r_code_tool") ||
+          if (tool_name %in% c("list_r_sessions", "select_r_session", "execute_r_code") ||
               !nanonext::stat(the$server_socket, "pipes")) {
             private$handle_request(data)
           } else {
@@ -177,7 +179,13 @@ mcpServer <- R6::R6Class("mcpServer",
         cli::cli_abort("registry must be a ToolRegistry instance")
       }
       if (is.null(registry)) {
-        pkg_tools_dir <- if (!is.null(.tools_dir)) .tools_dir else find.package("MCPR")        
+        pkg_tools_dir <- if (!is.null(.tools_dir)) {
+          .tools_dir
+        } else {
+          # If the package is installed, the inst/ folder is off-loaded to 
+          # the package directory
+          find.package("MCPR") 
+        }
         if (dir.exists(pkg_tools_dir)) {
           registry <- ToolRegistry$new(
             tools_dir = pkg_tools_dir,
