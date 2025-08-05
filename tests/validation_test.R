@@ -46,7 +46,7 @@ cat("   Server created successfully\n")
 
 # Test 3: Verify server tools include registry tools
 cat("3. Verifying server tools include registry tools...\n")
-server_tools <- get_mcptools_tools()
+server_tools <- server$get_tools()
 tool_names <- names(server_tools)
 cat("   Available tools:", paste(tool_names, collapse = ", "), "\n")
 
@@ -72,7 +72,7 @@ if (length(missing_registry) == 0) {
 
 # Test 6: Test tool JSON conversion
 cat("6. Testing tool JSON conversion...\n")
-json_tools <- get_mcptools_tools_as_json()
+json_tools <- server$get_tools("json")
 json_names <- sapply(json_tools, function(x) x$name)
 cat("   JSON tools:", paste(json_names, collapse = ", "), "\n")
 
@@ -90,7 +90,7 @@ cat("8. Testing ToolRegistry precedence over tools parameter...\n")
 temp_tool_file <- tempfile(fileext = ".R")
 writeLines("list()", temp_tool_file)
 server_precedence <- mcpServer$new(registry = registry)
-precedence_tools <- get_mcptools_tools()
+precedence_tools <- server_precedence$get_tools()
 if ("square_number" %in% names(precedence_tools)) {
   cat("   ✓ Registry tools take precedence\n")
 } else {
