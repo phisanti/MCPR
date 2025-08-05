@@ -21,12 +21,23 @@ set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
 #' Convert ToolDef to MCP JSON format
 #'
 #' @description
-#' Transforms a ToolDef object into the JSON structure required by the MCP protocol.
-#' Converts MCPR type definitions to JSON Schema format for the inputSchema field.
-#' This function enables tool registration and discovery in MCP client-server communication.
+#' Converts a ToolDef object to MCP protocol-compliant JSON structure.
+#' Transforms MCPR type definitions to JSON Schema format for tool registration.
+#' Used by mcpServer's get_tools() method to serialize tools for MCP client discovery.
 #'
-#' @param tool A ToolDef object to convert
-#' @return A list containing name, description, and inputSchema for MCP protocol
+#' @param tool A ToolDef object containing name, description, and typed arguments
+#' @return List with name, description, and inputSchema fields for MCP protocol
+#' 
+#' @examples
+#' \dontrun{
+#' # Convert simple tool without arguments
+#' tool <- create_tool("hello", "Says hello", list())
+#' tool_as_json(tool)
+#' 
+#' # Convert tool with typed arguments
+#' tool <- create_tool("greet", "Greets user", list(name = mcpr_string()))
+#' tool_as_json(tool)
+#' }
 tool_as_json <- function(tool) {
   check_tool(tool)
   
