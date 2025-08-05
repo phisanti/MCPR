@@ -2,7 +2,8 @@
 #' @include tool-execution.R
 # Functions related to the definition, management, and execution of tools.
 
-#' Set the tools that the MCP server will provide
+#' @title Set MCP server tools
+#' @description Set the tools that the MCP server will provide
 #'
 #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
 #'   takes precedence over the `x` parameter.

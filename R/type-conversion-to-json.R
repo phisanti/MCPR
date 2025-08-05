@@ -299,10 +299,8 @@
          custom_serializers = custom_serializers)
 }
 
-# Main function for type conversion ----------------------------------------
-
 #' @title Convert R objects to JSON-compatible format for MCP
-#'
+#' @description 
 #' Converts various R objects to a JSON-compatible format, preserving type
 #' information where possible. Handles special types like dates, factors,
 #' matrices, and special numeric values (Inf, -Inf, NaN).
