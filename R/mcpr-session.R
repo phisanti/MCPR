@@ -19,6 +19,7 @@ MCPRSession <- R6::R6Class("MCPRSession",
     .last_activity = NULL,
     .timeout_seconds = 900,  # 15 minutes
     .is_running = FALSE,
+    .messenger = NULL,
     
     # Find available socket port
     find_available_port = function() {
@@ -52,6 +53,7 @@ MCPRSession <- R6::R6Class("MCPRSession",
       private$.timeout_seconds <- timeout_seconds
       private$.socket <- nanonext::socket("poly")
       private$.last_activity <- Sys.time()
+      private$.messenger <- MessageHandler$new()
       
       # Set up automatic cleanup
       reg.finalizer(self, function(x) x$stop(), onexit = TRUE)
@@ -119,9 +121,10 @@ MCPRSession <- R6::R6Class("MCPRSession",
       body <- if (data$method == "tools/call") {
         execute_tool_call(data)
       } else {
-        jsonrpc_response(
+        private$.messenger$create_error(
           data$id,
-          error = list(code = -32601, message = "Method not found")
+          code = -32601,
+          message = "Method not found"
         )
       }
       

@@ -80,6 +80,7 @@ mcpClient <- R6::R6Class("mcpClient",
     initialize = function(config = NULL) {
       private$.servers <- list()
       private$.server_processes <- list()
+      private$.messenger <- MessageHandler$new(logger = self$log_communication)
       
       if (is.null(config)) {
         config <- getOption(
@@ -267,6 +268,7 @@ mcpClient <- R6::R6Class("mcpClient",
     .server_processes = NULL,
     .config_path = NULL,
     .config = NULL,
+    .messenger = NULL,
     
     
     add_mcp_server = function(process, name) {
@@ -275,13 +277,21 @@ mcpClient <- R6::R6Class("mcpClient",
         cli::cli_abort("Server process {.val {name}} is not running")
       }
       
-      response_initialize <- send_and_receive_message(process, private$mcp_request_initialize(), self)
+      response_initialize <- private$.messenger$send_receive(
+        process, 
+        private$.messenger$create_initialize_request(),
+        context = name
+      )
       
       # Validate initialization response
       if (is.null(response_initialize$result) || !is.list(response_initialize$result)) {
         cli::cli_abort("Server {.val {name}} failed initialization")
       }
-      response_tools_list <- send_and_receive_message(process, private$mcp_request_tools_list(), self)
+      response_tools_list <- private$.messenger$send_receive(
+        process,
+        private$.messenger$create_tools_list_request(),
+        context = name
+      )
 
       private$.servers[[name]] <- list(
         name = name,
@@ -315,34 +325,7 @@ mcpClient <- R6::R6Class("mcpClient",
       f
     },
     
-    # JSON-RPC Protocol Methods
-    mcp_request_initialize = function() {
-      list(
-        jsonrpc = "2.0",
-        id = 1,
-        method = "initialize",
-        params = list(
-          protocolVersion = "2024-11-05",
-          capabilities = list(
-            tools = list(
-              listChanged = FALSE
-            )
-          ),
-          clientInfo = list(
-            name = "MCP Test Client", # TODO: Make this configurable
-            version = "0.1.0"
-          )
-        )
-      )
-    },
-    
-    mcp_request_tools_list = function() {
-      list(
-        jsonrpc = "2.0",
-        id = 2,
-        method = "tools/list"
-      )
-    },
+    # ID Management
     
     next_id = function(server_name) {
       # Simple ID management - increment and return

@@ -55,6 +55,7 @@ mcpServer <- R6::R6Class("mcpServer",
     .reader_socket = NULL,
     .cv = NULL,
     .running = FALSE,
+    .messenger = NULL,
 
     # === MESSAGE HANDLERS ===
 
@@ -63,32 +64,22 @@ mcpServer <- R6::R6Class("mcpServer",
       if (length(line) == 0) {
         return()
       }
-      logcat(c("FROM CLIENT: ", line))
-      data <- tryCatch(
-        jsonlite::parse_json(line),
-        error = function(e) NULL
-      )
+      
+      data <- private$.messenger$parse_message(line)
       if (is.null(data)) return()
 
-      if (!is.list(data) || is.null(data$method)) {
-        return(cat_json(jsonrpc_response(
-          data$id,
-          error = list(code = -32600, message = "Invalid Request")
-        )))
-      }
-
-      # Route based on method
-      switch(data$method,
-        "initialize" = {
-          cat_json(jsonrpc_response(data$id, capabilities()))
+      # Define method handlers
+      handlers <- list(
+        "initialize" = function(data) {
+          private$.messenger$create_response(data$id, private$.messenger$create_capabilities())
         },
-        "tools/list" = {
-          cat_json(jsonrpc_response(
+        "tools/list" = function(data) {
+          private$.messenger$create_response(
             data$id,
             list(tools = self$get_tools("json"))
-          ))
+          )
         },
-        "tools/call" = {
+        "tools/call" = function(data) {
           tool_name <- data$params$name
           # Execute server-side tools directly, or if no session is active
           if (tool_name %in% c("list_r_sessions", "select_r_session", "execute_r_code") ||
@@ -98,15 +89,17 @@ mcpServer <- R6::R6Class("mcpServer",
             private$forward_request(data)
           }
         },
-        "notifications/initialized" = {
+        "notifications/initialized" = function(data) {
           # Notification, no response needed
-        },
-        # Default for unknown methods
-        cat_json(jsonrpc_response(
-          data$id,
-          error = list(code = -32601, message = "Method not found")
-        ))
+          NULL
+        }
       )
+
+      # Route message and send response
+      response <- private$.messenger$route_message(data, handlers)
+      if (!is.null(response)) {
+        private$.messenger$output_json(response)
+      }
     },
 
     # Handle messages from R sessions
@@ -178,6 +171,9 @@ mcpServer <- R6::R6Class("mcpServer",
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         cli::cli_abort("registry must be a ToolRegistry instance")
       }
+      
+      # Initialize messenger for JSON-RPC communication
+      private$.messenger <- MessageHandler$new(logger = logcat)
       if (is.null(registry)) {
         pkg_tools_dir <- if (!is.null(.tools_dir)) {
           .tools_dir
