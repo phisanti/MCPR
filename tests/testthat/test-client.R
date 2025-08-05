@@ -54,8 +54,8 @@ test_that("mcpClient jsonrpc_id increments correctly", {
   )
   
   # Test ID incrementation
-  id1 <- client$.__enclos_env__$private$jsonrpc_id("test")
-  id2 <- client$.__enclos_env__$private$jsonrpc_id("test")
+  id1 <- client$.__enclos_env__$private$next_id("test")
+  id2 <- client$.__enclos_env__$private$next_id("test")
   
   expect_equal(id1, 1)
   expect_equal(id2, 2)
