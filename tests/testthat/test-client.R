@@ -61,3 +61,23 @@ test_that("mcpClient jsonrpc_id increments correctly", {
   expect_equal(id2, 2)
 })
 
+test_that("mcpClient as_mcpr_types converts tool schema properties", {
+  client <- mcpClient$new()
+  
+  # Simple tool with basic property types
+  tool <- list(
+    inputSchema = list(
+      properties = list(
+        path = list(type = "string"),
+        count = list(type = "number")
+      )
+    )
+  )
+  
+  result <- client$as_mcpr_types(tool)
+  
+  expect_true(is.list(result))
+  expect_equal(names(result), c("path", "count"))
+  expect_equal(length(result), 2)
+})
+

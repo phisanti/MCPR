@@ -100,15 +100,16 @@ test_that("enhanced tool execution handles complex R objects", {
 })
 
 test_that("tool execution handles arrays correctly", {
-  # Test that JSON arrays are handled properly
+  # Test that numeric vectors are handled properly  
   array_tool <- function(numbers) sum(numbers)
   
-  # This mimics how JSON arrays come in
+  # Use proper numeric vector with MCP type conversion
+  numbers_data <- to_mcp_json(c(1, 2, 3, 4, 5))
   array_data <- list(
     id = 5,
     params = list(
       name = "sum_tool",
-      arguments = list(numbers = list(1, 2, 3, 4, 5))
+      arguments = list(numbers = numbers_data)
     ),
     tool = array_tool
   )
