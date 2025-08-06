@@ -72,6 +72,42 @@ tool <- function(
 }
 
 ToolDef <- R6::R6Class("ToolDef",
+  public = list(
+    initialize = function(fun, name, description, arguments = list(), convert = TRUE, annotations = list()) {
+      # Use active bindings for validation during initialization
+      self$fun <- fun
+      self$name <- name
+      self$description <- description
+      self$arguments <- arguments
+      self$convert <- convert
+      self$annotations <- annotations
+    },
+    
+    call = function(...) {
+      args <- list(...)
+      if (self$convert) {
+        args <- convert_json_types(args)
+      }
+      do.call(self$fun, args)
+    },
+    
+    print = function(...) {
+      if (length(self$arguments) > 0) {
+        fake_call <- rlang::call2(self$name, !!!rlang::syms(names(self$arguments)))
+      } else {
+        fake_call <- rlang::call2(self$name)
+      }
+      
+      cli::cli_text("{.comment # <MCPR::ToolDef>} {.code {deparse1(fake_call)}}")
+      cli::cli_text("{.comment # @name:} {.field {self$name}}")
+      cli::cli_text("{.comment # @description:} {self$description}")
+      cli::cli_text("{.comment # @convert:} {.val {self$convert}}")
+      cli::cli_text("{.comment #}")
+      print(self$fun)
+      
+      invisible(self)
+    }
+  ),
   private = list(
     .name = NULL,
     .description = NULL,
@@ -156,43 +192,6 @@ ToolDef <- R6::R6Class("ToolDef",
         validate_tool_fun(value, "fun")
         private$.fun <- value
       }
-    }
-  ),
-  
-  public = list(
-    initialize = function(fun, name, description, arguments = list(), convert = TRUE, annotations = list()) {
-      # Use active bindings for validation during initialization
-      self$fun <- fun
-      self$name <- name
-      self$description <- description
-      self$arguments <- arguments
-      self$convert <- convert
-      self$annotations <- annotations
-    },
-    
-    call = function(...) {
-      args <- list(...)
-      if (self$convert) {
-        args <- convert_json_types(args)
-      }
-      do.call(self$fun, args)
-    },
-    
-    print = function(...) {
-      if (length(self$arguments) > 0) {
-        fake_call <- rlang::call2(self$name, !!!rlang::syms(names(self$arguments)))
-      } else {
-        fake_call <- rlang::call2(self$name)
-      }
-      
-      cli::cli_text("{.comment # <MCPR::ToolDef>} {.code {deparse1(fake_call)}}")
-      cli::cli_text("{.comment # @name:} {.field {self$name}}")
-      cli::cli_text("{.comment # @description:} {self$description}")
-      cli::cli_text("{.comment # @convert:} {.val {self$convert}}")
-      cli::cli_text("{.comment #}")
-      print(self$fun)
-      
-      invisible(self)
     }
   )
 )

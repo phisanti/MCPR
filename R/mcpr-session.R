@@ -12,6 +12,92 @@
 #'
 #' @export
 mcprSession <- R6::R6Class("mcprSession",
+
+  
+  public = list(
+    #' @description Create new mcprSession instance
+    #' @param timeout_seconds Timeout in seconds (default: 900)
+    initialize = function(timeout_seconds = 900) {
+      private$.timeout_seconds <- timeout_seconds
+      private$.socket <- nanonext::socket("poly")
+      private$.last_activity <- Sys.time()
+      private$.messenger <- MessageHandler$new()
+      
+      # Set up automatic cleanup
+      reg.finalizer(self, function(x) x$stop(), onexit = TRUE)
+    },
+    
+    #' @description Start the MCP session
+    start = function() {
+      if (!rlang::is_interactive()) {
+        return(invisible(self))
+      }
+      
+      if (private$.is_running) {
+        warning("Session is already running")
+        return(invisible(self))
+      }
+      
+      # Find and bind to available port
+      private$.session_id <- private$find_available_port()
+      private$.is_running <- TRUE
+      
+      # Start async message loop
+      private$start_listening()
+      
+      # Schedule periodic timeout checks
+      private$schedule_timeout_check()
+      
+      invisible(self)
+    },
+    
+    
+    #' @description Check for session timeout
+    check_timeout = function() {
+      if (!private$.is_running || is.null(private$.last_activity)) {
+        return(invisible(self))
+      }
+      
+      if (difftime(Sys.time(), private$.last_activity, units = "secs") > private$.timeout_seconds) {
+        self$stop()
+      } else {
+        private$schedule_timeout_check()
+      }
+      
+      invisible(self)
+    },
+    
+    #' @description Stop session and cleanup resources
+    stop = function() {
+      if (!private$.is_running) {
+        return(invisible(self))
+      }
+      
+      private$.is_running <- FALSE
+      
+      if (!is.null(private$.socket)) {
+        nanonext::reap(private$.socket)
+        private$.socket <- NULL
+      }
+      
+      private$.session_id <- NULL
+      private$.raio <- NULL
+      private$.last_activity <- NULL
+      
+      invisible(self)
+    },
+    
+    #' @description Get session information
+    #' @return List with session details
+    get_info = function() {
+      list(
+        session_id = private$.session_id,
+        is_running = private$.is_running,
+        last_activity = private$.last_activity,
+        socket_active = !is.null(private$.socket)
+      )
+    }
+  ),
   private = list(
     .socket = NULL,
     .session_id = NULL,
@@ -116,91 +202,6 @@ mcprSession <- R6::R6Class("mcprSession",
       )
       
       invisible(self)
-    }
-  ),
-  
-  public = list(
-    #' @description Create new mcprSession instance
-    #' @param timeout_seconds Timeout in seconds (default: 900)
-    initialize = function(timeout_seconds = 900) {
-      private$.timeout_seconds <- timeout_seconds
-      private$.socket <- nanonext::socket("poly")
-      private$.last_activity <- Sys.time()
-      private$.messenger <- MessageHandler$new()
-      
-      # Set up automatic cleanup
-      reg.finalizer(self, function(x) x$stop(), onexit = TRUE)
-    },
-    
-    #' @description Start the MCP session
-    start = function() {
-      if (!rlang::is_interactive()) {
-        return(invisible(self))
-      }
-      
-      if (private$.is_running) {
-        warning("Session is already running")
-        return(invisible(self))
-      }
-      
-      # Find and bind to available port
-      private$.session_id <- private$find_available_port()
-      private$.is_running <- TRUE
-      
-      # Start async message loop
-      private$start_listening()
-      
-      # Schedule periodic timeout checks
-      private$schedule_timeout_check()
-      
-      invisible(self)
-    },
-    
-    
-    #' @description Check for session timeout
-    check_timeout = function() {
-      if (!private$.is_running || is.null(private$.last_activity)) {
-        return(invisible(self))
-      }
-      
-      if (difftime(Sys.time(), private$.last_activity, units = "secs") > private$.timeout_seconds) {
-        self$stop()
-      } else {
-        private$schedule_timeout_check()
-      }
-      
-      invisible(self)
-    },
-    
-    #' @description Stop session and cleanup resources
-    stop = function() {
-      if (!private$.is_running) {
-        return(invisible(self))
-      }
-      
-      private$.is_running <- FALSE
-      
-      if (!is.null(private$.socket)) {
-        nanonext::reap(private$.socket)
-        private$.socket <- NULL
-      }
-      
-      private$.session_id <- NULL
-      private$.raio <- NULL
-      private$.last_activity <- NULL
-      
-      invisible(self)
-    },
-    
-    #' @description Get session information
-    #' @return List with session details
-    get_info = function() {
-      list(
-        session_id = private$.session_id,
-        is_running = private$.is_running,
-        last_activity = private$.last_activity,
-        socket_active = !is.null(private$.socket)
-      )
     }
   )
 )
