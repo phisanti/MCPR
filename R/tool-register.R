@@ -49,6 +49,165 @@
 #'
 #' @export
 ToolRegistry <- R6::R6Class("ToolRegistry",
+  public = list(
+    #' @description Create a new ToolRegistry instance with specified configuration.
+    #' @param tools_dir character. Directory path to scan for tool files. Default: "inst/mcpr_tools"
+    #' @param pattern character. File pattern to match (regex). Default: "\\.R$"
+    #' @param recursive logical. Whether to search subdirectories. Default: FALSE
+    #' @param verbose logical. Enable verbose output during the search. Default: TRUE
+    initialize = function(tools_dir = "inst/mcpr_tools", 
+                         pattern = "tool-.*\\.R$", 
+                         recursive = FALSE,
+                         verbose = FALSE) {
+      private$.tools_dir <- tools_dir
+      private$.pattern <- pattern
+      private$.recursive <- recursive
+      private$.verbose <- verbose
+      private$.tools <- list()
+      private$.tool_files <- character()
+    },
+
+    #' @description Scan the configured directory for R files containing functions
+    #' tagged with ` @keywords mcpr_tool` and convert them to MCPR tool objects.
+    #' @param force_refresh logical. Force re-scanning even if tools are already cached. Default: FALSE
+    #' @return list of MCPR tool objects
+    search_tools = function(force_refresh = FALSE) {
+      if (!force_refresh && length(private$.tools) > 0) {
+        return(private$.tools)
+      }
+      
+      if (!dir.exists(private$.tools_dir)) {
+        if (private$.verbose) {
+          cli::cli_inform("Tools directory {.path {private$.tools_dir}} does not exist.")
+        }
+        return(list())
+      }
+      
+      private$.tool_files <- list.files(
+        path = private$.tools_dir,
+        pattern = private$.pattern,
+        full.names = TRUE,
+        recursive = private$.recursive,
+        ignore.case = TRUE
+      )
+      
+      if (length(private$.tool_files) == 0) {
+        if (private$.verbose) {
+          cli::cli_inform("No tool files found.")
+        }
+        return(list())
+      }
+      
+      if (private$.verbose) {
+        cli::cli_inform("Searching for tools in {length(private$.tool_files)} file{?s}...")
+      }
+      
+      private$.tools <- list()
+      
+      for (tool_file in private$.tool_files) {
+        tryCatch({
+          file_tools <- private$parse_file(tool_file)
+          private$.tools <- c(private$.tools, file_tools)
+          if (private$.verbose && length(file_tools) > 0) {
+            cli::cli_inform("✓ Loaded {length(file_tools)} tool{?s} from {.file {basename(tool_file)}}")
+          }
+        }, error = function(e) {
+          cli::cli_warn("Failed to load {.file {basename(tool_file)}}: {conditionMessage(e)}")
+        })
+      }
+      
+      private$validate_tools(private$.tools)
+      
+      if (private$.verbose) {
+        cli::cli_inform("Successfully found {length(private$.tools)} tool{?s}.")
+      }
+      
+      private$.tools
+    },
+
+    #' @description Return the list of currently loaded tools without re-scanning.
+    #' @return list of MCPR tool objects
+    get_tools = function() {
+      private$.tools
+    },
+
+    #' @description Generate a data.frame summary of loaded tools with names,
+    #' descriptions, and parameter counts.
+    #' @return data.frame with columns: name, description, parameters
+    get_tool_summary = function() {
+      if (length(private$.tools) == 0) {
+        return(data.frame(name = character(), description = character(), stringsAsFactors = FALSE))
+      }
+      
+      tool_info <- lapply(private$.tools, function(tool) {
+        data.frame(
+          name = tool$name,
+          description = substr(tool$description, 1, 50),
+          parameters = length(tool$arguments),
+          stringsAsFactors = FALSE
+        )
+      })
+      
+      do.call(rbind, tool_info)
+    },
+
+    #' @description Check if a tool with the specified name has been loaded.
+    #' @param name character. Name of the tool to check
+    #' @return logical. TRUE if tool exists, FALSE otherwise
+    has_tool = function(name) {
+      if (length(private$.tools) == 0) return(FALSE)
+      tool_names <- vapply(private$.tools, function(x) x$name, character(1))
+      name %in% tool_names
+    },
+
+    #' @description Retrieve a specific tool by name.
+    #' @param name character. Name of the tool to retrieve
+    #' @return MCPR tool object or NULL if not found
+    get_tool = function(name) {
+      for (tool in private$.tools) {
+        if (tool$name == name) return(tool)
+      }
+      NULL
+    },
+
+    #' @description Update the search configuration and reset cached tools.
+    #' @param tools_dir character. New directory path (optional)
+    #' @param pattern character. New file pattern (optional)
+    #' @param recursive logical. New recursive setting (optional)
+    #' @return self (invisibly) for method chaining
+    configure = function(tools_dir = NULL, pattern = NULL, recursive = NULL) {
+      if (!is.null(tools_dir)) private$.tools_dir <- tools_dir
+      if (!is.null(pattern)) private$.pattern <- pattern
+      if (!is.null(recursive)) private$.recursive <- recursive
+      
+      private$.tools <- list()
+      private$.tool_files <- character()
+      invisible(self)
+    },
+
+    #' @description Enable or disable verbose output during search operations.
+    #' @param verbose logical. TRUE to enable verbose output, FALSE to disable
+    #' @return self (invisibly) for method chaining
+    set_verbose = function(verbose) {
+      private$.verbose <- verbose
+      invisible(self)
+    },
+
+    #' @description Prints a summary of the ToolRegistry, including the tools directory,
+    #' the number of loaded tools, and their names.
+    #' @return The `ToolRegistry` object, invisibly.
+    print = function() {
+      cat("<ToolRegistry>\n")
+      cat("  Directory: ", private$.tools_dir, "\n")
+      cat("  Tools: ", length(private$.tools), "\n")
+      if (length(private$.tools) > 0) {
+        names <- vapply(private$.tools, function(x) x$name, character(1))
+        cat("  Names: ", paste(names, collapse = ", "), "\n")
+      }
+      invisible(self)
+    }
+  ),
+
   private = list(
     .tools_dir = NULL,
     .pattern = NULL,
@@ -118,223 +277,6 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       }
           
       TRUE
-    }
-  ),
-
-  public = list(
-    #' @description Create a new ToolRegistry instance with specified configuration.
-    #' @param tools_dir character. Directory path to scan for tool files. Default: "inst/mcpr_tools"
-    #' @param pattern character. File pattern to match (regex). Default: "\\.R$"
-    #' @param recursive logical. Whether to search subdirectories. Default: FALSE
-    #' @param verbose logical. Enable verbose output during the search. Default: TRUE
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new(
-    #'   tools_dir = "inst/mcpr_tools",
-    #'   recursive = TRUE,
-    #'   verbose = FALSE
-    #' )
-    #' }
-    initialize = function(tools_dir = "inst/mcpr_tools", 
-                         pattern = "tool-.*\\.R$", 
-                         recursive = FALSE,
-                         verbose = FALSE) {
-      private$.tools_dir <- tools_dir
-      private$.pattern <- pattern
-      private$.recursive <- recursive
-      private$.verbose <- verbose
-      private$.tools <- list()
-      private$.tool_files <- character()
-    },
-
-    #' @description Scan the configured directory for R files containing functions
-#' tagged with ` @keywords mcpr_tool` and convert them to MCPR tool objects.
-#' @param force_refresh logical. Force re-scanning even if tools are already cached. Default: FALSE
-#' @return list of MCPR tool objects
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new()
-    #' registry$search_tools()
-    #' tools <- registry$search_tools(force_refresh = TRUE)
-    #' }
-    search_tools = function(force_refresh = FALSE) {
-      if (!force_refresh && length(private$.tools) > 0) {
-        return(private$.tools)
-      }
-      
-      if (!dir.exists(private$.tools_dir)) {
-        if (private$.verbose) {
-          cli::cli_inform("Tools directory {.path {private$.tools_dir}} does not exist.")
-        }
-        return(list())
-      }
-      
-      private$.tool_files <- list.files(
-        path = private$.tools_dir,
-        pattern = private$.pattern,
-        full.names = TRUE,
-        recursive = private$.recursive,
-        ignore.case = TRUE
-      )
-      
-      if (length(private$.tool_files) == 0) {
-        if (private$.verbose) {
-          cli::cli_inform("No tool files found.")
-        }
-        return(list())
-      }
-      
-      if (private$.verbose) {
-        cli::cli_inform("Searching for tools in {length(private$.tool_files)} file{?s}...")
-      }
-      
-      private$.tools <- list()
-      
-      for (tool_file in private$.tool_files) {
-        tryCatch({
-          file_tools <- private$parse_file(tool_file)
-          private$.tools <- c(private$.tools, file_tools)
-          if (private$.verbose && length(file_tools) > 0) {
-            cli::cli_inform("✓ Loaded {length(file_tools)} tool{?s} from {.file {basename(tool_file)}}")
-          }
-        }, error = function(e) {
-          cli::cli_warn("Failed to load {.file {basename(tool_file)}}: {conditionMessage(e)}")
-        })
-      }
-      
-      private$validate_tools(private$.tools)
-      
-      if (private$.verbose) {
-        cli::cli_inform("Successfully found {length(private$.tools)} tool{?s}.")
-      }
-      
-      private$.tools
-    },
-
-    #' @description Return the list of currently loaded tools without re-scanning.
-#' @return list of MCPR tool objects
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new()
-    #' registry$search_tools()
-    #' tools <- registry$get_tools()
-    #' }
-    get_tools = function() {
-      private$.tools
-    },
-
-    #' @description Generate a data.frame summary of loaded tools with names,
-    #' descriptions, and parameter counts.
-    #' @return data.frame with columns: name, description, parameters
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new()
-    #' registry$search_tools()
-    #' summary <- registry$get_tool_summary()
-    #' print(summary)
-    #' }
-    get_tool_summary = function() {
-      if (length(private$.tools) == 0) {
-        return(data.frame(name = character(), description = character(), stringsAsFactors = FALSE))
-      }
-      
-      tool_info <- lapply(private$.tools, function(tool) {
-        data.frame(
-          name = tool$name,
-          description = substr(tool$description, 1, 50),
-          parameters = length(tool$arguments),
-          stringsAsFactors = FALSE
-        )
-      })
-      
-      do.call(rbind, tool_info)
-    },
-
-    #' @description Check if a tool with the specified name has been loaded.
-    #' @param name character. Name of the tool to check
-    #' @return logical. TRUE if tool exists, FALSE otherwise
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new()
-    #' registry$search_tools()
-    #' if (registry$has_tool("my_function")) {
-    #'   # Use the tool
-    #' }
-    #' }
-    has_tool = function(name) {
-      if (length(private$.tools) == 0) return(FALSE)
-      tool_names <- vapply(private$.tools, function(x) x$name, character(1))
-      name %in% tool_names
-    },
-
-    #' @description Retrieve a specific tool by name.
-    #' @param name character. Name of the tool to retrieve
-    #' @return MCPR tool object or NULL if not found
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new()
-    #' registry$search_tools()
-    #' tool <- registry$get_tool("my_function")
-    #' if (!is.null(tool)) {
-    #'   # Use the tool
-    #' }
-    #' }
-    get_tool = function(name) {
-      for (tool in private$.tools) {
-        if (tool$name == name) return(tool)
-      }
-      NULL
-    },
-
-    #' @description Update the search configuration and reset cached tools.
-    #' @param tools_dir character. New directory path (optional)
-    #' @param pattern character. New file pattern (optional)
-    #' @param recursive logical. New recursive setting (optional)
-    #' @return self (invisibly) for method chaining
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new()
-    #' registry$configure(
-    #'   tools_dir = "new/path",
-    #'   recursive = TRUE
-    #' )$search_tools()
-    #' }
-    configure = function(tools_dir = NULL, pattern = NULL, recursive = NULL) {
-      if (!is.null(tools_dir)) private$.tools_dir <- tools_dir
-      if (!is.null(pattern)) private$.pattern <- pattern
-      if (!is.null(recursive)) private$.recursive <- recursive
-      
-      private$.tools <- list()
-      private$.tool_files <- character()
-      invisible(self)
-    },
-
-    #' @description Enable or disable verbose output during search operations.
-    #' @param verbose logical. TRUE to enable verbose output, FALSE to disable
-    #' @return self (invisibly) for method chaining
-    #' @examples
-    #' \dontrun{
-    #' registry <- ToolRegistry$new()
-    #' registry$set_verbose(FALSE)$search_tools()
-    #' }
-    set_verbose = function(verbose) {
-      private$.verbose <- verbose
-      invisible(self)
-    },
-
-    #' @description
-    #' Prints a summary of the ToolRegistry, including the tools directory,
-    #' the number of loaded tools, and their names.
-    #' @return The `ToolRegistry` object, invisibly.
-    print = function() {
-      cat("<ToolRegistry>\n")
-      cat("  Directory: ", private$.tools_dir, "\n")
-      cat("  Tools: ", length(private$.tools), "\n")
-      if (length(private$.tools) > 0) {
-        names <- vapply(private$.tools, function(x) x$name, character(1))
-        cat("  Names: ", paste(names, collapse = ", "), "\n")
-      }
-      invisible(self)
     }
   )
 )

@@ -1,7 +1,7 @@
 #' R6 Class for MCP Session Management
 #'
 #' @description
-#' MCPRSession provides a cohesive class-based approach to managing MCP session
+#' mcprSession provides a cohesive class-based approach to managing MCP session
 #' communication with nanonext sockets. Encapsulates all session state and
 #' provides proper resource management.
 #'
@@ -11,7 +11,7 @@
 #' proper encapsulation and automatic resource management.
 #'
 #' @export
-MCPRSession <- R6::R6Class("MCPRSession",
+mcprSession <- R6::R6Class("mcprSession",
   private = list(
     .socket = NULL,
     .session_id = NULL,
@@ -43,11 +43,84 @@ MCPRSession <- R6::R6Class("MCPRSession",
       if (private$.is_running) {
         later::later(function() self$check_timeout(), delay = private$.timeout_seconds)
       }
+    },
+    
+    # Start async message listening loop
+    #
+    # @description Start async message listening loop
+    start_listening = function() {
+      if (!private$.is_running) return(invisible(self))
+      
+      private$.raio <- nanonext::recv_aio(private$.socket, mode = "serial")
+      promises::as.promise(private$.raio)$then(
+        function(data) private$handle_message(data)
+      )$catch(
+        function(e) {
+          # Connection lost - cleanup and stop
+          if (private$.is_running) self$stop()
+        }
+      )
+      
+      invisible(self)
+    },
+    
+    # Handle incoming message from server
+    #
+    # @description Handle incoming message from server
+    # @param data Message data from server
+    handle_message = function(data) {
+      if (!private$.is_running) return(invisible(self))
+      
+      pipe <- nanonext::pipe_id(private$.raio)
+      private$.last_activity <- Sys.time()
+      
+      # Schedule next message listen
+      private$start_listening()
+      
+      # Handle discovery ping
+      if (length(data) == 0) {
+        private$send_response(describe_session(), pipe)
+        return(invisible(self))
+      }
+      
+      # Process tool call or return error
+      body <- if (data$method == "tools/call") {
+        execute_tool_call(data)
+      } else {
+        private$.messenger$create_error(
+          data$id,
+          code = -32601,
+          message = "Method not found"
+        )
+      }
+      
+      private$send_response(to_json(body), pipe)
+      invisible(self)
+    },
+    
+    # Send response back to server
+    #
+    # @description Send response back to server
+    # @param response Response data
+    # @param pipe Pipe ID for response routing
+    send_response = function(response, pipe) {
+      if (!private$.is_running || is.null(private$.socket)) {
+        return(invisible(self))
+      }
+      
+      nanonext::send_aio(
+        private$.socket,
+        response,
+        mode = "raw",
+        pipe = pipe
+      )
+      
+      invisible(self)
     }
   ),
   
   public = list(
-    #' @description Create new MCPRSession instance
+    #' @description Create new mcprSession instance
     #' @param timeout_seconds Timeout in seconds (default: 900)
     initialize = function(timeout_seconds = 900) {
       private$.timeout_seconds <- timeout_seconds
@@ -75,7 +148,7 @@ MCPRSession <- R6::R6Class("MCPRSession",
       private$.is_running <- TRUE
       
       # Start async message loop
-      self$start_listening()
+      private$start_listening()
       
       # Schedule periodic timeout checks
       private$schedule_timeout_check()
@@ -83,72 +156,6 @@ MCPRSession <- R6::R6Class("MCPRSession",
       invisible(self)
     },
     
-    #' @description Start async message listening loop
-    start_listening = function() {
-      if (!private$.is_running) return(invisible(self))
-      
-      private$.raio <- nanonext::recv_aio(private$.socket, mode = "serial")
-      promises::as.promise(private$.raio)$then(
-        function(data) self$handle_message(data)
-      )$catch(
-        function(e) {
-          # Connection lost - cleanup and stop
-          if (private$.is_running) self$stop()
-        }
-      )
-      
-      invisible(self)
-    },
-    
-    #' @description Handle incoming message from server
-    #' @param data Message data from server
-    handle_message = function(data) {
-      if (!private$.is_running) return(invisible(self))
-      
-      pipe <- nanonext::pipe_id(private$.raio)
-      private$.last_activity <- Sys.time()
-      
-      # Schedule next message listen
-      self$start_listening()
-      
-      # Handle discovery ping
-      if (length(data) == 0) {
-        self$send_response(describe_session(), pipe)
-        return(invisible(self))
-      }
-      
-      # Process tool call or return error
-      body <- if (data$method == "tools/call") {
-        execute_tool_call(data)
-      } else {
-        private$.messenger$create_error(
-          data$id,
-          code = -32601,
-          message = "Method not found"
-        )
-      }
-      
-      self$send_response(to_json(body), pipe)
-      invisible(self)
-    },
-    
-    #' @description Send response back to server
-    #' @param response Response data
-    #' @param pipe Pipe ID for response routing
-    send_response = function(response, pipe) {
-      if (!private$.is_running || is.null(private$.socket)) {
-        return(invisible(self))
-      }
-      
-      nanonext::send_aio(
-        private$.socket,
-        response,
-        mode = "raw",
-        pipe = pipe
-      )
-      
-      invisible(self)
-    },
     
     #' @description Check for session timeout
     check_timeout = function() {
@@ -225,7 +232,7 @@ mcpr_session <- function(timeout_seconds = 900) {
   }
   
   # Store session in global environment for compatibility
-  the$mcpr_session <- MCPRSession$new(timeout_seconds = timeout_seconds)
+  the$mcpr_session <- mcprSession$new(timeout_seconds = timeout_seconds)
   the$mcpr_session$start()
   
   # Legacy compatibility - store session ID

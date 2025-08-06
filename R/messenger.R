@@ -31,28 +31,6 @@
 #'
 #' @export
 MessageHandler <- R6::R6Class("MessageHandler",
-  private = list(
-    .logger = NULL,
-    .timeout_seconds = 20,
-    .retry_delay = 0.2,
-    
-    # Log communication message
-    log_message = function(direction, message, context = NULL) {
-      if (!is.null(private$.logger)) {
-        prefix <- paste0(direction, if (!is.null(context)) paste0(" (", context, ")") else "", ": ")
-        private$.logger(paste0(prefix, message))
-      }
-    },
-    
-    # Validate JSON-RPC structure
-    validate_jsonrpc = function(obj, require_method = FALSE) {
-      if (!is.list(obj)) return(FALSE)
-      if (is.null(obj$jsonrpc) || obj$jsonrpc != "2.0") return(FALSE)
-      if (require_method && is.null(obj$method)) return(FALSE)
-      TRUE
-    }
-  ),
-  
   public = list(
     #' @description Initialize MessageHandler
     #' @param logger Optional logging function
@@ -239,10 +217,34 @@ MessageHandler <- R6::R6Class("MessageHandler",
         id = id,
         error = list(code = code, message = message)
       )
+    }
+  ),
+
+  private = list(
+    .logger = NULL,
+    .timeout_seconds = 20,
+    .retry_delay = 0.2,
+    
+    # Log communication message
+    log_message = function(direction, message, context = NULL) {
+      if (!is.null(private$.logger)) {
+        prefix <- paste0(direction, if (!is.null(context)) paste0(" (", context, ")") else "", ": ")
+        private$.logger(paste0(prefix, message))
+      }
     },
     
-    #' @description Handle session discovery ping
-    #' @return Session description
+    # Validate JSON-RPC structure
+    validate_jsonrpc = function(obj, require_method = FALSE) {
+      if (!is.list(obj)) return(FALSE)
+      if (is.null(obj$jsonrpc) || obj$jsonrpc != "2.0") return(FALSE)
+      if (require_method && is.null(obj$method)) return(FALSE)
+      TRUE
+    },
+    
+    # Handle session discovery ping
+    #
+    # @description Handle session discovery ping
+    # @return Session description
     handle_discovery_ping = function() {
       # This would call describe_session() if available
       list(

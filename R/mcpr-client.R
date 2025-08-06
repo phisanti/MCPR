@@ -80,7 +80,7 @@ mcprClient <- R6::R6Class("mcprClient",
     initialize = function(config = NULL) {
       private$.servers <- list()
       private$.server_processes <- list()
-      private$.messenger <- MessageHandler$new(logger = self$log_communication)
+      private$.messenger <- MessageHandler$new(logger = private$log_communication)
       
       if (is.null(config)) {
         config <- getOption(
@@ -222,30 +222,10 @@ mcprClient <- R6::R6Class("mcprClient",
         )
       })
     },
-    
-    #' Log communication for debugging
-    #'
-    #' @description Logs communication messages for debugging purposes
-    #' @param message Message to log (character)
-    #' @examples
-    #' \dontrun{
-    #' client$log_communication("Custom debug message")
-    #' }
-    log_communication = function(message) {
-      log_file <- "~/mcp_client_test.txt"
-      cat(message, "\n\n", sep = "", append = TRUE, file = log_file)
-    },
-    
-    #' Convert tool schema to MCPR types
-    #'
-    #' @description Converts tool schema definitions to MCPR-compatible types
+
+    #' @description Convert tool schema to MCPR types
     #' @param tool Tool definition object
     #' @return Converted tool types
-    #' @examples
-    #' \dontrun{
-    #' # Internal method typically not called directly
-    #' types <- client$as_mcpr_types(tool_definition)
-    #' }
     as_mcpr_types = function(tool) {
       if (is.null(tool$inputSchema) || is.null(tool$inputSchema$properties)) {
         return(list())
@@ -428,6 +408,15 @@ mcprClient <- R6::R6Class("mcprClient",
           }
         }
       }
+    },
+    
+    # Log communication for debugging
+    #
+    # @description Logs communication messages for debugging purposes
+    # @param message Message to log (character)
+    log_communication = function(message) {
+      log_file <- "~/mcp_client_test.txt"
+      cat(message, "\n\n", sep = "", append = TRUE, file = log_file)
     }
   )
 )

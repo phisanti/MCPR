@@ -1,11 +1,11 @@
-test_that("MCPRSession can be instantiated", {
-  session <- MCPRSession$new()
-  expect_s3_class(session, "MCPRSession")
+test_that("mcprSession can be instantiated", {
+  session <- mcprSession$new()
+  expect_s3_class(session, "mcprSession")
   expect_s3_class(session, "R6")
 })
 
-test_that("MCPRSession initializes with correct defaults", {
-  session <- MCPRSession$new()
+test_that("mcprSession initializes with correct defaults", {
+  session <- mcprSession$new()
   info <- session$get_info()
   
   expect_null(info$session_id)
@@ -14,17 +14,17 @@ test_that("MCPRSession initializes with correct defaults", {
   expect_true(is.null(info$last_activity) || inherits(info$last_activity, "POSIXt"))
 })
 
-test_that("MCPRSession accepts custom timeout", {
+test_that("mcprSession accepts custom timeout", {
   custom_timeout <- 1800  # 30 minutes
-  session <- MCPRSession$new(timeout_seconds = custom_timeout)
+  session <- mcprSession$new(timeout_seconds = custom_timeout)
   
   # Test that timeout is stored correctly (we can't directly access private vars)
   # but we can test that the object was created successfully
-  expect_s3_class(session, "MCPRSession")
+  expect_s3_class(session, "mcprSession")
 })
 
-test_that("MCPRSession methods return invisible self", {
-  session <- MCPRSession$new()
+test_that("mcprSession methods return invisible self", {
+  session <- mcprSession$new()
   
   # All public methods should return invisible(self) for chaining
   result <- session$stop()
@@ -34,8 +34,8 @@ test_that("MCPRSession methods return invisible self", {
   expect_identical(result, session)
 })
 
-test_that("MCPRSession stop method is idempotent", {
-  session <- MCPRSession$new()
+test_that("mcprSession stop method is idempotent", {
+  session <- mcprSession$new()
   
   # Should be able to call stop multiple times without error
   expect_silent(session$stop())
@@ -46,7 +46,7 @@ test_that("MCPRSession stop method is idempotent", {
   expect_false(info$is_running)
 })
 
-test_that("MCPRSession handles non-interactive environment gracefully", {
+test_that("mcprSession handles non-interactive environment gracefully", {
   # Mock non-interactive environment
   original_interactive <- rlang::is_interactive
   
@@ -55,7 +55,7 @@ test_that("MCPRSession handles non-interactive environment gracefully", {
   
   # We can't easily mock rlang::is_interactive in tests, so we'll test
   # that the start method returns the session object
-  session <- MCPRSession$new()
+  session <- mcprSession$new()
   result <- session$start()
   expect_identical(result, session)
 })
@@ -73,8 +73,8 @@ test_that("mcpr_session_stop is safe to call when no session exists", {
   expect_silent(mcpr_session_stop())
 })
 
-test_that("MCPRSession get_info provides complete status", {
-  session <- MCPRSession$new()
+test_that("mcprSession get_info provides complete status", {
+  session <- mcprSession$new()
   info <- session$get_info()
   
   # Check that all expected fields are present

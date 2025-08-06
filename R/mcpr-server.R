@@ -51,6 +51,146 @@
 #'
 #' @export
 mcprServer <- R6::R6Class("mcprServer",
+  public = list(
+    #' @description
+    #' Initialize the MCP server with optional tools.
+    #' 
+    #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
+    #'   takes precedence over the `tools` parameter.
+    #' @param .tools_dir Internal parameter for specifying tools directory path.
+    #' @return A new `mcprServer` instance
+    initialize = function(registry = NULL, .tools_dir = NULL) {
+      if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
+        cli::cli_abort("registry must be a ToolRegistry instance")
+      }
+      
+      # Initialize messenger for JSON-RPC communication
+      private$.messenger <- MessageHandler$new(logger = logcat)
+      if (is.null(registry)) {
+        pkg_tools_dir <- if (!is.null(.tools_dir)) {
+          .tools_dir
+        } else {
+          # If the package is installed, the inst/ folder is off-loaded to 
+          # the package directory
+          find.package("MCPR") 
+        }
+        if (dir.exists(pkg_tools_dir)) {
+          registry <- ToolRegistry$new(
+            tools_dir = pkg_tools_dir,
+            pattern = "tool-.*\\.R$",
+            recursive = FALSE,
+            verbose = FALSE
+          )
+          registry$search_tools()
+        }
+      }
+      set_server_tools(registry = registry)
+    },
+
+    #' @description
+    #' Start the MCP server and begin listening for connections.
+    #' 
+    #' @details
+    #' This method blocks execution and runs the server's main event loop.
+    #' It handles incoming messages from MCP clients and forwards requests
+    #' to available R sessions. The server will continue running until
+    #' manually stopped or interrupted.
+    #' 
+    #' @note This method should only be called in non-interactive contexts.
+    #' @return No return value (blocking call)
+    start = function() {
+      check_not_interactive()
+
+      private$.cv <- nanonext::cv()
+      private$.reader_socket <- nanonext::read_stdin()
+      on.exit(nanonext::reap(private$.reader_socket), add = TRUE)
+      nanonext::pipe_notify(private$.reader_socket, private$.cv, remove = TRUE, flag = TRUE)
+
+      the$server_socket <- nanonext::socket("poly")
+      on.exit(nanonext::reap(the$server_socket), add = TRUE)
+      # TODO: Make session discovery more robust than dialing a fixed number
+      nanonext::dial(the$server_socket, url = sprintf("%s%d", the$socket_url, 1L))
+
+      client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
+      session <- nanonext::recv_aio(the$server_socket, mode = "string", cv = private$.cv)
+
+      private$.running <- TRUE
+      while (nanonext::wait(private$.cv)) {
+        if (!nanonext::unresolved(session)) {
+          private$handle_message_from_session(session$data)
+          session <- nanonext::recv_aio(the$server_socket, mode = "string", cv = private$.cv)
+        }
+        if (!nanonext::unresolved(client)) {
+          private$handle_message_from_client(client$data)
+          client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
+        }
+      }
+    },
+
+    #' @description
+    #' Stop the running server with graceful shutdown and resource cleanup.
+    #' 
+    #' @param timeout_ms Timeout in milliseconds for graceful shutdown (default: 5000)
+    #' @return The server instance (invisibly) for method chaining
+    stop = function(timeout_ms = 5000) {
+      if (!private$.running) {
+        return(invisible(self))
+      }
+      
+      private$.running <- FALSE
+      
+      # Graceful shutdown with timeout
+      start_time <- Sys.time()
+      while (!is.null(private$.cv) && 
+             as.numeric(difftime(Sys.time(), start_time, units = "secs")) < (timeout_ms/1000)) {
+        Sys.sleep(0.1)
+        if (nanonext::unresolved(private$.cv) == 0) break
+      }
+      
+      # Close and cleanup sockets
+      if (!is.null(private$.reader_socket)) {
+        nanonext::reap(private$.reader_socket)
+        private$.reader_socket <- NULL
+      }
+      
+      if (!is.null(the$server_socket)) {
+        nanonext::reap(the$server_socket)
+        the$server_socket <- NULL
+      }
+      
+      # Reset condition variable
+      private$.cv <- NULL
+      
+      invisible(self)
+    },
+
+    #' @description
+    #' Check if the server is currently running.
+    #' 
+    #' @return `TRUE` if server is running, `FALSE` otherwise
+    is_running = function() {
+      private$.running
+    },
+
+    #' @description
+    #' Get server tools in the specified format.
+    #' 
+    #' @param format Character string specifying output format: "list" (default) or "json"
+    #' @return For "list": named list of ToolDef objects. For "json": list suitable for JSON serialization
+    get_tools = function(format = c("list", "json")) {
+      format <- match.arg(format)
+      
+      if (format == "json") {
+        tools <- lapply(the$server_tools, tool_as_json)
+        return(compact(tools))
+      }
+      
+      # Default to list format
+      res <- the$server_tools  
+      stats::setNames(res, vapply(res, \(x) x$name, character(1)))
+    }
+  ),
+
   private = list(
     .reader_socket = NULL,
     .cv = NULL,
@@ -156,119 +296,6 @@ mcprServer <- R6::R6Class("mcprServer",
       }
       data$tool <- self$get_tools()[[tool_name]]$fun
       data
-    }
-  ),
-
-  public = list(
-    #' @description
-    #' Initialize the MCP server with optional tools.
-    #' 
-    #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
-    #'   takes precedence over the `tools` parameter.
-    #' @param .tools_dir Internal parameter for specifying tools directory path.
-    #' @return A new `mcprServer` instance
-    initialize = function(registry = NULL, .tools_dir = NULL) {
-      if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
-        cli::cli_abort("registry must be a ToolRegistry instance")
-      }
-      
-      # Initialize messenger for JSON-RPC communication
-      private$.messenger <- MessageHandler$new(logger = logcat)
-      if (is.null(registry)) {
-        pkg_tools_dir <- if (!is.null(.tools_dir)) {
-          .tools_dir
-        } else {
-          # If the package is installed, the inst/ folder is off-loaded to 
-          # the package directory
-          find.package("MCPR") 
-        }
-        if (dir.exists(pkg_tools_dir)) {
-          registry <- ToolRegistry$new(
-            tools_dir = pkg_tools_dir,
-            pattern = "tool-.*\\.R$",
-            recursive = FALSE,
-            verbose = FALSE
-          )
-          registry$search_tools()
-        }
-      }
-      set_server_tools(registry = registry)
-    },
-
-    #' @description
-    #' Start the MCP server and begin listening for connections.
-    #' 
-    #' @details
-    #' This method blocks execution and runs the server's main event loop.
-    #' It handles incoming messages from MCP clients and forwards requests
-    #' to available R sessions. The server will continue running until
-    #' manually stopped or interrupted.
-    #' 
-    #' @note This method should only be called in non-interactive contexts.
-    #' @return No return value (blocking call)
-    start = function() {
-      check_not_interactive()
-
-      private$.cv <- nanonext::cv()
-      private$.reader_socket <- nanonext::read_stdin()
-      on.exit(nanonext::reap(private$.reader_socket), add = TRUE)
-      nanonext::pipe_notify(private$.reader_socket, private$.cv, remove = TRUE, flag = TRUE)
-
-      the$server_socket <- nanonext::socket("poly")
-      on.exit(nanonext::reap(the$server_socket), add = TRUE)
-      # TODO: Make session discovery more robust than dialing a fixed number
-      nanonext::dial(the$server_socket, url = sprintf("%s%d", the$socket_url, 1L))
-
-      client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
-      session <- nanonext::recv_aio(the$server_socket, mode = "string", cv = private$.cv)
-
-      private$.running <- TRUE
-      while (nanonext::wait(private$.cv)) {
-        if (!nanonext::unresolved(session)) {
-          private$handle_message_from_session(session$data)
-          session <- nanonext::recv_aio(the$server_socket, mode = "string", cv = private$.cv)
-        }
-        if (!nanonext::unresolved(client)) {
-          private$handle_message_from_client(client$data)
-          client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
-        }
-      }
-    },
-
-    #' @description
-    #' Stop the running server.
-    #' 
-    #' @return The server instance (invisibly) for method chaining
-    stop = function() {
-      private$.running <- FALSE
-      # TODO: Add more graceful shutdown logic
-      invisible(self)
-    },
-
-    #' @description
-    #' Check if the server is currently running.
-    #' 
-    #' @return `TRUE` if server is running, `FALSE` otherwise
-    is_running = function() {
-      private$.running
-    },
-
-    #' @description
-    #' Get server tools in the specified format.
-    #' 
-    #' @param format Character string specifying output format: "list" (default) or "json"
-    #' @return For "list": named list of ToolDef objects. For "json": list suitable for JSON serialization
-    get_tools = function(format = c("list", "json")) {
-      format <- match.arg(format)
-      
-      if (format == "json") {
-        tools <- lapply(the$server_tools, tool_as_json)
-        return(compact(tools))
-      }
-      
-      # Default to list format
-      res <- the$server_tools  
-      stats::setNames(res, vapply(res, \(x) x$name, character(1)))
     }
   )
 )
