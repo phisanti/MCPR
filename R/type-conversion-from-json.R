@@ -1,6 +1,6 @@
 #' Convert JSON data back to R objects
 #'
-#' Reconstructs R objects from JSON data that was created with \code{to_mcp_json}.
+#' Reconstructs R objects from JSON data that was created with \code{to_mcpr_json}.
 #' Preserves type information including dates, factors, matrices, and other
 #' special R types.
 #'
@@ -8,7 +8,7 @@
 #' @return An R object reconstructed from the JSON data
 #' 
 #' @details
-#' This function reverses the conversion done by \code{to_mcp_json}, reconstructing:
+#' This function reverses the conversion done by \code{to_mcpr_json}, reconstructing:
 #' \itemize{
 #'   \item Special numeric values (Inf, -Inf, NaN)
 #'   \item Date and POSIXct objects with timezones
@@ -27,7 +27,7 @@
 #' @examples
 #' # Simple JSON string
 #' json_str <- '{"a": 1, "b": ["hello", "world"]}'
-#' from_mcp_json(json_str)
+#' from_mcpr_json(json_str)
 #' 
 #' # Round-trip conversion
 #' original <- list(
@@ -35,9 +35,9 @@
 #'   values = c(1, 2, Inf),
 #'   factor = factor(c("a", "b", "a"))
 #' )
-#' json <- mcp_serialize(original)
-#' reconstructed <- from_mcp_json(json)
-from_mcp_json <- function(json) {
+#' json <- mcpr_serialize(original)
+#' reconstructed <- from_mcpr_json(json)
+from_mcpr_json <- function(json) {
   # If it's a string, parse it first
   if (is.character(json) && length(json) == 1) {
     x <- jsonlite::fromJSON(json, simplifyVector = FALSE)

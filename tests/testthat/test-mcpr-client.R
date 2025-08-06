@@ -1,4 +1,4 @@
-test_that("mcpClient finalize implements graceful shutdown", {
+test_that("mcprClient finalize implements graceful shutdown", {
   # Create a mock process object that becomes dead after signal
   alive_state <- TRUE
   signal_called <- FALSE
@@ -20,7 +20,7 @@ test_that("mcpClient finalize implements graceful shutdown", {
   )
   
   # Create client instance and inject mock process
-  client <- mcpClient$new()
+  client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(test_server = mock_process)
   
   # Call finalize
@@ -31,7 +31,7 @@ test_that("mcpClient finalize implements graceful shutdown", {
   expect_false(kill_called, "Kill should not be called if process responds to SIGTERM")
 })
 
-test_that("mcpClient finalize implements timeout and force kill", {
+test_that("mcprClient finalize implements timeout and force kill", {
   # Create a mock process that doesn't respond to SIGTERM
   alive_state <- TRUE
   signal_called <- FALSE
@@ -53,7 +53,7 @@ test_that("mcpClient finalize implements timeout and force kill", {
   )
   
   # Create client instance and inject mock process
-  client <- mcpClient$new()
+  client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(test_server = mock_process)
   
   # Override the timeout to be very short for testing
@@ -68,7 +68,7 @@ test_that("mcpClient finalize implements timeout and force kill", {
   expect_true(kill_called, "Kill should be called after timeout")
 })
 
-test_that("mcpClient finalize handles dead processes", {
+test_that("mcprClient finalize handles dead processes", {
   # Create a mock process that's already dead
   mock_process <- list(
     is_alive = function() FALSE,
@@ -90,7 +90,7 @@ test_that("mcpClient finalize handles dead processes", {
   }
   
   # Create client instance and inject mock process
-  client <- mcpClient$new()
+  client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(test_server = mock_process)
   
   # Call finalize
@@ -101,7 +101,7 @@ test_that("mcpClient finalize handles dead processes", {
   expect_false(mock_process$kill_called, "No kill should be called on dead process")
 })
 
-test_that("mcpClient finalize handles multiple processes", {
+test_that("mcprClient finalize handles multiple processes", {
   # Create responsive process
   responsive_alive <- TRUE
   responsive_signal_called <- FALSE
@@ -131,7 +131,7 @@ test_that("mcpClient finalize handles multiple processes", {
   )
   
   # Create client instance and inject mock processes
-  client <- mcpClient$new()
+  client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(
     responsive = responsive_process,
     dead = dead_process

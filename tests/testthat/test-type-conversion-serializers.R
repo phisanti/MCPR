@@ -1,7 +1,7 @@
 # Test for Basic Serializer Registry
-test_that("register_mcp_serializer adds and retrieves custom serializers", {
+test_that("register_mcpr_serializer adds and retrieves custom serializers", {
   # Clear any existing serializers for clean test
-  original_serializers <- get_mcp_serializers()
+  original_serializers <- get_mcpr_serializers()
   
   # Test registering a custom serializer
   test_serializer <- function(obj) {
@@ -11,10 +11,10 @@ test_that("register_mcp_serializer adds and retrieves custom serializers", {
     )
   }
   
-  register_mcp_serializer("test_class", test_serializer)
+  register_mcpr_serializer("test_class", test_serializer)
   
   # Check that serializer was registered
-  serializers <- get_mcp_serializers()
+  serializers <- get_mcpr_serializers()
   expect_true("test_class" %in% names(serializers))
   expect_true(is.function(serializers[["test_class"]]))
   
@@ -28,25 +28,25 @@ test_that("register_mcp_serializer adds and retrieves custom serializers", {
 test_that("serializer registry supports overwriting and persistence", {
   # Register initial serializer
   serializer1 <- function(obj) list(version = 1, data = obj)
-  register_mcp_serializer("overwrite_test", serializer1)
+  register_mcpr_serializer("overwrite_test", serializer1)
   
   # Verify first serializer
-  serializers1 <- get_mcp_serializers()
+  serializers1 <- get_mcpr_serializers()
   result1 <- serializers1[["overwrite_test"]](42)
   expect_equal(result1$version, 1)
   
   # Register new serializer with same name
   serializer2 <- function(obj) list(version = 2, data = obj * 2)
-  register_mcp_serializer("overwrite_test", serializer2)
+  register_mcpr_serializer("overwrite_test", serializer2)
   
   # Verify second serializer overwrote the first
-  serializers2 <- get_mcp_serializers()
+  serializers2 <- get_mcpr_serializers()
   result2 <- serializers2[["overwrite_test"]](42)
   expect_equal(result2$version, 2)
   expect_equal(result2$data, 84)
   
   # Test persistence across calls
-  serializers3 <- get_mcp_serializers()
+  serializers3 <- get_mcpr_serializers()
   expect_true("overwrite_test" %in% names(serializers3))
   expect_identical(serializers2[["overwrite_test"]], 
                    serializers3[["overwrite_test"]])
@@ -54,12 +54,12 @@ test_that("serializer registry supports overwriting and persistence", {
 
 test_that("multiple custom serializers can coexist", {
   # Register multiple serializers
-  register_mcp_serializer("type_a", function(obj) list(type = "A"))
-  register_mcp_serializer("type_b", function(obj) list(type = "B"))
-  register_mcp_serializer("type_c", function(obj) list(type = "C"))
+  register_mcpr_serializer("type_a", function(obj) list(type = "A"))
+  register_mcpr_serializer("type_b", function(obj) list(type = "B"))
+  register_mcpr_serializer("type_c", function(obj) list(type = "C"))
   
   # Check all are present
-  serializers <- get_mcp_serializers()
+  serializers <- get_mcpr_serializers()
   expect_true("type_a" %in% names(serializers))
   expect_true("type_b" %in% names(serializers))
   expect_true("type_c" %in% names(serializers))
@@ -83,7 +83,7 @@ test_that("can_serialize correctly identifies serializable objects", {
   expect_true(can_serialize(factor(letters[1:3])))
 })
 
-test_that("mcp_serialize produces valid JSON and round-trip works", {
+test_that("mcpr_serialize produces valid JSON and round-trip works", {
   # Various R objects
   objects <- list(
     null = NULL,
@@ -95,7 +95,7 @@ test_that("mcp_serialize produces valid JSON and round-trip works", {
   )
   
   for (name in names(objects)) {
-    json_str <- mcp_serialize(objects[[name]])
+    json_str <- mcpr_serialize(objects[[name]])
     expect_type(json_str, "character")
     expect_length(json_str, 1)
     
@@ -112,8 +112,8 @@ test_that("mcp_serialize produces valid JSON and round-trip works", {
   )
   
   # Convert to JSON and back
-  json_str <- mcp_serialize(df)
-  reconstructed <- mcp_deserialize(json_str)
+  json_str <- mcpr_serialize(df)
+  reconstructed <- mcpr_deserialize(json_str)
   
   # The structure might be slightly different but data should be same
   expect_true(is.list(reconstructed))
@@ -128,8 +128,8 @@ test_that("Plot markers are created for reconstruction", {
   library(ggplot2)
   p <- ggplot(mtcars, aes(x = mpg, y = wt)) + geom_point()
   
-  json_str <- mcp_serialize(p)
-  reconstructed <- mcp_deserialize(json_str)
+  json_str <- mcpr_serialize(p)
+  reconstructed <- mcpr_deserialize(json_str)
   
   # The plot object is nested in the reconstructed list
   plot_obj <- if (inherits(reconstructed, "mcp_plot_marker")) {
@@ -153,18 +153,18 @@ test_that("Mixed data frames with special types work", {
     stringsAsFactors = FALSE
   )
   
-  json_str <- mcp_serialize(df)
+  json_str <- mcpr_serialize(df)
   expect_type(json_str, "character")
   
   # The reconstruction might not perfectly preserve the data frame structure
   # due to how special types are handled, but the data should be recoverable
-  reconstructed <- mcp_deserialize(json_str)
+  reconstructed <- mcpr_deserialize(json_str)
   expect_true(is.list(reconstructed))
 })
 
-test_that("Custom serializers work with to_mcp_json", {
+test_that("Custom serializers work with to_mcpr_json", {
   # Register a custom serializer
-  register_mcp_serializer("myclass", function(obj) {
+  register_mcpr_serializer("myclass", function(obj) {
     list(
       `_mcp_type` = "custom_myclass",
       data = obj$data,
@@ -179,12 +179,12 @@ test_that("Custom serializers work with to_mcp_json", {
   )
   
   # Convert using custom serializer
-  result <- to_mcp_json(obj, custom_serializers = get_mcp_serializers())
+  result <- to_mcpr_json(obj, custom_serializers = get_mcpr_serializers())
   
   expect_equal(result$`_mcp_type`, "custom_myclass")
   expect_equal(result$data, 1:5)
   expect_equal(result$metadata, "test")
   
   # Clean up
-  .mcp_custom_serializers$myclass <- NULL
+  .mcpr_custom_serializers$myclass <- NULL
 })

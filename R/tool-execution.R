@@ -11,7 +11,7 @@
 #' @param obj Object to check
 #' @return Logical indicating presence of MCP type markers
 #' @keywords internal
-has_mcp_types_deep <- function(obj) {
+has_mcpr_types_deep <- function(obj) {
   if (is.list(obj)) {
     # Check current level for _mcp_type
     if (!is.null(obj[["_mcp_type"]])) {
@@ -19,7 +19,7 @@ has_mcp_types_deep <- function(obj) {
     }
     
     # Check recursively
-    return(any(sapply(obj, has_mcp_types_deep, USE.NAMES = FALSE)))
+    return(any(sapply(obj, has_mcpr_types_deep, USE.NAMES = FALSE)))
   }
   
   FALSE
@@ -97,16 +97,16 @@ create_execution_context <- function(id, tool_name, arguments,
 #' }
 #'
 #' @keywords internal
-#' @seealso \code{\link{from_mcp_json}} for type reconstruction details
+#' @seealso \code{\link{from_mcpr_json}} for type reconstruction details
 decode_tool_args <- function(arguments) {
   if (is.list(arguments)) {
     # Check if any arguments have MCP type markers
-    has_mcp_types <- any(sapply(arguments, function(x) {
+    has_mcpr_types <- any(sapply(arguments, function(x) {
       is.list(x) && !is.null(x[["_mcp_type"]])
     }))
     
-    if (has_mcp_types) {
-      return(from_mcp_json(arguments))
+    if (has_mcpr_types) {
+      return(from_mcpr_json(arguments))
     }
   }
   
@@ -159,7 +159,7 @@ decode_tool_args <- function(arguments) {
 #' }
 #'
 #' @keywords internal
-#' @seealso \code{\link{mcp_serialize}} for complex object serialization
+#' @seealso \code{\link{mcpr_serialize}} for complex object serialization
 encode_tool_results <- function(data, result) {
   is_error <- FALSE
   
@@ -192,7 +192,7 @@ encode_tool_results <- function(data, result) {
   }
   
   # For complex objects, use rich type conversion
-  serialized_result <- mcp_serialize(result, pretty = TRUE)
+  serialized_result <- mcpr_serialize(result, pretty = TRUE)
   
   jsonrpc_response(
     data$id,
@@ -211,15 +211,15 @@ encode_tool_results <- function(data, result) {
 #' @description
 #' Decodes MCP tool responses with type reconstruction.
 #' Handles both simple text responses and complex type-preserved responses.
-#' Uses has_mcp_types_deep() utility function.
+#' Uses has_mcpr_types_deep() utility function.
 #'
 #' @param response_result Result portion of JSON-RPC response
 #' @return Decoded R objects with proper types
 #' @keywords internal
 decode_tool_response <- function(response_result) {
   # Check if response contains MCP type markers
-  if (is.list(response_result) && has_mcp_types_deep(response_result)) {
-    return(from_mcp_json(response_result))
+  if (is.list(response_result) && has_mcpr_types_deep(response_result)) {
+    return(from_mcpr_json(response_result))
   }
   
   # Return as-is for simple responses
@@ -265,17 +265,28 @@ execute_local_tool <- function(data) {
 #' @keywords internal
 execute_remote_tool <- function(data) {
   # Encode arguments with type preservation
-  encoded_args <- to_mcp_json(data$params$arguments, auto_unbox = TRUE)
+  encoded_args <- to_mcpr_json(data$params$arguments, auto_unbox = TRUE)
   
-  # Create JSON-RPC request (uses protocol.R functions)
-  request <- mcp_request_tool_call(
+  # Create messenger with client logging if available
+  messenger <- if (!is.null(data$client) && !is.null(data$client$log_communication)) {
+    MessageHandler$new(logger = data$client$log_communication)
+  } else {
+    MessageHandler$new()
+  }
+  
+  # Create JSON-RPC request
+  request <- messenger$create_tool_request(
     id = data$id,
     tool = data$params$name,
     arguments = encoded_args
   )
   
-  # Send request and receive response (uses protocol.R functions)
-  response <- send_and_receive_message(data$process, request, data$client)
+  # Send request and receive response
+  response <- messenger$send_receive(
+    process = data$process,
+    message = request,
+    context = "CLIENT"
+  )
   
   # Decode response with type reconstruction
   if (!is.null(response$result)) {

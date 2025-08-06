@@ -6,13 +6,13 @@
 # Helper functions for type conversion ----------------------------------------
 
 # Handle NULL values
-.mcp_convert_null <- function(x, ...) {
+.mcpr_convert_null <- function(x, ...) {
   if (is.null(x)) return(NULL)
   NULL
 }
 
 # Handle custom serializers
-.mcp_convert_custom <- function(x, custom_serializers, ...) {
+.mcpr_convert_custom <- function(x, custom_serializers, ...) {
   obj_class <- class(x)[1]
   if (obj_class %in% names(custom_serializers)) {
     return(custom_serializers[[obj_class]](x))
@@ -21,7 +21,7 @@
 }
 
 # Handle large objects
-.mcp_convert_large_object <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
+.mcpr_convert_large_object <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
                                       custom_serializers = list(), ...) {
   obj_size <- object.size(x)
   if (obj_size <= size_limit) return(NULL)
@@ -32,7 +32,7 @@
       nrow = nrow(x),
       ncol = ncol(x),
       columns = names(x),
-      head = to_mcp_json(head(x, 5), auto_unbox = auto_unbox, 
+      head = to_mcpr_json(head(x, 5), auto_unbox = auto_unbox, 
                          size_limit = Inf, custom_serializers = custom_serializers)
     )
   } else if (is.atomic(x)) {
@@ -54,7 +54,7 @@
 }
 
 # Handle special numeric values (Inf, -Inf, NaN)
-.mcp_convert_special_numeric <- function(x, auto_unbox = TRUE, ...) {
+.mcpr_convert_special_numeric <- function(x, auto_unbox = TRUE, ...) {
   if (!(is.atomic(x) && is.numeric(x))) return(NULL)
   if (!any(is.infinite(x) | is.nan(x), na.rm = TRUE)) return(NULL)
 
@@ -79,7 +79,7 @@
 }
 
 # Handle Date objects
-.mcp_convert_date <- function(x, ...) {
+.mcpr_convert_date <- function(x, ...) {
   if (!inherits(x, "Date")) return(NULL)
   list(
     values = format(x, "%Y-%m-%d"),
@@ -88,7 +88,7 @@
 }
 
 # Handle POSIXct/POSIXlt datetime objects
-.mcp_convert_posix <- function(x, ...) {
+.mcpr_convert_posix <- function(x, ...) {
   if (!inherits(x, "POSIXt")) return(NULL)
   if (inherits(x, "POSIXlt")) x <- as.POSIXct(x)
 
@@ -100,7 +100,7 @@
 }
 
 # Handle complex numbers
-.mcp_convert_complex <- function(x, ...) {
+.mcpr_convert_complex <- function(x, ...) {
   if (!is.complex(x)) return(NULL)
   list(
     real = Re(x),
@@ -110,7 +110,7 @@
 }
 
 # Handle raw vectors
-.mcp_convert_raw <- function(x, ...) {
+.mcpr_convert_raw <- function(x, ...) {
   if (!is.raw(x)) return(NULL)
   list(
     data = jsonlite::base64_enc(x),
@@ -119,7 +119,7 @@
 }
 
 # Handle formula objects
-.mcp_convert_formula <- function(x, auto_unbox = TRUE, ...) {
+.mcpr_convert_formula <- function(x, auto_unbox = TRUE, ...) {
   if (!inherits(x, "formula")) return(NULL)
   formula_str <- deparse(x)
   if (length(formula_str) == 1 && auto_unbox) {
@@ -135,7 +135,7 @@
 }
 
 # Handle language objects (expressions, calls, symbols)
-.mcp_convert_language <- function(x, auto_unbox = TRUE, ...) {
+.mcpr_convert_language <- function(x, auto_unbox = TRUE, ...) {
   if (!is.language(x)) return(NULL)
   
   # Safely deparse the expression without evaluating it
@@ -157,7 +157,7 @@
 }
 
 # Handle environments
-.mcp_convert_environment <- function(x, ...) {
+.mcpr_convert_environment <- function(x, ...) {
   if (!is.environment(x)) return(NULL)
   env_name <- environmentName(x)
   if (env_name == "") env_name <- capture.output(print(x))[1]
@@ -168,7 +168,7 @@
 }
 
 # Handle ggplot2 objects
-.mcp_convert_plot_gg <- function(x, ...) {
+.mcpr_convert_plot_gg <- function(x, ...) {
   if (!(inherits(x, "gg") || inherits(x, "ggplot"))) return(NULL)
   if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
 
@@ -186,7 +186,7 @@
 }
 
 # Handle base R recorded plots
-.mcp_convert_plot_recorded <- function(x, ...) {
+.mcpr_convert_plot_recorded <- function(x, ...) {
   if (!inherits(x, "recordedplot")) return(NULL)
 
   tmp <- tempfile(fileext = ".png")
@@ -204,7 +204,7 @@
 }
 
 # Handle factor objects
-.mcp_convert_factor <- function(x, ...) {
+.mcpr_convert_factor <- function(x, ...) {
   if (!is.factor(x)) return(NULL)
   list(
     levels = levels(x),
@@ -214,7 +214,7 @@
 }
 
 # Handle basic atomic types
-.mcp_convert_atomic <- function(x, auto_unbox = TRUE, ...) {
+.mcpr_convert_atomic <- function(x, auto_unbox = TRUE, ...) {
   if (!(is.atomic(x) && !is.array(x) && !is.matrix(x))) return(NULL)
 
   if (!is.null(names(x))) return(as.list(x))
@@ -223,7 +223,7 @@
 }
 
 # Handle matrices and arrays
-.mcp_convert_matrix_array <- function(x, ...) {
+.mcpr_convert_matrix_array <- function(x, ...) {
   if (!(is.matrix(x) || is.array(x))) return(NULL)
   list(
     data = as.vector(x),
@@ -234,7 +234,7 @@
 }
 
 # Handle data frames
-.mcp_convert_dataframe <- function(x, auto_stream = TRUE, stream_threshold = 500, ...) {
+.mcpr_convert_dataframe <- function(x, auto_stream = TRUE, stream_threshold = 500, ...) {
   if (!is.data.frame(x)) return(NULL)
   
   # Auto-stream if dataframe size (rows * cols) exceeds threshold
@@ -254,13 +254,13 @@
 }
 
 # Handle S4 objects
-.mcp_convert_S4 <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
+.mcpr_convert_S4 <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
                            custom_serializers = list(), ...) {
   if (!isS4(x)) return(NULL)
   slots <- slotNames(x)
   result <- list(`_mcp_type` = "S4", `_mcp_class` = class(x))
   for (s in slots) {
-    result[[s]] <- to_mcp_json(slot(x, s), auto_unbox = auto_unbox, 
+    result[[s]] <- to_mcpr_json(slot(x, s), auto_unbox = auto_unbox, 
                                size_limit = size_limit, 
                                custom_serializers = custom_serializers)
   }
@@ -268,21 +268,21 @@
 }
 
 # Handle S3 objects
-.mcp_convert_S3 <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
+.mcpr_convert_S3 <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
                            custom_serializers = list(), ...) {
   if (!is.object(x) || isS4(x)) return(NULL)
   result <- unclass(x)
   if (is.list(result)) {
     converted <- list()
     for (i in seq_along(result)) {
-      converted[[names(result)[i]]] <- to_mcp_json(result[[i]], 
+      converted[[names(result)[i]]] <- to_mcpr_json(result[[i]], 
                                                    auto_unbox = auto_unbox, 
                                                    size_limit = size_limit, 
                                                    custom_serializers = custom_serializers)
     }
     result <- converted
   } else {
-    result <- to_mcp_json(result, auto_unbox = auto_unbox, 
+    result <- to_mcpr_json(result, auto_unbox = auto_unbox, 
                           size_limit = size_limit, 
                           custom_serializers = custom_serializers)
   }
@@ -292,10 +292,10 @@
 }
 
 # Handle lists
-.mcp_convert_list <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
+.mcpr_convert_list <- function(x, auto_unbox = TRUE, size_limit = 1e6, 
                              custom_serializers = list(), ...) {
   if (!is.list(x)) return(NULL)
-  lapply(x, to_mcp_json, auto_unbox = auto_unbox, size_limit = size_limit, 
+  lapply(x, to_mcpr_json, auto_unbox = auto_unbox, size_limit = size_limit, 
          custom_serializers = custom_serializers)
 }
 
@@ -335,65 +335,65 @@
 #' @export
 #' @examples
 #' # Basic types
-#' to_mcp_json(list(a = 1, b = "hello"))
-#' to_mcp_json(c(TRUE, FALSE, NA))
+#' to_mcpr_json(list(a = 1, b = "hello"))
+#' to_mcpr_json(c(TRUE, FALSE, NA))
 #' 
 #' # Special numeric values
-#' to_mcp_json(c(1, Inf, -Inf, NaN))
+#' to_mcpr_json(c(1, Inf, -Inf, NaN))
 #' 
 #' # Dates and times
-#' to_mcp_json(Sys.Date())
-#' to_mcp_json(Sys.time())
+#' to_mcpr_json(Sys.Date())
+#' to_mcpr_json(Sys.time())
 #' 
 #' # Data frames
-#' to_mcp_json(data.frame(x = 1:3, y = letters[1:3]))
+#' to_mcpr_json(data.frame(x = 1:3, y = letters[1:3]))
 #' 
 #' # Complex types
-#' to_mcp_json(matrix(1:6, nrow = 2))
-#' to_mcp_json(factor(c("a", "b", "a")))
-#' to_mcp_json(3 + 4i)
-to_mcp_json <- function(x, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = list()) {
+#' to_mcpr_json(matrix(1:6, nrow = 2))
+#' to_mcpr_json(factor(c("a", "b", "a")))
+#' to_mcpr_json(3 + 4i)
+to_mcpr_json <- function(x, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = list()) {
   
   if (is.null(x)) {
     return(NULL)
   } else if (class(x)[1] %in% names(custom_serializers)) {
     return(custom_serializers[[class(x)[1]]](x))
   } else if (object.size(x) > size_limit) {
-    return(.mcp_convert_large_object(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
+    return(.mcpr_convert_large_object(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
   } else if (is.atomic(x) && is.numeric(x) && any(is.infinite(x) | is.nan(x), na.rm = TRUE)) {
-    return(.mcp_convert_special_numeric(x, auto_unbox = auto_unbox))
+    return(.mcpr_convert_special_numeric(x, auto_unbox = auto_unbox))
   } else if (inherits(x, "Date")) {
-    return(.mcp_convert_date(x))
+    return(.mcpr_convert_date(x))
   } else if (inherits(x, "POSIXt")) {
-    return(.mcp_convert_posix(x))
+    return(.mcpr_convert_posix(x))
   } else if (is.complex(x)) {
-    return(.mcp_convert_complex(x))
+    return(.mcpr_convert_complex(x))
   } else if (is.raw(x)) {
-    return(.mcp_convert_raw(x))
+    return(.mcpr_convert_raw(x))
   } else if (inherits(x, "formula")) {
-    return(.mcp_convert_formula(x, auto_unbox = auto_unbox))
+    return(.mcpr_convert_formula(x, auto_unbox = auto_unbox))
   } else if (is.language(x)) {
-    return(.mcp_convert_language(x, auto_unbox = auto_unbox))
+    return(.mcpr_convert_language(x, auto_unbox = auto_unbox))
   } else if (is.environment(x)) {
-    return(.mcp_convert_environment(x))
+    return(.mcpr_convert_environment(x))
   } else if (inherits(x, "gg") || inherits(x, "ggplot")) {
-    return(.mcp_convert_plot_gg(x))
+    return(.mcpr_convert_plot_gg(x))
   } else if (inherits(x, "recordedplot")) {
-    return(.mcp_convert_plot_recorded(x))
+    return(.mcpr_convert_plot_recorded(x))
   } else if (is.factor(x)) {
-    return(.mcp_convert_factor(x))
+    return(.mcpr_convert_factor(x))
   } else if (is.matrix(x) || is.array(x)) {
-    return(.mcp_convert_matrix_array(x))
+    return(.mcpr_convert_matrix_array(x))
   } else if (is.data.frame(x)) {
-    return(.mcp_convert_dataframe(x))
+    return(.mcpr_convert_dataframe(x))
   } else if (isS4(x)) {
-    return(.mcp_convert_S4(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
+    return(.mcpr_convert_S4(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
   } else if (is.object(x)) {
-    return(.mcp_convert_S3(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
+    return(.mcpr_convert_S3(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
   } else if (is.list(x)) {
-    return(.mcp_convert_list(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
+    return(.mcpr_convert_list(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
   } else if (is.atomic(x) && !is.array(x) && !is.matrix(x)) {
-    return(.mcp_convert_atomic(x, auto_unbox = auto_unbox))
+    return(.mcpr_convert_atomic(x, auto_unbox = auto_unbox))
   } else {
     return(x)
   }

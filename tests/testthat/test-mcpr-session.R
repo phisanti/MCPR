@@ -60,17 +60,17 @@ test_that("MCPRSession handles non-interactive environment gracefully", {
   expect_identical(result, session)
 })
 
-test_that("mcp_session functional wrapper works", {
+test_that("mcpr_session functional wrapper works", {
   # Should return invisibly without error in non-interactive mode
-  expect_invisible(result <- mcp_session())
+  expect_invisible(result <- mcpr_session())
   
   # Clean up any session that might have been created
-  mcp_session_stop()
+  mcpr_session_stop()
 })
 
-test_that("mcp_session_stop is safe to call when no session exists", {
+test_that("mcpr_session_stop is safe to call when no session exists", {
   # Should not error when called without an active session
-  expect_silent(mcp_session_stop())
+  expect_silent(mcpr_session_stop())
 })
 
 test_that("MCPRSession get_info provides complete status", {

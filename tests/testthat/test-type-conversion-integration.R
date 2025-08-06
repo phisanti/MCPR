@@ -104,7 +104,7 @@ test_that("tool execution handles arrays correctly", {
   array_tool <- function(numbers) sum(numbers)
   
   # Use proper numeric vector with MCP type conversion
-  numbers_data <- to_mcp_json(c(1, 2, 3, 4, 5))
+  numbers_data <- to_mcpr_json(c(1, 2, 3, 4, 5))
   array_data <- list(
     id = 5,
     params = list(
@@ -184,7 +184,7 @@ test_that("round-trip type conversion works end-to-end", {
   )
   
   # Convert to MCP format
-  mcp_data <- to_mcp_json(original_data)
+  mcp_data <- to_mcpr_json(original_data)
   
   roundtrip_request <- list(
     id = 8,

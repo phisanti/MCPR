@@ -19,10 +19,10 @@ test_that("decode_tool_args detects MCP type markers", {
     )
   )
   
-  # Should trigger from_mcp_json processing
+  # Should trigger from_mcpr_json processing
   result <- decode_tool_args(mcp_args)
   expect_true(is.list(result))
-  # The exact structure depends on from_mcp_json implementation
+  # The exact structure depends on from_mcpr_json implementation
   expect_true(!is.null(result))
 })
 
@@ -54,7 +54,7 @@ test_that("encode_tool_results handles simple text results", {
 })
 
 test_that("encode_tool_results handles complex objects", {
-  # Test complex result that should use mcp_serialize
+  # Test complex result that should use mcpr_serialize
   test_data <- list(id = 2)
   complex_result <- data.frame(
     x = 1:3, 
@@ -76,7 +76,7 @@ test_that("encode_tool_results handles complex objects", {
 })
 
 test_that("encode_tool_results handles numeric vectors", {
-  # Test numeric vector (should trigger mcp_serialize)
+  # Test numeric vector (should trigger mcpr_serialize)
   test_data <- list(id = 3)
   numeric_result <- c(1, 2, 3, 4, 5)
   
@@ -86,7 +86,7 @@ test_that("encode_tool_results handles numeric vectors", {
   expect_equal(output$id, 3)
   expect_false(output$result$isError)
   
-  # Should use mcp_serialize since it's not a single character
+  # Should use mcpr_serialize since it's not a single character
   expect_true(is.character(output$result$content[[1]]$text))
 })
 

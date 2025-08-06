@@ -32,6 +32,7 @@ Suggests:
 Config/testthat/edition: 3
 Collate: 
     'aaa.R'
+    'logger.R'
     'mcpr-client.R'
     'mcpr-package.R'
     'tool-execution.R'
@@ -42,7 +43,7 @@ Collate:
     'mcpr-server-tools.R'
     'mcpr-server.R'
     'mcpr-session.R'
-    'protocol.R'
+    'messenger.R'
     'tool-register.R'
     'tool-registry-helpers.R'
     'type-conversion-from-json.R'

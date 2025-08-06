@@ -1,8 +1,8 @@
 # Test for Basic Serialization/Deserialization
-test_that("mcp_serialize creates valid JSON strings", {
+test_that("mcpr_serialize creates valid JSON strings", {
   # Test basic serialization
   test_obj <- list(result = 42, message = "success")
-  json_str <- mcp_serialize(test_obj)
+  json_str <- mcpr_serialize(test_obj)
   
   expect_true(is.character(json_str))
   expect_length(json_str, 1)
@@ -11,10 +11,10 @@ test_that("mcp_serialize creates valid JSON strings", {
   expect_no_error(jsonlite::fromJSON(json_str))
 })
 
-test_that("mcp_deserialize reconstructs objects correctly", {
+test_that("mcpr_deserialize reconstructs objects correctly", {
   # Test basic deserialization
   json_str <- '{"result": 42, "message": "success"}'
-  result <- mcp_deserialize(json_str)
+  result <- mcpr_deserialize(json_str)
   
   expect_equal(result$result, 42)
   expect_equal(result$message, "success")
@@ -31,7 +31,7 @@ test_that("can_serialize identifies serializable objects", {
   expect_true(can_serialize(NULL))
 })
 
-test_that("mcp_serialize and mcp_deserialize round-trip correctly", {
+test_that("mcpr_serialize and mcpr_deserialize round-trip correctly", {
   # Test round-trip conversion
   original <- list(
     numbers = c(1, 2, 3),
@@ -41,8 +41,8 @@ test_that("mcp_serialize and mcp_deserialize round-trip correctly", {
   )
   
   # Serialize then deserialize
-  json_str <- mcp_serialize(original)
-  reconstructed <- mcp_deserialize(json_str)
+  json_str <- mcpr_serialize(original)
+  reconstructed <- mcpr_deserialize(json_str)
   
   # Check basic equality (dates will be different class but same value)
   expect_equal(unlist(reconstructed$numbers), original$numbers)
@@ -52,34 +52,34 @@ test_that("mcp_serialize and mcp_deserialize round-trip correctly", {
 })
 
 # Test for Advanced Serialization Features
-test_that("mcp_serialize handles pretty printing and auto_unbox parameter", {
+test_that("mcpr_serialize handles pretty printing and auto_unbox parameter", {
   test_obj <- list(value = 42, message = "success")
   
   # Test pretty printing
-  json_pretty <- mcp_serialize(test_obj, pretty = TRUE)
+  json_pretty <- mcpr_serialize(test_obj, pretty = TRUE)
   expect_true(grepl("\\n", json_pretty))
   
   # Test with auto_unbox = TRUE (default)
   single_value <- list(value = 42)
-  json_unbox <- mcp_serialize(single_value, auto_unbox = TRUE)
+  json_unbox <- mcpr_serialize(single_value, auto_unbox = TRUE)
   parsed_unbox <- jsonlite::fromJSON(json_unbox)
   expect_equal(parsed_unbox$value, 42)  # Should be scalar
   
   # Test with auto_unbox = FALSE
-  json_no_unbox <- mcp_serialize(single_value, auto_unbox = FALSE)
+  json_no_unbox <- mcpr_serialize(single_value, auto_unbox = FALSE)
   parsed_no_unbox <- jsonlite::fromJSON(json_no_unbox)
   expect_length(parsed_no_unbox$value, 1)  # Should be array with one element
 })
 
 test_that("utilities handle edge cases gracefully", {
   # Test empty objects
-  expect_no_error(mcp_serialize(list()))
-  expect_no_error(mcp_serialize(character(0)))
-  expect_no_error(mcp_serialize(numeric(0)))
+  expect_no_error(mcpr_serialize(list()))
+  expect_no_error(mcpr_serialize(character(0)))
+  expect_no_error(mcpr_serialize(numeric(0)))
   
   # Test deserializing empty JSON
-  expect_no_error(mcp_deserialize("{}"))
-  expect_no_error(mcp_deserialize("[]"))
+  expect_no_error(mcpr_deserialize("{}"))
+  expect_no_error(mcpr_deserialize("[]"))
 })
 
 # Test for Data Frame Streaming
@@ -108,14 +108,14 @@ test_that("Data frame streaming works correctly", {
 })
 
 
-test_that("mcp_deserialize handles malformed JSON gracefully", {
+test_that("mcpr_deserialize handles malformed JSON gracefully", {
   # Test invalid JSON strings
-  expect_error(mcp_deserialize('{"invalid": json}'))
-  expect_error(mcp_deserialize('{"unclosed": "quote}'))
-  expect_error(mcp_deserialize('[1, 2, 3,]'))  # Trailing comma
-  expect_error(mcp_deserialize(''))  # Empty string
-  expect_error(mcp_deserialize('{invalid json'))  # Malformed syntax
-  expect_error(mcp_deserialize('{"key": undefined}'))  # Undefined value
+  expect_error(mcpr_deserialize('{"invalid": json}'))
+  expect_error(mcpr_deserialize('{"unclosed": "quote}'))
+  expect_error(mcpr_deserialize('[1, 2, 3,]'))  # Trailing comma
+  expect_error(mcpr_deserialize(''))  # Empty string
+  expect_error(mcpr_deserialize('{invalid json'))  # Malformed syntax
+  expect_error(mcpr_deserialize('{"key": undefined}'))  # Undefined value
 })
 
 test_that("stream_dataframe handles edge cases in chunking", {
@@ -185,12 +185,12 @@ test_that("deeply nested objects serialize and deserialize correctly", {
   )
   
   # Test serialization
-  json_str <- mcp_serialize(complex_obj)
+  json_str <- mcpr_serialize(complex_obj)
   expect_true(is.character(json_str))
   expect_true(nchar(json_str) > 100)  # Should be substantial
   
   # Test deserialization
-  reconstructed <- mcp_deserialize(json_str)
+  reconstructed <- mcpr_deserialize(json_str)
   
   # Verify key nested elements
   expect_equal(reconstructed$level1$level2$level3$numbers[1:3], c(1, 2, 3))
