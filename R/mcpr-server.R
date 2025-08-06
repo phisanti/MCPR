@@ -219,6 +219,18 @@ mcprServer <- R6::R6Class("mcprServer",
             list(tools = self$get_tools("json"))
           )
         },
+        "resources/list" = function(data) {
+          private$.messenger$create_response(
+            data$id,
+            list(resources = list())
+          )
+        },
+        "prompts/list" = function(data) {
+          private$.messenger$create_response(
+            data$id,
+            list(prompts = list())
+          )
+        },
         "tools/call" = function(data) {
           tool_name <- data$params$name
           # Execute server-side tools directly, or if no session is active
