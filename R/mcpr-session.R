@@ -205,7 +205,7 @@ MCPRSession <- R6::R6Class("MCPRSession",
 #' MCP server. This allows MCP clients (like AI assistants) to execute code and
 #' tools within this specific R session.
 #'
-#' It is recommended to add `mcptools::mcp_session()` to your `.Rprofile` to
+#' It is recommended to add `mcptools::mcpr_session()` to your `.Rprofile` to
 #' automatically make every interactive session available.
 #'
 #' @details
@@ -217,9 +217,9 @@ MCPRSession <- R6::R6Class("MCPRSession",
 #' @export
 #' @examples
 #' if (interactive()) {
-#'   mcp_session()
+#'   mcpr_session()
 #' }
-mcp_session <- function(timeout_seconds = 900) {
+mcpr_session <- function(timeout_seconds = 900) {
   if (!rlang::is_interactive()) {
     return(invisible())
   }
@@ -236,7 +236,7 @@ mcp_session <- function(timeout_seconds = 900) {
 
 #' Stop the MCP session and clean up resources
 #' @export
-mcp_session_stop <- function() {
+mcpr_session_stop <- function() {
   if (!is.null(the$mcpr_session)) {
     the$mcpr_session$stop()
     the$mcpr_session <- NULL

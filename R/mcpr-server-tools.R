@@ -24,7 +24,7 @@ set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
 #' @description
 #' Converts a ToolDef object to MCP protocol-compliant JSON structure.
 #' Transforms MCPR type definitions to JSON Schema format for tool registration.
-#' Used by mcpServer's get_tools() method to serialize tools for MCP client discovery.
+#' Used by mcprServer's get_tools() method to serialize tools for MCP client discovery.
 #'
 #' @param tool A ToolDef object containing name, description, and typed arguments
 #' @return List with name, description, and inputSchema fields for MCP protocol
@@ -53,7 +53,7 @@ tool_as_json <- function(tool) {
         schema <- list(type = arg$type)
         if (!is.null(arg$description)) schema$description <- arg$description
         if (arg$type == "array" && !is.null(arg$items)) {
-          schema$items <- to_mcp_json(arg$items, auto_unbox = TRUE)
+          schema$items <- to_mcpr_json(arg$items, auto_unbox = TRUE)
         }
         if (arg$type == "enum" && !is.null(arg$values)) {
           schema$enum <- arg$values

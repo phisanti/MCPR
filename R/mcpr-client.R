@@ -1,17 +1,17 @@
 # R6 Class Implementation for MCP Client
-# This file implements the mcpClient R6 class, bringing existing functionality
+# This file implements the mcprClient R6 class, bringing existing functionality
 # from the functional implementation in client.R
 
-#' @name mcpClient
+#' @name mcprClient
 #' @title MCP Client R6 Class
 #'
 #' @description
-#' The mcpClient class provides a persistent, object-oriented interface for managing 
+#' The mcprClient class provides a persistent, object-oriented interface for managing 
 #' Model Context Protocol (MCP) servers within R sessions. It enables AI coding 
 #' assistants to maintain workspace state and collaborate iteratively with R users.
 #'
 #' @details
-#' The mcpClient class manages:
+#' The mcprClient class manages:
 #' \itemize{
 #'   \item \strong{Server Connections}: Establishes and maintains connections to MCP servers
 #'   \item \strong{Tool Discovery}: Automatically discovers and registers available tools
@@ -44,16 +44,16 @@
 #' @examples
 #' \dontrun{
 #' # Basic usage
-#' client <- mcpClient$new()
+#' client <- mcprClient$new()
 #' client$connect_servers()
 #' tools <- client$get_mcpr_tools()
 #'
 #' # With custom configuration
-#' client <- mcpClient$new(config = "path/to/config.json")
+#' client <- mcprClient$new(config = "path/to/config.json")
 #' client$connect_servers()
 #'
 #' # Method chaining
-#' client <- mcpClient$new()$connect_servers()
+#' client <- mcprClient$new()$connect_servers()
 #'
 #' # Call specific tool
 #' result <- client$call_tool(
@@ -67,15 +67,15 @@
 #' }
 #'
 #' @export
-mcpClient <- R6::R6Class("mcpClient",
+mcprClient <- R6::R6Class("mcprClient",
   public = list(
-    #' @description Creates new mcpClient instance
+    #' @description Creates new mcprClient instance
     #' @param config Path to configuration file (character). Uses default location if NULL
     #' @return Self (invisible)
     #' @examples
     #' \dontrun{
-    #' client <- mcpClient$new()
-    #' client <- mcpClient$new(config = "~/.config/mcptools/config.json")
+    #' client <- mcprClient$new()
+    #' client <- mcprClient$new(config = "~/.config/mcptools/config.json")
     #' }
     initialize = function(config = NULL) {
       private$.servers <- list()
@@ -104,7 +104,7 @@ mcpClient <- R6::R6Class("mcpClient",
     #' \dontrun{
     #' client$connect_servers()
     #' # Method chaining
-    #' client <- mcpClient$new()$connect_servers()
+    #' client <- mcprClient$new()$connect_servers()
     #' }
     connect_servers = function() {
       if (is.null(private$.config) || length(private$.config) == 0) {
@@ -137,7 +137,7 @@ mcpClient <- R6::R6Class("mcpClient",
           )
         )
 
-        private$add_mcp_server(process = process, name = name_i)
+        private$add_mcpr_server(process = process, name = name_i)
       }
       
       invisible(self)
@@ -271,7 +271,7 @@ mcpClient <- R6::R6Class("mcpClient",
     .messenger = NULL,
     
     
-    add_mcp_server = function(process, name) {
+    add_mcpr_server = function(process, name) {
       # Validate server process is alive
       if (!process$is_alive()) {
         cli::cli_abort("Server process {.val {name}} is not running")
@@ -436,7 +436,7 @@ mcpClient <- R6::R6Class("mcpClient",
 #'
 #' @description
 #' This function maintains backward compatibility with the existing functional API
-#' while internally using the new mcpClient R6 class. It creates a client instance,
+#' while internally using the new mcprClient R6 class. It creates a client instance,
 #' connects to servers, and returns MCPR-compatible tools.
 #'
 #' @param config Path to configuration file (character). Uses default location if NULL
@@ -444,16 +444,16 @@ mcpClient <- R6::R6Class("mcpClient",
 #' @examples
 #' \dontrun{
 #' # Legacy usage - creates client internally
-#' tools <- mcp_tools()
-#' tools <- mcp_tools(config = "config.json")
+#' tools <- mcpr_tools()
+#' tools <- mcpr_tools(config = "config.json")
 #' 
 #' # Integration with MCPR workflows
-#' tools <- mcp_tools()
+#' tools <- mcpr_tools()
 #' # Use tools with MCPR framework
 #' }
 #' @export
-mcp_tools <- function(config = NULL) {
-  client <- mcpClient$new(config = config)
+mcpr_tools <- function(config = NULL) {
+  client <- mcprClient$new(config = config)
   
   client$connect_servers()
   tools <- client$get_mcpr_tools()

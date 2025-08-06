@@ -3,7 +3,7 @@
 #' @title MCP Server R6 Class
 #'
 #' @description
-#' The `mcpServer` class implements the Model Context Protocol (MCP) server for 
+#' The `mcprServer` class implements the Model Context Protocol (MCP) server for 
 #' persistent R session management. It enables AI coding assistants to connect 
 #' to and interact with running R sessions, maintaining workspace state across 
 #' multiple interactions.
@@ -30,7 +30,7 @@
 #' @examples
 #' \dontrun{
 #' # Basic server initialization
-#' server <- mcpServer$new()
+#' server <- mcprServer$new()
 #' server$start()  # Blocking call
 #' 
 #' # Server with custom tools
@@ -41,16 +41,16 @@
 #'   arguments = list(x = "numeric")
 #' )
 #' registry <- ToolRegistry$new(); registry$add_tool(my_tool)
-#' server <- mcpServer$new(registry = registry)
+#' server <- mcprServer$new(registry = registry)
 #' server$start()
 #' 
 #' # Using convenience function
 #' registry <- ToolRegistry$new(tools_dir = "path/to/tools")
-#' mcp_server(registry = registry)
+#' mcpr_server(registry = registry)
 #' }
 #'
 #' @export
-mcpServer <- R6::R6Class("mcpServer",
+mcprServer <- R6::R6Class("mcprServer",
   private = list(
     .reader_socket = NULL,
     .cv = NULL,
@@ -123,9 +123,9 @@ mcpServer <- R6::R6Class("mcpServer",
       log_result <- if (inherits(result, "jsonrpc_error")) unclass(result) else result
       logcat(c("FROM SERVER: ", to_json(log_result)))
       if (inherits(result, "jsonrpc_error")) {
-        cat_json(unclass(result))
+        nanonext::write_stdout(to_json(unclass(result)))
       } else {
-        cat_json(result)
+        nanonext::write_stdout(to_json(result))
       }
     },
 
@@ -134,7 +134,7 @@ mcpServer <- R6::R6Class("mcpServer",
       logcat(c("TO SESSION: ", jsonlite::toJSON(data)))
       prepared <- private$append_tool_fn(data)
       if (inherits(prepared, "jsonrpc_error")) {
-        return(cat_json(unclass(prepared)))
+        return(nanonext::write_stdout(to_json(unclass(prepared))))
       }
       nanonext::send_aio(the$server_socket, prepared, mode = "serial")
     },
@@ -166,7 +166,7 @@ mcpServer <- R6::R6Class("mcpServer",
     #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
     #'   takes precedence over the `tools` parameter.
     #' @param .tools_dir Internal parameter for specifying tools directory path.
-    #' @return A new `mcpServer` instance
+    #' @return A new `mcprServer` instance
     initialize = function(registry = NULL, .tools_dir = NULL) {
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         cli::cli_abort("registry must be a ToolRegistry instance")
@@ -277,7 +277,7 @@ mcpServer <- R6::R6Class("mcpServer",
 #'
 #' @description
 #' Convenience function to initialize and start an MCP server in one call.
-#' Equivalent to creating a new `mcpServer` instance and calling `start()`.
+#' Equivalent to creating a new `mcprServer` instance and calling `start()`.
 #'
 #' @param registry A ToolRegistry instance to use for tool discovery.
 #' 
@@ -303,23 +303,23 @@ mcpServer <- R6::R6Class("mcpServer",
 #' @examples
 #' \dontrun{
 #' # Minimal server
-#' mcp_server()
+#' mcpr_server()
 #' 
 #' # Server with custom tools from file
 #' # Server with ToolRegistry from directory
 #' registry <- ToolRegistry$new(tools_dir = "inst/tools")
-#' mcp_server(registry = registry)
+#' mcpr_server(registry = registry)
 #' 
 #' # Server with ToolRegistry
 #' registry <- ToolRegistry$new()
-#' mcp_server(registry = registry)
+#' mcpr_server(registry = registry)
 #' }
 #' 
 #' @return The server instance (invisibly)
 #' @export
-mcp_server <- function(registry = NULL) {
-  # Auto-discovery logic is now handled in mcpServer$initialize()
-  server <- mcpServer$new(registry = registry)
+mcpr_server <- function(registry = NULL) {
+  # Auto-discovery logic is now handled in mcprServer$initialize()
+  server <- mcprServer$new(registry = registry)
   server$start()
   invisible(server)
 }

@@ -70,16 +70,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
     #' @param error Error object (optional)
     #' @return JSON-RPC response list
     create_response = function(id, result = NULL, error = NULL) {
-      if (!xor(is.null(result), is.null(error))) {
-        warning("Either `result` or `error` must be provided, but not both.")
-      }
-      
-      drop_nulls(list(
-        jsonrpc = "2.0",
-        id = id,
-        result = result,
-        error = error
-      ))
+      jsonrpc_response(id, result, error)
     },
     
     #' @description Create MCP tool call request
@@ -210,7 +201,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
     #' @return Response object or NULL
     route_message = function(data, handlers) {
       if (!private$validate_jsonrpc(data)) {
-        return(self$create_response(
+        return(jsonrpc_response(
           data$id %||% NULL,
           error = list(code = -32600, message = "Invalid Request")
         ))
@@ -221,7 +212,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
       
       handler <- handlers[[method]]
       if (is.null(handler)) {
-        return(self$create_response(
+        return(jsonrpc_response(
           data$id,
           error = list(code = -32601, message = "Method not found")
         ))
@@ -230,7 +221,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
       tryCatch(
         handler(data),
         error = function(e) {
-          self$create_response(
+          jsonrpc_response(
             data$id,
             error = list(code = -32603, message = conditionMessage(e))
           )
@@ -244,7 +235,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
     #' @param message Error message
     #' @return Error response object
     create_error = function(id, code, message) {
-      self$create_response(
+      jsonrpc_response(
         id = id,
         error = list(code = code, message = message)
       )

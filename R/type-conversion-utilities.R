@@ -8,16 +8,16 @@
 #' @return A JSON string representation of the R object
 #' @export
 #' @examples
-#' mcp_serialize(list(result = 42, message = "success"))
-mcp_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = get_mcp_serializers()) {
+#' mcpr_serialize(list(result = 42, message = "success"))
+mcpr_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = get_mcpr_serializers()) {
   # Convert to MCP-compatible format
-  mcp_obj <- to_mcp_json(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers)
+  mcp_obj <- to_mcpr_json(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers)
   
   # Serialize to JSON
   jsonlite::toJSON(
     mcp_obj,
     pretty = pretty,
-    auto_unbox = FALSE,  # We handle unboxing in to_mcp_json
+    auto_unbox = FALSE,  # We handle unboxing in to_mcpr_json
     null = "null",
     na = "null"
   )
@@ -29,9 +29,9 @@ mcp_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e6
 #' @return An R object
 #' @export
 #' @examples
-#' mcp_deserialize('{"result": 42, "message": "success"}')
-mcp_deserialize <- function(json) {
-  from_mcp_json(json)
+#' mcpr_deserialize('{"result": 42, "message": "success"}')
+mcpr_deserialize <- function(json) {
+  from_mcpr_json(json)
 }
 
 #' Check if an R object can be safely serialized to JSON
@@ -41,7 +41,7 @@ mcp_deserialize <- function(json) {
 #' @export
 can_serialize <- function(x) {
   tryCatch({
-    mcp_serialize(x)
+    mcpr_serialize(x)
     TRUE
   }, error = function(e) {
     FALSE
@@ -64,7 +64,7 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
     end_row <- min(i * chunk_size, n_rows)
     
     chunk <- df[start_row:end_row, , drop = FALSE]
-    chunk_json <- to_mcp_json(chunk, size_limit = Inf)
+    chunk_json <- to_mcpr_json(chunk, size_limit = Inf)
     
     callback(list(
       chunk = i,

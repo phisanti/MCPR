@@ -1,12 +1,12 @@
-# Additional edge case tests for mcpClient
+# Additional edge case tests for mcprClient
 
-test_that("mcpClient handles malformed JSON config", {
+test_that("mcprClient handles malformed JSON config", {
   # Create malformed JSON config
   malformed_config <- tempfile(fileext = ".json")
   writeLines('{"mcpServers": {invalid json}', malformed_config)
   
   expect_error(
-    mcpClient$new(config = malformed_config),
+    mcprClient$new(config = malformed_config),
     "Configuration processing failed"
   )
   
@@ -14,13 +14,13 @@ test_that("mcpClient handles malformed JSON config", {
   unlink(malformed_config)
 })
 
-test_that("mcpClient handles config without mcpServers key", {
+test_that("mcprClient handles config without mcpServers key", {
   # Create config without mcpServers
   invalid_config <- tempfile(fileext = ".json")
   writeLines('{"otherKey": "value"}', invalid_config)
   
   expect_error(
-    mcpClient$new(config = invalid_config),
+    mcprClient$new(config = invalid_config),
     "must have a top-level.*mcpServers"
   )
   
@@ -28,8 +28,8 @@ test_that("mcpClient handles config without mcpServers key", {
   unlink(invalid_config)
 })
 
-test_that("mcpClient handles tool_ref function creation", {
-  client <- mcpClient$new()
+test_that("mcprClient handles tool_ref function creation", {
+  client <- mcprClient$new()
   
   # Test tool_ref creation (accessing private method for testing)
   tool_func <- client$.__enclos_env__$private$tool_ref(
@@ -42,8 +42,8 @@ test_that("mcpClient handles tool_ref function creation", {
   expect_named(formals(tool_func), c("arg1", "arg2"))
 })
 
-test_that("mcpClient jsonrpc_id increments correctly", {
-  client <- mcpClient$new()
+test_that("mcprClient jsonrpc_id increments correctly", {
+  client <- mcprClient$new()
   
   # Manually add a server for testing
   client$.__enclos_env__$private$.servers[["test"]] <- list(
@@ -61,8 +61,8 @@ test_that("mcpClient jsonrpc_id increments correctly", {
   expect_equal(id2, 2)
 })
 
-test_that("mcpClient as_mcpr_types converts tool schema properties", {
-  client <- mcpClient$new()
+test_that("mcprClient as_mcpr_types converts tool schema properties", {
+  client <- mcprClient$new()
   
   # Simple tool with basic property types
   tool <- list(

@@ -38,7 +38,7 @@ check_not_interactive <- function(call = rlang::caller_env()) {
     cli::cli_abort(
       c(
         "This function is not intended for interactive use.",
-        "i" = "See {.help {.fn mcp_server}} for instructions on configuring this
+        "i" = "See {.help {.fn mcpr_server}} for instructions on configuring this
        function with applications"
       ),
       call = call
@@ -115,6 +115,25 @@ check_bool <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call =
   if (!is.logical(x) || length(x) != 1 || is.na(x)) {
     cli::cli_abort("{.arg {arg}} must be a single logical value, not {.obj_type_friendly {x}}", call = call)
   }
+}
+
+#' Create a JSON-RPC 2.0 response object
+#'
+#' @param id The request ID.
+#' @param result The success result of the method execution.
+#' @param error An error object if the method execution failed.
+#' @return A list representing the JSON-RPC response.
+jsonrpc_response <- function(id, result = NULL, error = NULL) {
+  if (!xor(is.null(result), is.null(error))) {
+    warning("Either `result` or `error` must be provided, but not both.")
+  }
+
+  drop_nulls(list(
+    jsonrpc = "2.0",
+    id = id,
+    result = result,
+    error = error
+  ))
 }
 
 # Mocking for testing
