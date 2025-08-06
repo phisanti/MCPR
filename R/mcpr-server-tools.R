@@ -43,7 +43,7 @@ tool_as_json <- function(tool) {
   check_tool(tool)
   
   if (length(tool$arguments) == 0) {
-    inputSchema <- list(type = "object", properties = list())
+    inputSchema <- list(type = "object", properties = named_list())
   } else {
     properties <- list()
     for (name in names(tool$arguments)) {
