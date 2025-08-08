@@ -1,26 +1,28 @@
 #' @include utils.R
 #' @include type-conversion-utilities.R
 #' @include tool-definition-validators.R
+
+# Tool Definition Framework
+# Core framework for defining MCP tools with R6 class structure and type specifications.
+# Provides ToolDef class for tool creation, validation, and JSON Schema conversion.
+
 NULL
 
-#' Define a tool
+#' Define Tool for MCP Framework
 #'
-#' @description
-#' Annotate a function for use in tool calls, by providing a name, description,
-#' and type definition for the arguments. The resulting ToolDef object includes
-#' comprehensive validation to ensure all properties maintain correct types and formats.
+#' @title Define Tool for MCP Framework
+#' @description Annotates function for use in tool calls through comprehensive validation
+#' and type definition. Creates ToolDef object with name, description, and argument
+#' specifications for MCP protocol integration. Enables automatic JSON type conversion
+#' and provides validation to ensure proper tool construction.
 #'
-#' @param fun The function to be invoked when the tool is called.
-#' @param name The name of the function. This can be omitted if `fun` is an
-#'   existing function (i.e. not defined inline).
-#' @param description A detailed description of what the function does.
-#' @param arguments A named list that defines the arguments accepted by the
-#'   function. Each element should be created by a `type_*()` function.
-#' @param annotations Additional properties that describe the tool and its
-#'   behavior. Created by [tool_annotations()].
-#' @param convert Should JSON inputs be automatically convert to their
-#'   R data type equivalents? Defaults to `TRUE`.
-#' @return An R6 `ToolDef` object.
+#' @param fun The function to be invoked when the tool is called
+#' @param name The name of the function. This can be omitted if fun is an existing function
+#' @param description A detailed description of what the function does
+#' @param arguments A named list that defines the arguments accepted by the function
+#' @param annotations Additional properties that describe the tool and its behavior
+#' @param convert Should JSON inputs be automatically convert to their R data type equivalents (default: TRUE)
+#' @return An R6 ToolDef object
 #' @examples
 #' # Define a tool for drawing random numbers
 #' tool_rnorm <- tool(
@@ -71,8 +73,37 @@ tool <- function(
   )
 }
 
+#' Tool Definition for MCP Framework
+#'
+#' @title Tool Definition
+#' @description Encapsulates tool metadata and execution logic for MCP protocol integration.
+#' Provides comprehensive validation through active bindings, automatic type conversion,
+#' and structured tool calling interface. Maintains tool properties with validation
+#' and enables direct tool execution with JSON input handling.
+#' @details Manages tool lifecycle through validated properties:
+#' \itemize{
+#'   \item \strong{Function Storage}: Maintains executable function with validation
+#'   \item \strong{Metadata Management}: Stores name, description, and annotations
+#'   \item \strong{Argument Validation}: Ensures proper type definitions for parameters
+#'   \item \strong{Type Conversion}: Handles JSON-to-R type conversion automatically
+#' }
+#'
+#' @param fun The function to be invoked when the tool is called
+#' @param name Tool name with validation for MCP protocol compliance
+#' @param description Tool description for documentation and discovery
+#' @param arguments Named list of argument type definitions
+#' @param convert Automatic JSON type conversion flag (default: TRUE)
+#' @param annotations Additional metadata for tool behavior hints
 ToolDef <- R6::R6Class("ToolDef",
   public = list(
+    #' @description Initialize ToolDef with validation
+    #' @param fun Function to be invoked
+    #' @param name Tool name
+    #' @param description Tool description
+    #' @param arguments Named list of argument definitions
+    #' @param convert Enable JSON type conversion
+    #' @param annotations Additional tool metadata
+    #' @return New ToolDef instance
     initialize = function(fun, name, description, arguments = list(), convert = TRUE, annotations = list()) {
       # Use active bindings for validation during initialization
       self$fun <- fun
@@ -83,6 +114,9 @@ ToolDef <- R6::R6Class("ToolDef",
       self$annotations <- annotations
     },
     
+    #' @description Execute tool with arguments and optional type conversion
+    #' @param ... Arguments to pass to the tool function
+    #' @return Result of tool function execution
     call = function(...) {
       args <- list(...)
       if (self$convert) {
@@ -91,6 +125,9 @@ ToolDef <- R6::R6Class("ToolDef",
       do.call(self$fun, args)
     },
     
+    #' @description Print formatted tool definition with metadata
+    #' @param ... Additional arguments (unused)
+    #' @return Self (invisibly)
     print = function(...) {
       if (length(self$arguments) > 0) {
         fake_call <- rlang::call2(self$name, !!!rlang::syms(names(self$arguments)))
@@ -118,7 +155,7 @@ ToolDef <- R6::R6Class("ToolDef",
   ),
   
   active = list(
-    # Active bindings provide automatic validation on get/set (equivalent to S7 prop_string(), etc.)
+    # Validates and stores tool name with MCP protocol compliance checking
     name = function(value) {
       if (missing(value)) {
         private$.name
@@ -128,6 +165,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
+    # Validates and stores tool description ensuring non-empty string format
     description = function(value) {
       if (missing(value)) {
         private$.description
@@ -137,6 +175,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
+    # Validates and stores argument definitions ensuring proper list structure
     arguments = function(value) {
       if (missing(value)) {
         private$.arguments
@@ -146,6 +185,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
+    # Validates and stores JSON conversion flag ensuring logical type
     convert = function(value) {
       if (missing(value)) {
         private$.convert
@@ -158,6 +198,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
+    # Validates and stores tool annotations ensuring basic R type compliance
     annotations = function(value) {
       if (missing(value)) {
         private$.annotations
@@ -185,6 +226,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
+    # Validates and stores executable function ensuring callable object
     fun = function(value) {
       if (missing(value)) {
         private$.fun
@@ -196,6 +238,18 @@ ToolDef <- R6::R6Class("ToolDef",
   )
 )
 
+#' Check Arguments Against Function Formals
+#'
+#' @title Check Arguments Against Function Formals
+#' @description Validates that argument definitions match function formals ensuring proper
+#' tool construction. Checks for named list format and validates argument-formal alignment
+#' through name comparison. Provides comprehensive error reporting for missing or extra
+#' argument definitions.
+#'
+#' @param arguments Named list of argument type definitions
+#' @param formals Function formals to validate against
+#' @param call Calling environment for error reporting
+#' @return NULL (invisible) if valid, throws error if invalid
 check_arguments <- function(arguments, formals, call = rlang::caller_env()) {
   if (!is.list(arguments) || !(length(arguments) == 0 || rlang::is_named(arguments))) {
     cli::cli_abort("Arguments must be a named list", call = call)
@@ -221,6 +275,17 @@ check_arguments <- function(arguments, formals, call = rlang::caller_env()) {
   invisible()
 }
 
+#' Check ToolDef Object
+#'
+#' @title Check ToolDef Object
+#' @description Validates that object is proper ToolDef instance through R6 class checking.
+#' Ensures object inheritance and type compliance for tool validation workflows.
+#' Provides error handling for invalid tool objects in validation pipeline.
+#'
+#' @param x Object to validate as ToolDef
+#' @param arg Argument name for error reporting
+#' @param call Calling environment for error reporting
+#' @return NULL (invisible) if valid, throws error if invalid
 check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
   if (!R6::is.R6(x) || !inherits(x, "ToolDef")) {
     cli::cli_abort("{.arg {arg}} must be a <ToolDef>", call = call)
@@ -228,16 +293,13 @@ check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()
 }
 
 
-#' Tool annotations
+#' Tool Annotations for MCP Protocol
 #'
-#' @description
-#' Tool annotations are additional properties that provide additional information about the
-#' tool and its behavior. This information can be used for display to users.
-#'
-#' The annotations in `tool_annotations()` are drawn from the [Model Context
-#' Protocol](https://modelcontextprotocol.io/introduction) and are considered
-#' *hints*. Tool authors should use these annotations to communicate tool
-#' properties, but users should note that these annotations are not guaranteed.
+#' @title Tool Annotations for MCP Protocol
+#' @description Creates additional properties providing tool behavior information for MCP clients.
+#' Implements Model Context Protocol annotation hints for tool characteristics including
+#' read-only behavior, world interaction, and operation effects. Enables enhanced tool
+#' discovery and usage guidance through structured metadata.
 #' @param title A human-readable title for the tool.
 #' @param read_only_hint If `TRUE`, the tool does not modify its environment.
 #' @param open_world_hint If `TRUE`, the tool may interact with an "open world"
@@ -280,14 +342,13 @@ tool_annotations <- function(
   ))
 }
 
-#' Reject a tool call
+#' Reject Tool Call
 #'
-#' @description
-#' Throws an error to reject a tool call. `tool_reject()` can be used within the
-#' tool function to indicate that the tool call should not be processed.
-#' `tool_reject()` can also be called in an `Chat$on_tool_request()` callback.
-#'  When used in the callback, the tool call is rejected before the tool
-#' function is invoked.
+#' @title Reject Tool Call
+#' @description Throws structured error to reject tool call execution with custom reasoning.
+#' Enables tool functions and callbacks to prevent execution through standardized error
+#' handling. Provides user-controlled tool call rejection for security and workflow
+#' control in MCP interactions.
 #'
 #' Here's an example where `utils::askYesNo()` is used to ask the user for
 #' permission before accessing their current working directory. This happens
@@ -368,10 +429,8 @@ tool_annotations <- function(
 #' chat$chat("And again now?")
 #' ```
 #'
-#' @param reason A character string describing the reason for rejecting the
-#'   tool call.
-#' @return Throws an error of class `mcpr_tool_reject` with the provided
-#'   reason.
+#' @param reason A character string describing the reason for rejecting the tool call
+#' @return Throws an error of class mcpr_tool_reject with the provided reason
 #'
 #' @family tool calling helpers
 #' @export
@@ -387,6 +446,15 @@ tool_reject <- function(
 }
 
 
+#' Generate Unique Tool Name
+#'
+#' @title Generate Unique Tool Name
+#' @description Generates unique sequential tool names for anonymous tool definitions.
+#' Maintains global counter for tool naming consistency and provides fallback naming
+#' for tools without explicit names. Ensures unique identification across tool
+#' registry and MCP protocol interactions.
+#'
+#' @return Character string with unique tool name format
 unique_tool_name <- function() {
   the$cur_tool_id <- (the$cur_tool_id %||% 0) + 1
   sprintf("tool_%03d", the$cur_tool_id)

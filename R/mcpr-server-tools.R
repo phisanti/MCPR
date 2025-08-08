@@ -1,13 +1,21 @@
 #' @include tool-definition.R
 #' @include tool-execution.R
-# Functions related to the definition, management, and execution of tools.
 
-#' @title Set MCP server tools
-#' @description Set the tools that the MCP server will provide
+# MCP Server Tools Management
+# Functions for managing server-side tool registration and JSON conversion.
+# Handles tool discovery, registration, and MCP protocol serialization.
+
+#' Set MCP Server Tools
 #'
-#' @param registry A ToolRegistry instance to use for tool discovery. If provided,
-#'   takes precedence over the `x` parameter.
-#' @param call The calling environment.
+#' @title Set MCP Server Tools
+#' @description Configures tools available for MCP server through registry assignment.
+#' Validates registry instance and updates global server tools collection. Enables
+#' tool discovery and registration for client-server communication through centralized
+#' tool management and validation.
+#'
+#' @param registry A ToolRegistry instance to use for tool discovery
+#' @param call The calling environment
+#' @return None (invisible)
 set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
   # Handle ToolRegistry parameter - takes precedence over x
   if (!inherits(registry, "ToolRegistry")) {
@@ -19,26 +27,16 @@ set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
 }
 
 
-#' Convert ToolDef to MCP JSON format
+#' Convert ToolDef to MCP JSON Format
 #'
-#' @description
-#' Converts a ToolDef object to MCP protocol-compliant JSON structure.
-#' Transforms MCPR type definitions to JSON Schema format for tool registration.
-#' Used by mcprServer's get_tools() method to serialize tools for MCP client discovery.
+#' @title Convert ToolDef to MCP JSON Format
+#' @description Converts ToolDef object to MCP protocol-compliant JSON structure.
+#' Transforms MCPR type definitions to JSON Schema format through schema mapping
+#' and property serialization. Enables tool registration and discovery by converting
+#' internal tool representations to standardized MCP protocol format.
 #'
 #' @param tool A ToolDef object containing name, description, and typed arguments
 #' @return List with name, description, and inputSchema fields for MCP protocol
-#' 
-#' @examples
-#' \dontrun{
-#' # Convert simple tool without arguments
-#' tool <- create_tool("hello", "Says hello", list())
-#' tool_as_json(tool)
-#' 
-#' # Convert tool with typed arguments
-#' tool <- create_tool("greet", "Greets user", list(name = mcpr_string()))
-#' tool_as_json(tool)
-#' }
 tool_as_json <- function(tool) {
   check_tool(tool)
   

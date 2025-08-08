@@ -1,9 +1,19 @@
-#' Create a Tool from a Roxygen Block
-#' @description Constructs a `ToolDef` from a parsed roxygen block and its function.
-#' @param block A roxygen2 block object.
-#' @param env The environment where the function is defined.
-#' @param file_path The path of the file being parsed (for logging).
-#' @return A `ToolDef` object or NULL on failure.
+# Tool Registry Helper Functions
+# Helper functions for converting roxygen2 documentation blocks into ToolDef objects.
+# Processes parsed roxygen metadata to create structured tool definitions.
+
+#' Create Tool from Roxygen Block
+#'
+#' @title Create Tool from Roxygen Block
+#' @description Constructs ToolDef object from parsed roxygen block and associated function.
+#' Extracts function metadata, validates function existence, and converts roxygen2
+#' documentation into structured tool specification. Handles error cases and provides
+#' comprehensive logging for tool creation workflow.
+#'
+#' @param block Roxygen2 block object containing function documentation
+#' @param env Environment where the function is defined
+#' @param file_path Path of file being parsed (for logging purposes)
+#' @return ToolDef object or NULL on failure
 create_tool_from_block <- function(block, env, file_path) {
   # Extract function name from the block object
   func_name <- block$object$alias
@@ -41,9 +51,15 @@ create_tool_from_block <- function(block, env, file_path) {
 }
 
 #' Extract Description from Roxygen Block
-#' @description Extracts the function description from `@description` or `@intro` tags.
-#' @param block A roxygen2 block object.
-#' @return A character string with the description.
+#'
+#' @title Extract Description from Roxygen Block
+#' @description Extracts function description from roxygen2 documentation tags with fallback strategy.
+#' Prioritizes @description tag content, falls back to @intro tag, and provides default
+#' message for missing documentation. Ensures consistent description extraction for
+#' tool specification creation through tag hierarchy processing.
+#'
+#' @param block Roxygen2 block object containing documentation tags
+#' @return Character string with extracted description
 extract_description <- function(block) {
   # Look for @description tag first
   desc_tag <- Find(function(tag) inherits(tag, "roxy_tag_description"), block$tags)
@@ -61,10 +77,16 @@ extract_description <- function(block) {
   return("No description available")
 }
 
-#' Convert Roxygen Params to MCPR Types
-#' @description Converts a list of `@param` tags into a list of MCPR type definitions.
-#' @param param_tags A list of `roxy_tag_param` objects.
-#' @return A named list of MCPR type objects.
+#' Convert Roxygen Parameters to MCPR Types
+#'
+#' @title Convert Roxygen Parameters to MCPR Types
+#' @description Converts roxygen2 @param tags into MCPR type definitions through heuristic analysis.
+#' Analyzes parameter descriptions for type hints and maps to appropriate MCPR type
+#' specifications. Provides automatic type inference for tool parameter validation
+#' and MCP protocol compatibility through description keyword matching.
+#'
+#' @param param_tags List of roxy_tag_param objects from roxygen2 parsing
+#' @return Named list of MCPR type objects for tool arguments
 convert_to_schema <- function(param_tags) {
   mcpr_args <- list()
   

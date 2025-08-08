@@ -1,11 +1,17 @@
-#' Convert JSON data back to R objects
+# JSON to R Object Reconstruction
+# Functions for reconstructing R objects from JSON data with type restoration.
+# Reverses MCP serialization process to restore original R object semantics.
+
+#' Convert JSON Data Back to R Objects
 #'
-#' Reconstructs R objects from JSON data that was created with \code{to_mcpr_json}.
-#' Preserves type information including dates, factors, matrices, and other
-#' special R types.
+#' @title Convert JSON Data Back to R Objects
+#' @description Reconstructs R objects from JSON data created with to_mcpr_json function.
+#' Preserves comprehensive type information including dates, factors, matrices, and
+#' special R types through reverse conversion pipeline. Enables faithful restoration
+#' of R object semantics from MCP protocol transmission.
 #'
 #' @param json JSON string or already parsed JSON data
-#' @return An R object reconstructed from the JSON data
+#' @return R object reconstructed with preserved type information
 #' 
 #' @details
 #' This function reverses the conversion done by \code{to_mcpr_json}, reconstructing:

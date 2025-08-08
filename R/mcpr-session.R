@@ -1,14 +1,19 @@
-#' R6 Class for MCP Session Management
+#' MCP Session Management
 #'
-#' @description
-#' mcprSession provides a cohesive class-based approach to managing MCP session
-#' communication with nanonext sockets. Encapsulates all session state and
-#' provides proper resource management.
+#' @title MCP Session
+#' @description Provides class-based approach to managing MCP session communication.
+#' Encapsulates session state through nanonext socket management with async message
+#' processing and automatic resource cleanup. Enables persistent R session discovery
+#' and tool execution coordination through proper state encapsulation.
+#' @details Handles session lifecycle management:
+#' \itemize{
+#'   \item \strong{Socket Management}: Creates and binds nanonext sockets for communication
+#'   \item \strong{Message Processing}: Async tool execution and response handling
+#'   \item \strong{Timeout Management}: Automatic session cleanup after inactivity
+#'   \item \strong{Resource Cleanup}: Proper socket and state resource management
+#' }
 #'
-#' @details
-#' The class handles socket creation, async message processing, timeout management,
-#' and graceful cleanup. It replaces the previous functional approach with
-#' proper encapsulation and automatic resource management.
+#' @param timeout_seconds Timeout in seconds before session cleanup
 #'
 #' @export
 mcprSession <- R6::R6Class("mcprSession",
@@ -17,6 +22,7 @@ mcprSession <- R6::R6Class("mcprSession",
   public = list(
     #' @description Create new mcprSession instance
     #' @param timeout_seconds Timeout in seconds (default: 900)
+    #' @return A new mcprSession instance
     initialize = function(timeout_seconds = 900) {
       private$.timeout_seconds <- timeout_seconds
       private$.socket <- nanonext::socket("poly")
@@ -27,7 +33,8 @@ mcprSession <- R6::R6Class("mcprSession",
       reg.finalizer(self, function(x) x$stop(), onexit = TRUE)
     },
     
-    #' @description Start the MCP session
+    #' @description Start the MCP session in interactive contexts
+    #' @return Self (invisibly) for method chaining
     start = function() {
       if (!rlang::is_interactive()) {
         return(invisible(self))
@@ -52,7 +59,8 @@ mcprSession <- R6::R6Class("mcprSession",
     },
     
     
-    #' @description Check for session timeout
+    #' @description Check for session timeout and cleanup if expired
+    #' @return Self (invisibly) for method chaining
     check_timeout = function() {
       if (!private$.is_running || is.null(private$.last_activity)) {
         return(invisible(self))
@@ -68,6 +76,7 @@ mcprSession <- R6::R6Class("mcprSession",
     },
     
     #' @description Stop session and cleanup resources
+    #' @return Self (invisibly) for method chaining
     stop = function() {
       if (!private$.is_running) {
         return(invisible(self))
@@ -107,7 +116,7 @@ mcprSession <- R6::R6Class("mcprSession",
     .is_running = FALSE,
     .messenger = NULL,
     
-    # Find available socket port
+    # Iterates through available ports to find unused socket binding
     find_available_port = function() {
       i <- 1L
       while (i < 1024L) {
@@ -124,16 +133,14 @@ mcprSession <- R6::R6Class("mcprSession",
       stop("No available socket ports found", call. = FALSE)
     },
     
-    # Schedule timeout check
+    # Schedules delayed timeout check using later package for async execution
     schedule_timeout_check = function() {
       if (private$.is_running) {
         later::later(function() self$check_timeout(), delay = private$.timeout_seconds)
       }
     },
     
-    # Start async message listening loop
-    #
-    # @description Start async message listening loop
+    # Initiates async message reception loop with promise-based error handling
     start_listening = function() {
       if (!private$.is_running) return(invisible(self))
       
@@ -150,10 +157,7 @@ mcprSession <- R6::R6Class("mcprSession",
       invisible(self)
     },
     
-    # Handle incoming message from server
-    #
-    # @description Handle incoming message from server
-    # @param data Message data from server
+    # Processes incoming messages and executes tool calls with response routing
     handle_message = function(data) {
       if (!private$.is_running) return(invisible(self))
       
@@ -184,11 +188,7 @@ mcprSession <- R6::R6Class("mcprSession",
       invisible(self)
     },
     
-    # Send response back to server
-    #
-    # @description Send response back to server
-    # @param response Response data
-    # @param pipe Pipe ID for response routing
+    # Sends response data back to server through specified pipe channel
     send_response = function(response, pipe) {
       if (!private$.is_running || is.null(private$.socket)) {
         return(invisible(self))
@@ -206,27 +206,16 @@ mcprSession <- R6::R6Class("mcprSession",
   )
 )
 
-#' Make an R session available to the MCP server
+#' Make R Session Available to MCP Server
 #'
-#' @description
-#' Call this function in an interactive R session to make it discoverable by the
-#' MCP server. This allows MCP clients (like AI assistants) to execute code and
-#' tools within this specific R session.
-#'
-#' It is recommended to add `mcptools::mcpr_session()` to your `.Rprofile` to
-#' automatically make every interactive session available.
-#'
-#' @details
-#' The function works by creating a `nanonext` socket and listening on a
-#' unique URL. The MCP server can then connect to this socket to communicate
-#' with the R session. It only runs in interactive sessions.
+#' @title Make R Session Available to MCP Server
+#' @description Makes interactive R session discoverable by MCP server for tool execution.
+#' Creates nanonext socket and listens on unique URL for server communication.
+#' Enables AI assistants to execute code and tools within specific R session
+#' through persistent workspace collaboration.
 #'
 #' @param timeout_seconds Timeout in seconds before session cleanup (default: 900)
-#' @export
-#' @examples
-#' if (interactive()) {
-#'   mcpr_session()
-#' }
+#' @return mcprSession instance (invisibly)
 mcpr_session <- function(timeout_seconds = 900) {
   if (!rlang::is_interactive()) {
     return(invisible())
@@ -242,8 +231,14 @@ mcpr_session <- function(timeout_seconds = 900) {
   invisible(the$mcpr_session)
 }
 
-#' Stop the MCP session and clean up resources
-#' @export
+#' Stop MCP Session
+#'
+#' @title Stop MCP Session
+#' @description Stops active MCP session and cleans up resources including socket
+#' connections and global state variables. Provides clean session termination
+#' for resource management and session lifecycle control.
+#'
+#' @return None (invisible)
 mcpr_session_stop <- function() {
   if (!is.null(the$mcpr_session)) {
     the$mcpr_session$stop()

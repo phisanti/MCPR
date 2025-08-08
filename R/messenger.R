@@ -1,20 +1,22 @@
-#' @title MCP Message Handler
-#' @description
-#' Unified message passing system for the MCPR package that consolidates all
-#' JSON-RPC communication patterns: client-server via processx, server-session 
-#' via nanonext sockets, and type-aware data flow with JSON serialization.
+#' MCP Message Handler
 #'
-#' @details
-#' This class replaces scattered protocol functions with a single, cohesive
-#' message handling system that provides:
+#' @title MCP Message Handler
+#' @description Unified message passing system consolidating JSON-RPC communication patterns.
+#' Handles client-server communication via processx, server-session via nanonext sockets,
+#' and type-aware data flow with JSON serialization. Provides transport abstraction and
+#' protocol compliance validation for centralized message handling across MCPR components.
+#' @details Consolidates scattered protocol functions:
 #' \itemize{
-#'   \item Unified JSON-RPC message creation and handling
-#'   \item Transport abstraction (processx, nanonext, stdio)
-#'   \item Type-aware serialization/deserialization
-#'   \item Centralized communication logging
-#'   \item Protocol compliance validation
+#'   \item \strong{JSON-RPC Creation}: Unified message creation and handling
+#'   \item \strong{Transport Abstraction}: Works with processx, nanonext, stdio
+#'   \item \strong{Type-Aware Serialization}: Handles serialization/deserialization
+#'   \item \strong{Communication Logging}: Centralized logging for debugging
+#'   \item \strong{Protocol Validation}: Ensures JSON-RPC 2.0 compliance
 #' }
 #'
+#' @param logger Optional logging function for message tracking
+#' @param timeout_seconds Timeout for message operations (default: 20)
+#' @param retry_delay Delay between retries in seconds (default: 0.2)
 #' @examples
 #' \dontrun{
 #' # Basic usage
@@ -36,6 +38,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
     #' @param logger Optional logging function
     #' @param timeout_seconds Timeout for message operations (default: 20)
     #' @param retry_delay Delay between retries in seconds (default: 0.2)
+    #' @return A new MessageHandler instance
     initialize = function(logger = NULL, timeout_seconds = 20, retry_delay = 0.2) {
       private$.logger <- logger
       private$.timeout_seconds <- timeout_seconds
@@ -225,7 +228,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
     .timeout_seconds = 20,
     .retry_delay = 0.2,
     
-    # Log communication message
+    # Formats and logs communication messages with direction and context information
     log_message = function(direction, message, context = NULL) {
       if (!is.null(private$.logger)) {
         prefix <- paste0(direction, if (!is.null(context)) paste0(" (", context, ")") else "", ": ")
@@ -233,7 +236,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
       }
     },
     
-    # Validate JSON-RPC structure
+    # Validates JSON-RPC 2.0 protocol structure and required fields
     validate_jsonrpc = function(obj, require_method = FALSE) {
       if (!is.list(obj)) return(FALSE)
       if (is.null(obj$jsonrpc) || obj$jsonrpc != "2.0") return(FALSE)
@@ -241,10 +244,7 @@ MessageHandler <- R6::R6Class("MessageHandler",
       TRUE
     },
     
-    # Handle session discovery ping
-    #
-    # @description Handle session discovery ping
-    # @return Session description
+    # Responds to session discovery requests with availability information
     handle_discovery_ping = function() {
       # This would call describe_session() if available
       list(
@@ -255,31 +255,18 @@ MessageHandler <- R6::R6Class("MessageHandler",
   )
 )
 
-#' Create MessageHandler instance (convenience function)
+#' Create MessageHandler Instance
 #'
-#' @description
-#' Creates a new MessageHandler instance with optional logging.
-#' This function provides a simple interface for creating message handlers
-#' with common configurations.
+#' @title Create MessageHandler Instance
+#' @description Creates MessageHandler instance with optional logging and timeout configuration.
+#' Provides simple interface for message handler creation with common configurations
+#' for JSON-RPC communication across MCPR components. Enables centralized message
+#' handling with customizable logging and retry behavior.
 #'
 #' @param logger Optional logging function
 #' @param timeout_seconds Timeout for operations (default: 20)
 #' @param retry_delay Delay between retries (default: 0.2)
 #' @return MessageHandler instance
-#'
-#' @examples
-#' \dontrun{
-#' # Simple messenger
-#' messenger <- create_messenger()
-#' 
-#' # With file logging
-#' messenger <- create_messenger(logger = function(msg) {
-#'   cat(msg, "\n", file = "mcp.log", append = TRUE)
-#' })
-#' 
-#' # With custom timeouts
-#' messenger <- create_messenger(timeout_seconds = 30, retry_delay = 0.5)
-#' }
 #'
 #' @export
 create_messenger <- function(logger = NULL, timeout_seconds = 20, retry_delay = 0.2) {

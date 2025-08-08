@@ -1,7 +1,6 @@
-# type-conversion-to-json.R
-# Utility functions for converting R objects to JSON-compatible formats for MCP.
-# Handles various R types (atomic, complex, dates, factors, formulas, plots, S3/S4, etc.)
-# and preserves type information for robust serialization.
+# R to JSON Conversion Functions
+# Comprehensive R object to JSON conversion with type preservation for MCP protocol.
+# Handles diverse R types including special values, dates, factors, matrices, and custom objects.
 
 # Helper functions for type conversion ----------------------------------------
 
@@ -299,17 +298,19 @@
          custom_serializers = custom_serializers)
 }
 
-#' @title Convert R objects to JSON-compatible format for MCP
-#' @description 
-#' Converts various R objects to a JSON-compatible format, preserving type
-#' information where possible. Handles special types like dates, factors,
-#' matrices, and special numeric values (Inf, -Inf, NaN).
+#' Convert R Objects to JSON-Compatible Format for MCP
 #'
-#' @param x An R object to convert
+#' @title Convert R Objects to JSON-Compatible Format for MCP
+#' @description Converts diverse R objects to JSON-compatible format with comprehensive type preservation.
+#' Handles special types including dates, factors, matrices, and special numeric values through
+#' sophisticated conversion pipeline. Maintains R object semantics while ensuring MCP protocol
+#' compatibility through structured type markers and metadata preservation.
+#'
+#' @param x R object to convert to JSON-compatible format
 #' @param auto_unbox Whether to automatically unbox single-element vectors
-#' @param size_limit Maximum object size in bytes before using large object handling (default: 1MB)
+#' @param size_limit Maximum object size in bytes before large object handling (default: 1MB)
 #' @param custom_serializers List of custom serializers for specific classes
-#' @return A JSON-compatible representation of the R object
+#' @return JSON-compatible representation with preserved type information
 #' @importFrom utils object.size capture.output head
 #' @importFrom grDevices png dev.off replayPlot
 #' @importFrom methods slotNames slot

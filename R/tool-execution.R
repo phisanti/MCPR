@@ -2,15 +2,16 @@
 # Execution interface for MCP tool calls with type preservation
 # Functions ordered from simple utilities to complex orchestrators
 
-#' Check for MCP Type Markers (Deep)
+#' Check for MCP Type Markers
 #'
-#' @description
-#' Recursively checks for MCP type markers in nested structures.
-#' Pure function with no dependencies on other functions in this file.
+#' @title Check for MCP Type Markers
+#' @description Recursively checks for MCP type markers in nested list structures.
+#' Performs deep inspection of list elements to detect type preservation markers
+#' throughout nested object hierarchies. Enables type-aware processing decisions
+#' for MCP protocol data handling and reconstruction workflows.
 #'
-#' @param obj Object to check
+#' @param obj Object to check for type markers
 #' @return Logical indicating presence of MCP type markers
-#' @keywords internal
 has_mcpr_types_deep <- function(obj) {
   if (is.list(obj)) {
     # Check current level for _mcp_type
@@ -27,17 +28,19 @@ has_mcpr_types_deep <- function(obj) {
 
 #' Create Tool Execution Context
 #'
-#' @description
-#' Helper function to create properly structured execution contexts
-#' (local or remote) tool execution. Simple constructor function.
+#' @title Create Tool Execution Context
+#' @description Creates properly structured execution contexts for local or remote tool execution.
+#' Constructs standardized context object containing request metadata and execution targets.
+#' Enables unified tool execution interface across different execution modes through
+#' structured context preparation and parameter organization.
 #'
-#' @param id Request ID
+#' @param id Request ID for response matching
 #' @param tool_name Name of tool to execute
-#' @param arguments Named list of arguments
-#' @param tool (Optional) Local R function
-#' @param process (Optional) Remote server process
-#' @param client (Optional) Client instance
-#' @return Execution context object
+#' @param arguments Named list of function arguments
+#' @param tool Optional local R function for server-side execution
+#' @param process Optional remote server process for client-side execution
+#' @param client Optional client instance for communication handling
+#' @return Execution context object with structured parameters
 #' @export
 create_execution_context <- function(id, tool_name, arguments, 
                                      tool = NULL, process = NULL, client = NULL) {
@@ -208,14 +211,14 @@ encode_tool_results <- function(data, result) {
 
 #' Decode Tool Response
 #'
-#' @description
-#' Decodes MCP tool responses with type reconstruction.
-#' Handles both simple text responses and complex type-preserved responses.
-#' Uses has_mcpr_types_deep() utility function.
+#' @title Decode Tool Response
+#' @description Decodes MCP tool responses with automatic type reconstruction for complex objects.
+#' Detects type preservation markers and reconstructs original R object types from
+#' JSON-RPC responses. Handles both simple text responses and complex type-preserved
+#' responses through intelligent marker detection and reconstruction.
 #'
 #' @param response_result Result portion of JSON-RPC response
-#' @return Decoded R objects with proper types
-#' @keywords internal
+#' @return Decoded R objects with proper types or original response if no markers
 decode_tool_response <- function(response_result) {
   # Check if response contains MCP type markers
   if (is.list(response_result) && has_mcpr_types_deep(response_result)) {
@@ -226,16 +229,16 @@ decode_tool_response <- function(response_result) {
   response_result
 }
 
-#' Execute Local Tool (Server-side)
+#' Execute Local Tool
 #'
-#' @description
-#' Executes local R functions as MCP tools. Handles argument decoding,
-#' function invocation, and result encoding with full type preservation.
-#' Uses decode_tool_args() and encode_tool_results().
+#' @title Execute Local Tool
+#' @description Executes local R functions as MCP tools with comprehensive type preservation.
+#' Handles argument decoding from JSON-RPC format, function invocation with proper
+#' parameter mapping, and result encoding for MCP protocol responses. Provides
+#' error handling and structured response formatting for server-side execution.
 #'
-#' @param data Local execution context with $tool function
-#' @return JSON-RPC response object
-#' @keywords internal
+#' @param data Local execution context containing tool function and parameters
+#' @return JSON-RPC response object with results or error information
 execute_local_tool <- function(data) {
   tool_name <- data$params$name
   
@@ -253,16 +256,16 @@ execute_local_tool <- function(data) {
   )
 }
 
-#' Execute Remote Tool (Client-side)
+#' Execute Remote Tool
 #'
-#' @description
-#' Executes tools on remote MCP servers. Handles argument encoding,
-#' JSON-RPC communication, and response decoding with type preservation.
-#' Uses decode_tool_response() for type reconstruction.
+#' @title Execute Remote Tool
+#' @description Executes tools on remote MCP servers with comprehensive type preservation.
+#' Handles argument encoding with type information, JSON-RPC communication through
+#' message handlers, and response decoding with automatic type reconstruction.
+#' Manages client-server communication and logging for remote tool execution.
 #'
-#' @param data Remote execution context with $process
-#' @return Parsed response from remote server
-#' @keywords internal
+#' @param data Remote execution context containing process and client information
+#' @return Parsed response from remote server with type reconstruction
 execute_remote_tool <- function(data) {
   # Encode arguments with type preservation
   encoded_args <- to_mcpr_json(data$params$arguments, auto_unbox = TRUE)
@@ -298,11 +301,11 @@ execute_remote_tool <- function(data) {
 
 #' Execute MCP Tool Call Request
 #'
-#' @description
-#' Universal execution engine for MCP tool calls. Handles both local R function
-#' execution (server-side) and remote MCP server tool calls (client-side).
-#' This function serves as the primary execution interface for all tool operations.
-#' Uses execute_local_tool() and execute_remote_tool().
+#' @title Execute MCP Tool Call Request
+#' @description Universal execution engine for MCP tool calls supporting both local and remote execution.
+#' Automatically detects execution mode and routes to appropriate handler with comprehensive
+#' type preservation and error handling. Serves as primary execution interface for all
+#' tool operations across MCPR framework components.
 #'
 #' @details
 #' The function automatically detects execution mode:

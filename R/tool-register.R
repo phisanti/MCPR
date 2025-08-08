@@ -1,31 +1,22 @@
-#' Tool Registry for MCPR
+#' Tool Registry for MCPR Framework
 #'
-#' The `ToolRegistry` class automatically finds and registers R functions
-#' as tools for AI coding assistants within the MCPR framework. It scans R files
-#' for functions tagged with ` @keywords mcpr_tool` and converts their roxygen2
-#' documentation into structured tool specifications for MCPR.
-#'
-#' @details
-#' This class uses roxygen2 parsing to extract function metadata and convert
-#' parameter documentation into structured tool definitions. Tools are validated
-#' for naming conflicts and compatibility with the MCPR protocol.
-#'
-#' The registration process looks for functions with the ` @keywords mcpr_tool` tag
-#' and automatically converts ` @param` documentation into MCPR type specifications.
-#' Supported parameter types include: character/string, numeric/number, integer/int,
-#' logical/boolean/bool, list/array.
-#'
-#' @section Public Methods:
-#' \describe{
-#'   \item{`initialize(tools_dir, pattern, recursive, verbose)`}{Create new ToolRegistry instance}
-#'   \item{`search_tools(force_refresh = FALSE)`}{Scan directory and load tools}
-#'   \item{`get_tools()`}{Return list of loaded tools}
-#'   \item{`get_tool_summary()`}{Get data.frame summary of tools}
-#'   \item{`has_tool(name)`}{Check if tool exists by name}
-#'   \item{`get_tool(name)`}{Retrieve specific tool by name}
-#'   \item{`configure(tools_dir, pattern, recursive)`}{Update search configuration}
-#'   \item{`set_verbose(verbose)`}{Enable/disable verbose output}
+#' @title Tool Registry
+#' @description Automatically discovers and registers R functions as MCP tools through roxygen2 parsing.
+#' Scans R files for functions tagged with mcpr_tool keyword and converts documentation
+#' into structured tool specifications. Enables tool discovery and validation for MCP
+#' protocol integration through automated function metadata extraction.
+#' @details Provides comprehensive tool management:
+#' \itemize{
+#'   \item \strong{Automatic Discovery}: Scans directories for tagged functions
+#'   \item \strong{Documentation Parsing}: Converts roxygen2 comments to tool specs
+#'   \item \strong{Type Mapping}: Maps parameter types to MCPR specifications
+#'   \item \strong{Validation}: Checks for naming conflicts and protocol compliance
 #' }
+#'
+#' @param tools_dir Directory path to scan for tool files
+#' @param pattern File pattern to match (regex)
+#' @param recursive Whether to search subdirectories
+#' @param verbose Enable verbose output during search
 #'
 #' @examples
 #' \dontrun{
@@ -50,11 +41,12 @@
 #' @export
 ToolRegistry <- R6::R6Class("ToolRegistry",
   public = list(
-    #' @description Create a new ToolRegistry instance with specified configuration.
-    #' @param tools_dir character. Directory path to scan for tool files. Default: "inst/mcpr_tools"
-    #' @param pattern character. File pattern to match (regex). Default: "\\.R$"
-    #' @param recursive logical. Whether to search subdirectories. Default: FALSE
-    #' @param verbose logical. Enable verbose output during the search. Default: TRUE
+    #' @description Create a new ToolRegistry instance with specified configuration
+    #' @param tools_dir Directory path to scan for tool files (default: "inst/mcpr_tools")
+    #' @param pattern File pattern to match (regex) (default: "tool-.*\\.R$")
+    #' @param recursive Whether to search subdirectories (default: FALSE)
+    #' @param verbose Enable verbose output during search (default: FALSE)
+    #' @return New ToolRegistry instance
     initialize = function(tools_dir = "inst/mcpr_tools", 
                          pattern = "tool-.*\\.R$", 
                          recursive = FALSE,
@@ -67,10 +59,9 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       private$.tool_files <- character()
     },
 
-    #' @description Scan the configured directory for R files containing functions
-    #' tagged with ` @keywords mcpr_tool` and convert them to MCPR tool objects.
-    #' @param force_refresh logical. Force re-scanning even if tools are already cached. Default: FALSE
-    #' @return list of MCPR tool objects
+    #' @description Scan configured directory for functions tagged with mcpr_tool keyword
+    #' @param force_refresh Force re-scanning even if tools are cached (default: FALSE)
+    #' @return List of MCPR tool objects
     search_tools = function(force_refresh = FALSE) {
       if (!force_refresh && length(private$.tools) > 0) {
         return(private$.tools)
@@ -125,15 +116,14 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       private$.tools
     },
 
-    #' @description Return the list of currently loaded tools without re-scanning.
-    #' @return list of MCPR tool objects
+    #' @description Return currently loaded tools without re-scanning
+    #' @return List of MCPR tool objects
     get_tools = function() {
       private$.tools
     },
 
-    #' @description Generate a data.frame summary of loaded tools with names,
-    #' descriptions, and parameter counts.
-    #' @return data.frame with columns: name, description, parameters
+    #' @description Generate data.frame summary of loaded tools with metadata
+    #' @return Data.frame with columns: name, description, parameters
     get_tool_summary = function() {
       if (length(private$.tools) == 0) {
         return(data.frame(name = character(), description = character(), stringsAsFactors = FALSE))
@@ -151,17 +141,17 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       do.call(rbind, tool_info)
     },
 
-    #' @description Check if a tool with the specified name has been loaded.
-    #' @param name character. Name of the tool to check
-    #' @return logical. TRUE if tool exists, FALSE otherwise
+    #' @description Check if tool with specified name exists in registry
+    #' @param name Name of the tool to check
+    #' @return TRUE if tool exists, FALSE otherwise
     has_tool = function(name) {
       if (length(private$.tools) == 0) return(FALSE)
       tool_names <- vapply(private$.tools, function(x) x$name, character(1))
       name %in% tool_names
     },
 
-    #' @description Retrieve a specific tool by name.
-    #' @param name character. Name of the tool to retrieve
+    #' @description Retrieve specific tool by name from registry
+    #' @param name Name of the tool to retrieve
     #' @return MCPR tool object or NULL if not found
     get_tool = function(name) {
       for (tool in private$.tools) {
@@ -170,11 +160,11 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       NULL
     },
 
-    #' @description Update the search configuration and reset cached tools.
-    #' @param tools_dir character. New directory path (optional)
-    #' @param pattern character. New file pattern (optional)
-    #' @param recursive logical. New recursive setting (optional)
-    #' @return self (invisibly) for method chaining
+    #' @description Update search configuration and reset cached tools
+    #' @param tools_dir New directory path (optional)
+    #' @param pattern New file pattern (optional)
+    #' @param recursive New recursive setting (optional)
+    #' @return Self (invisibly) for method chaining
     configure = function(tools_dir = NULL, pattern = NULL, recursive = NULL) {
       if (!is.null(tools_dir)) private$.tools_dir <- tools_dir
       if (!is.null(pattern)) private$.pattern <- pattern
@@ -185,17 +175,16 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       invisible(self)
     },
 
-    #' @description Enable or disable verbose output during search operations.
-    #' @param verbose logical. TRUE to enable verbose output, FALSE to disable
-    #' @return self (invisibly) for method chaining
+    #' @description Enable or disable verbose output during search operations
+    #' @param verbose TRUE to enable verbose output, FALSE to disable
+    #' @return Self (invisibly) for method chaining
     set_verbose = function(verbose) {
       private$.verbose <- verbose
       invisible(self)
     },
 
-    #' @description Prints a summary of the ToolRegistry, including the tools directory,
-    #' the number of loaded tools, and their names.
-    #' @return The `ToolRegistry` object, invisibly.
+    #' @description Print summary of ToolRegistry with directory and tool information
+    #' @return Self (invisibly)
     print = function() {
       cat("<ToolRegistry>\n")
       cat("  Directory: ", private$.tools_dir, "\n")
@@ -216,9 +205,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     .tool_files = NULL,
     .verbose = NULL,
 
-    # @description Parses a single R file to find functions with `@keywords mcpr_tool`.
-    # @param file_path character. The path to the R file.
-    # @return A list of `ToolDef` objects found in the file.
+    # Parses R file using roxygen2 to extract functions with mcpr_tool keyword
     parse_file = function(file_path) {
       if (!file.exists(file_path)) {
         cli::cli_abort("Tool file {.file {file_path}} does not exist.")
@@ -263,9 +250,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       tools
     },
 
-    # @description Checks for duplicate names and conflicts with reserved names.
-    # @param tools A list of `ToolDef` objects.
-    # @return `TRUE` if validation passes, `FALSE` otherwise.
+    # Validates tool collection for naming conflicts and protocol compliance
     validate_tools = function(tools) {
       if (length(tools) == 0) return(TRUE)
       
@@ -281,16 +266,19 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
   )
 )
 
-#' Register Tools (Convenience Function)
+#' Register Tools from Directory
 #'
-#' A convenience function that creates a ToolRegistry instance, finds tools,
-#' and returns the loaded tools in a single call.
+#' @title Register Tools from Directory
+#' @description Convenience function creating ToolRegistry instance and returning loaded tools.
+#' Combines registry creation, tool discovery, and validation in single call for
+#' simplified tool registration workflow. Provides direct access to discovered
+#' tools without manual registry management.
 #'
-#' @param tools_dir character. Directory path to scan for tool files. Default: "inst/mcpr_tools"
-#' @param pattern character. File pattern to match (regex). Default: "tool-.*\\.R$"
-#' @param recursive logical. Whether to search subdirectories. Default: FALSE
-#' @param verbose logical. Enable verbose output during the tool search. Default: TRUE
-#' @return list of MCPR tool objects
+#' @param tools_dir Directory path to scan for tool files (default: "inst/mcpr_tools")
+#' @param pattern File pattern to match (regex) (default: "tool-.*\\.R$")
+#' @param recursive Whether to search subdirectories (default: FALSE)
+#' @param verbose Enable verbose output during search (default: FALSE)
+#' @return List of MCPR tool objects
 #'
 #' @examples
 #' \dontrun{

@@ -1,11 +1,21 @@
-#' Serialize R object to JSON string for MCP
+# Type Conversion Utilities
+# Core serialization functions and type specifications for MCP protocol compatibility.
+# Provides high-level interface for JSON conversion and type system definitions.
+
+#' Serialize R Object to JSON for MCP
 #'
-#' @param x An R object to serialize
+#' @title Serialize R Object to JSON for MCP
+#' @description Converts R objects to JSON string format for MCP protocol transmission.
+#' Handles type preservation, object size management, and custom serialization through
+#' comprehensive conversion pipeline. Enables seamless JSON-RPC communication with
+#' maintained R object semantics and MCP protocol compatibility.
+#'
+#' @param x R object to serialize
 #' @param pretty Whether to pretty-print the JSON
 #' @param auto_unbox Whether to automatically unbox single-element vectors
-#' @param size_limit Maximum object size in bytes before using large object handling (default: 1MB)
+#' @param size_limit Maximum object size in bytes before large object handling (default: 1MB)
 #' @param custom_serializers List of custom serializers for specific classes
-#' @return A JSON string representation of the R object
+#' @return JSON string representation of the R object
 #' @export
 #' @examples
 #' mcpr_serialize(list(result = 42, message = "success"))
@@ -23,10 +33,16 @@ mcpr_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e
   )
 }
 
-#' Deserialize JSON string to R object from MCP
+#' Deserialize JSON to R Object from MCP
 #'
-#' @param json A JSON string to deserialize
-#' @return An R object
+#' @title Deserialize JSON to R Object from MCP
+#' @description Converts JSON string back to R object with type reconstruction for MCP protocol.
+#' Reverses serialization process to restore original R object semantics from JSON-RPC
+#' transmission. Handles type markers and maintains object integrity through automatic
+#' deserialization pipeline.
+#'
+#' @param json JSON string to deserialize
+#' @return Reconstructed R object with preserved types
 #' @export
 #' @examples
 #' mcpr_deserialize('{"result": 42, "message": "success"}')
@@ -34,10 +50,15 @@ mcpr_deserialize <- function(json) {
   from_mcpr_json(json)
 }
 
-#' Check if an R object can be safely serialized to JSON
+#' Check Object Serialization Compatibility
 #'
-#' @param x An R object to check
-#' @return TRUE if the object can be serialized, FALSE otherwise
+#' @title Check Object Serialization Compatibility
+#' @description Tests whether R object can be safely serialized to JSON format for MCP protocol.
+#' Performs validation check through actual serialization attempt with error handling.
+#' Enables pre-serialization validation for robust MCP communication workflows.
+#'
+#' @param x R object to check for serialization compatibility
+#' @return TRUE if object can be serialized, FALSE otherwise
 #' @export
 can_serialize <- function(x) {
   tryCatch({
@@ -49,11 +70,18 @@ can_serialize <- function(x) {
 }
 
 
-#' Create a streaming converter for large data frames
+#' Stream Large Data Frames
 #'
-#' @param df Data frame to stream
-#' @param chunk_size Number of rows per chunk
-#' @param callback Function to call with each chunk
+#' @title Stream Large Data Frames
+#' @description Creates streaming converter for large data frames through chunked processing.
+#' Handles memory-efficient transmission of large datasets by breaking into manageable
+#' chunks with callback-based processing. Enables scalable data transfer for MCP
+#' protocol without memory overflow.
+#'
+#' @param df Data frame to stream in chunks
+#' @param chunk_size Number of rows per processing chunk
+#' @param callback Function to call with each processed chunk
+#' @return None (processes chunks through callback)
 #' @export
 stream_dataframe <- function(df, chunk_size = 1000, callback) {
   n_rows <- nrow(df)
@@ -79,14 +107,13 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 
 # Type definitions for MCPR - now using simpler R structures instead of S7
 
-#' Type specifications
+#' Type Specifications for MCP Protocol
 #'
-#' @description
-#' These functions specify object types in a way that chatbots understand and
-#' are used for tool calling and structured data extraction. Their names are
-#' based on the [JSON schema](https://json-schema.org), which is what the APIs
-#' expect behind the scenes. The translation from R concepts to these types is
-#' fairly straightforward.
+#' @title Type Specifications for MCP Protocol
+#' @description Specifies object types for MCP tool calling and structured data extraction.
+#' Based on JSON Schema standards for API compatibility with comprehensive R type mapping.
+#' Enables precise type definitions for tool parameters and return values through
+#' standardized type specification system.
 #'
 #' * `type_boolean()`, `type_integer()`, `type_number()`, and `type_string()`
 #'   each represent scalars. These are equivalent to length-1 logical,
@@ -204,12 +231,17 @@ type_object <- function(
 
 
 #' Convert Type Definition to MCPR Type
-#' @description Converts type information to MCPR type objects. Handles both string-based
-#' type definitions (from roxygen documentation) and JSON Schema objects (from MCP servers).
-#' @param type_str The type string (e.g., "character", "numeric") or JSON schema object.
-#' @param description The parameter description (used for string input type).
-#' @param input_type Either "definition" for string-based input or "json" for JSON schema objects.
-#' @return A MCPR type object.
+#'
+#' @title Convert Type Definition to MCPR Type
+#' @description Converts type information to MCPR type objects supporting multiple input formats.
+#' Handles string-based type definitions from roxygen documentation and JSON Schema objects
+#' from MCP servers. Provides unified type conversion interface for tool parameter
+#' specification and validation across different type sources.
+#'
+#' @param type_str Type string (e.g., "character", "numeric") or JSON schema object
+#' @param description Parameter description (used for string input type)
+#' @param input_type Either "definition" for string-based input or "json" for JSON schema objects
+#' @return MCPR type object with appropriate specification
 map_type_schema <- function(type_str, description = NULL, input_type = "definition") {
   if (input_type == "json") {
     # Handle JSON schema object input

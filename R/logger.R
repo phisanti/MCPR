@@ -1,4 +1,8 @@
 
+# MCPR Logging System
+# Minimal R6-based logging system for MCPR package debugging and monitoring.
+# Provides flexible log levels and output formatting for development workflows.
+
 #' @title MCPRLogger - Minimal Flexible Logging
 #' @description Ultra-compact R6 logger focused on efficiency and flexibility
 #' @export

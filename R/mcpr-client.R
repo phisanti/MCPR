@@ -1,17 +1,16 @@
-# R6 Class Implementation for MCP Client
-# This file implements the mcprClient R6 class, bringing existing functionality
-# from the functional implementation in client.R
+# MCP Client Implementation
+# Provides R6 class for connecting to MCP servers with tool discovery and execution.
+# Handles JSON-RPC communication, session management, and server interaction.
 
-#' @name mcprClient
-#' @title MCP Client R6 Class
+#' MCP Client for R Sessions
 #'
-#' @description
-#' The mcprClient class provides a persistent, object-oriented interface for managing 
-#' Model Context Protocol (MCP) servers within R sessions. It enables AI coding 
-#' assistants to maintain workspace state and collaborate iteratively with R users.
-#'
-#' @details
-#' The mcprClient class manages:
+#' @title MCP Client
+#' @description Provides persistent interface for managing Model Context Protocol servers.
+#' Establishes connections through JSON-RPC messaging, discovers available tools, and
+#' maintains server state. Enables AI assistants to interact with R sessions beyond
+#' stateless script execution through centralized protocol communication and tool
+#' registry management.
+#' @details Creates dedicated environment for MCP server lifecycle management:
 #' \itemize{
 #'   \item \strong{Server Connections}: Establishes and maintains connections to MCP servers
 #'   \item \strong{Tool Discovery}: Automatically discovers and registers available tools
@@ -19,28 +18,7 @@
 #'   \item \strong{State Management}: Maintains server status and tool metadata
 #' }
 #'
-#' ## Configuration File Format
-#' The configuration file should be JSON format with mcpServers entry:
-#' \preformatted{
-#' {
-#'   "mcpServers": {
-#'     "filesystem": {
-#'       "command": "npx",
-#'       "args": ["-y", " @modelcontextprotocol/server-filesystem", "/path/to/directory"],
-#'       "env": {
-#'         "NODE_ENV": "production"
-#'       }
-#'     }
-#'   }
-#' }
-#' }
-#'
-#' ## Default Configuration Location
-#' \code{~/.config/mcptools/config.json}
-#'
-#' ## Environment Variables
-#' Set \code{options(.mcptools_config = "path")} to override default config location
-#'
+#' @param config Path to JSON configuration file containing mcpServers definitions
 #' @examples
 #' \dontrun{
 #' # Basic usage
@@ -69,14 +47,9 @@
 #' @export
 mcprClient <- R6::R6Class("mcprClient",
   public = list(
-    #' @description Creates new mcprClient instance
+#' @description Creates new mcprClient instance
     #' @param config Path to configuration file (character). Uses default location if NULL
     #' @return Self (invisible)
-    #' @examples
-    #' \dontrun{
-    #' client <- mcprClient$new()
-    #' client <- mcprClient$new(config = "~/.config/mcptools/config.json")
-    #' }
     initialize = function(config = NULL) {
       private$.servers <- list()
       private$.server_processes <- list()
@@ -96,16 +69,8 @@ mcprClient <- R6::R6Class("mcprClient",
       }
     },
     
-    #' Connect to MCP servers
-    #'
-    #' @description Establishes connections to all configured MCP servers
+#' @description Establishes connections to all configured MCP servers
     #' @return Self (invisible, enables method chaining)
-    #' @examples
-    #' \dontrun{
-    #' client$connect_servers()
-    #' # Method chaining
-    #' client <- mcprClient$new()$connect_servers()
-    #' }
     connect_servers = function() {
       if (is.null(private$.config) || length(private$.config) == 0) {
         cli::cli_warn("No servers configured")
@@ -143,15 +108,8 @@ mcprClient <- R6::R6Class("mcprClient",
       invisible(self)
     },
     
-    #' Get MCPR-compatible tools
-    #'
-    #' @description Retrieves all discovered tools in MCPR-compatible format
+#' @description Retrieves all discovered tools in MCPR-compatible format
     #' @return List of MCPR tool objects
-    #' @examples
-    #' \dontrun{
-    #' tools <- client$get_mcpr_tools()
-    #' # Tools can be used with MCPR package for AI integration
-    #' }
     get_mcpr_tools = function() {
       if (length(private$.servers) == 0) {
         self$connect_servers()
@@ -163,29 +121,11 @@ mcprClient <- R6::R6Class("mcprClient",
       ))
     },
     
-    #' Call a specific tool
-    #'
-    #' @description Executes specific tool on designated server
+#' @description Executes specific tool on designated server
     #' @param ... Named arguments for the tool
     #' @param server Server name (character)
     #' @param tool Tool name (character)
     #' @return Tool execution result
-    #' @examples
-    #' \dontrun{
-    #' result <- client$call_tool(
-    #'   path = "/home/user/file.txt",
-    #'   server = "filesystem",
-    #'   tool = "read_file"
-    #' )
-    #' 
-    #' # With error handling
-    #' result <- tryCatch({
-    #'   client$call_tool(param = "value", server = "myserver", tool = "mytool")
-    #' }, error = function(e) {
-    #'   cat("Tool execution failed:", e$message)
-    #'   NULL
-    #' })
-    #' }
     call_tool = function(..., server, tool) {
       # Delegate to unified execution engine
       execute_tool_call(create_execution_context(
@@ -197,21 +137,8 @@ mcprClient <- R6::R6Class("mcprClient",
       ))
     },
     
-    #' Get server status
-    #'
-    #' @description Retrieves status information for all connected servers
+#' @description Retrieves status information for all connected servers
     #' @return Named list with server status details including name, connected status, tools_count, and last_id
-    #' @examples
-    #' \dontrun{
-    #' status <- client$get_server_status()
-    #' # Returns: list(server_name = list(name, connected, tools_count, last_id))
-    #' 
-    #' # Check server status before tool calls
-    #' status <- client$get_server_status()
-    #' if (status$filesystem$connected) {
-    #'   result <- client$call_tool(server = "filesystem", tool = "list_files")
-    #' }
-    #' }
     get_server_status = function() {
       lapply(private$.servers, function(server) {
         list(
@@ -251,6 +178,7 @@ mcprClient <- R6::R6Class("mcprClient",
     .messenger = NULL,
     
     
+    # Validates server process and performs MCP initialization handshake
     add_mcpr_server = function(process, name) {
       # Validate server process is alive
       if (!process$is_alive()) {
@@ -283,6 +211,7 @@ mcprClient <- R6::R6Class("mcprClient",
       private$.servers[[name]]
     },
     
+    # Creates function wrapper for tool calls with dynamic argument binding
     tool_ref = function(server, tool, arguments) {
       f <- function() {}
       formals(f) <- setNames(
@@ -307,6 +236,7 @@ mcprClient <- R6::R6Class("mcprClient",
     
     # ID Management
     
+    # Generates sequential request IDs for JSON-RPC protocol compliance
     next_id = function(server_name) {
       # Simple ID management - increment and return
       current_id <- private$.servers[[server_name]]$id
@@ -314,6 +244,7 @@ mcprClient <- R6::R6Class("mcprClient",
       current_id
     },
     
+    # Converts MCP server tools to MCPR-compatible ToolDef objects
     server_as_mcpr_tools = function(server) {
       tools <- server$tools$tools
       tools_out <- list()
@@ -336,6 +267,7 @@ mcprClient <- R6::R6Class("mcprClient",
       tools_out
     },
     
+    # Parses JSON configuration file and validates mcpServers structure
     read_mcp_config = function(config_path) {
       # TODO: Add environment variable substitution
       if (!file.exists(config_path)) {
@@ -374,6 +306,7 @@ mcprClient <- R6::R6Class("mcprClient",
       config$mcpServers
     },
     
+    # Provides helpful error message for missing configuration files
     error_no_mcp_config = function() {
       cli::cli_abort(
         c(
@@ -383,11 +316,13 @@ mcprClient <- R6::R6Class("mcprClient",
       )
     },
     
+    # Returns standard configuration file location following XDG specification
     default_mcp_client_config = function() {
       file.path("~", ".config", "mcptools", "config.json")
     },
     
     
+    # Gracefully terminates server processes with timeout-based cleanup
     finalize = function() {
       timeout_ms <- 5000  
       
@@ -410,10 +345,7 @@ mcprClient <- R6::R6Class("mcprClient",
       }
     },
     
-    # Log communication for debugging
-    #
-    # @description Logs communication messages for debugging purposes
-    # @param message Message to log (character)
+    # Logs JSON-RPC communication for protocol debugging and troubleshooting
     log_communication = function(message) {
       log_file <- "~/mcp_client_test.txt"
       cat(message, "\n\n", sep = "", append = TRUE, file = log_file)
@@ -421,25 +353,16 @@ mcprClient <- R6::R6Class("mcprClient",
   )
 )
 
-#' Create MCP tools (Backward Compatibility)
+#' Create MCP Tools from Configuration
 #'
-#' @description
-#' This function maintains backward compatibility with the existing functional API
-#' while internally using the new mcprClient R6 class. It creates a client instance,
-#' connects to servers, and returns MCPR-compatible tools.
+#' @title MCP Tools Factory Function
+#' @description Creates client instance, establishes server connections, and returns
+#' MCPR-compatible tools. Provides functional interface over class implementation
+#' for backward compatibility. Internally manages client lifecycle and connection
+#' state through automated server discovery and tool registration.
 #'
 #' @param config Path to configuration file (character). Uses default location if NULL
 #' @return List of MCPR tools
-#' @examples
-#' \dontrun{
-#' # Legacy usage - creates client internally
-#' tools <- mcpr_tools()
-#' tools <- mcpr_tools(config = "config.json")
-#' 
-#' # Integration with MCPR workflows
-#' tools <- mcpr_tools()
-#' # Use tools with MCPR framework
-#' }
 #' @export
 mcpr_tools <- function(config = NULL) {
   client <- mcprClient$new(config = config)

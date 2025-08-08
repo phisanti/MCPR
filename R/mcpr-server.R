@@ -1,32 +1,23 @@
 #' @include mcpr-server-tools.R
 #' @include tool-execution.R
-#' @title MCP Server R6 Class
+
+# MCP Server Implementation
+# Core server class for handling MCP protocol communication and tool execution.
+# Manages three-layer architecture: client communication, tool routing, and session forwarding.
 #'
-#' @description
-#' The `mcprServer` class implements the Model Context Protocol (MCP) server for 
-#' persistent R session management. It enables AI coding assistants to connect 
-#' to and interact with running R sessions, maintaining workspace state across 
-#' multiple interactions.
-#'
-#' This class encapsulates server management, tool discovery, and protocol 
-#' communication between MCP clients and R sessions.
-#'
-#' @section Architecture:
-#' The server operates in three layers:
+#' @title MCP Server
+#' @description Implements Model Context Protocol server for persistent R session management.
+#' Operates through nanonext sockets for non-blocking message handling between JSON-RPC 
+#' clients and R sessions, enabling tool execution routing and workspace state persistence.
+#' @details Server operates through layered message handling:
 #' \itemize{
-#'   \item **Client Layer**: Handles JSON-RPC communication with MCP clients
-#'   \item **Server Layer**: Manages tool execution and session routing
-#'   \item **Session Layer**: Forwards requests to active R sessions
+#'   \item \strong{Client Layer}: Handles JSON-RPC communication with MCP clients
+#'   \item \strong{Server Layer}: Manages tool execution and session routing
+#'   \item \strong{Session Layer}: Forwards requests to active R sessions
 #' }
 #'
-#' @section Key Features:
-#' \itemize{
-#'   \item Non-blocking message handling between clients and R sessions
-#'   \item Tool registration and discovery via MCP protocol
-#'   \item Session management and request routing
-#'   \item Built-in server-side tools (session listing, selection, R code execution)
-#' }
-#'
+#' @param registry A ToolRegistry instance for tool discovery and management
+#' @param .tools_dir Internal parameter for specifying tools directory path
 #' @examples
 #' \dontrun{
 #' # Basic server initialization
@@ -52,13 +43,10 @@
 #' @export
 mcprServer <- R6::R6Class("mcprServer",
   public = list(
-    #' @description
-    #' Initialize the MCP server with optional tools.
-    #' 
-    #' @param registry A ToolRegistry instance to use for tool discovery. If provided,
-    #'   takes precedence over the `tools` parameter.
-    #' @param .tools_dir Internal parameter for specifying tools directory path.
-    #' @return A new `mcprServer` instance
+    #' @description Initialize the MCP server with optional tools
+    #' @param registry A ToolRegistry instance to use for tool discovery
+    #' @param .tools_dir Internal parameter for specifying tools directory path
+    #' @return A new mcprServer instance
     initialize = function(registry = NULL, .tools_dir = NULL) {
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         cli::cli_abort("registry must be a ToolRegistry instance")
@@ -87,16 +75,8 @@ mcprServer <- R6::R6Class("mcprServer",
       set_server_tools(registry = registry)
     },
 
-    #' @description
-    #' Start the MCP server and begin listening for connections.
-    #' 
-    #' @details
-    #' This method blocks execution and runs the server's main event loop.
-    #' It handles incoming messages from MCP clients and forwards requests
-    #' to available R sessions. The server will continue running until
-    #' manually stopped or interrupted.
-    #' 
-    #' @note This method should only be called in non-interactive contexts.
+    #' @description Start the MCP server and begin listening for connections
+    #' @note This method should only be called in non-interactive contexts because it blocks execution
     #' @return No return value (blocking call)
     start = function() {
       check_not_interactive()
@@ -127,9 +107,7 @@ mcprServer <- R6::R6Class("mcprServer",
       }
     },
 
-    #' @description
-    #' Stop the running server with graceful shutdown and resource cleanup.
-    #' 
+    #' @description Stop the running server with graceful shutdown and resource cleanup
     #' @param timeout_ms Timeout in milliseconds for graceful shutdown (default: 5000)
     #' @return The server instance (invisibly) for method chaining
     stop = function(timeout_ms = 5000) {
@@ -164,17 +142,13 @@ mcprServer <- R6::R6Class("mcprServer",
       invisible(self)
     },
 
-    #' @description
-    #' Check if the server is currently running.
-    #' 
-    #' @return `TRUE` if server is running, `FALSE` otherwise
+    #' @description Check if the server is currently running
+    #' @return TRUE if server is running, FALSE otherwise
     is_running = function() {
       private$.running
     },
 
-    #' @description
-    #' Get server tools in the specified format.
-    #' 
+    #' @description Get server tools in the specified format
     #' @param format Character string specifying output format: "list" (default) or "json"
     #' @return For "list": named list of ToolDef objects. For "json": list suitable for JSON serialization
     get_tools = function(format = c("list", "json")) {
@@ -199,7 +173,7 @@ mcprServer <- R6::R6Class("mcprServer",
 
     # === MESSAGE HANDLERS ===
 
-    # Handle incoming messages from MCP clients
+    # Parses and routes incoming JSON-RPC messages from MCP clients to appropriate handlers
     handle_message_from_client = function(line) {
       if (length(line) == 0) {
         return()
@@ -254,7 +228,7 @@ mcprServer <- R6::R6Class("mcprServer",
       }
     },
 
-    # Handle messages from R sessions
+    # Forwards responses from R sessions directly back to MCP clients
     handle_message_from_session = function(data) {
       if (!is.character(data)) {
         return()
@@ -264,7 +238,7 @@ mcprServer <- R6::R6Class("mcprServer",
       nanonext::write_stdout(data)
     },
 
-    # Handle tool execution requests locally on the server
+    # Executes tool requests locally on server and sends results to client
     handle_request = function(data) {
       prepared <- private$append_tool_fn(data)
       result <- if (inherits(prepared, "jsonrpc_error")) {
@@ -281,7 +255,7 @@ mcprServer <- R6::R6Class("mcprServer",
       }
     },
 
-    # Forward requests to an R session for execution
+    # Forwards validated tool requests to active R sessions for execution
     forward_request = function(data) {
       logcat(c("TO SESSION: ", jsonlite::toJSON(data)))
       prepared <- private$append_tool_fn(data)
@@ -291,7 +265,7 @@ mcprServer <- R6::R6Class("mcprServer",
       nanonext::send_aio(the$server_socket, prepared, mode = "serial")
     },
 
-    # Append the tool function to the request data
+    # Validates tool existence and appends function reference to request data
     append_tool_fn = function(data) {
       if (!identical(data$method, "tools/call")) {
         return(data)
@@ -312,48 +286,14 @@ mcprServer <- R6::R6Class("mcprServer",
   )
 )
 
-#' Start MCP Server (Convenience Function)
+#' Start MCP Server
 #'
-#' @description
-#' Convenience function to initialize and start an MCP server in one call.
-#' Equivalent to creating a new `mcprServer` instance and calling `start()`.
+#' @title Start MCP Server
+#' @description Convenience function to initialize and start MCP server in one call.
+#' Creates mcprServer instance and begins listening for client connections through
+#' blocking event loop with automatic tool discovery and registration.
 #'
-#' @param registry A ToolRegistry instance to use for tool discovery.
-#' 
-#' @details
-#' This function is designed for non-interactive use in background processes
-#' or command-line scripts. It will block execution until the server is stopped.
-#'
-#' @section Built-in Tools:
-#' The server includes these essential tools:
-#' \itemize{
-#'   \item `list_r_sessions`: Discover available R sessions
-#'   \item `select_r_session`: Connect to a specific R session
-#'   \item `execute_r_code_tool`: Execute R code in the active session
-#' }
-#'
-#' @section Integration Workflow:
-#' 1. **Setup**: Initialize server with custom tools
-#' 2. **Discovery**: Client queries available tools via MCP protocol
-#' 3. **Connection**: Client selects and connects to R session
-#' 4. **Execution**: Client sends tool calls, server routes to session
-#' 5. **Response**: Results flow back through server to client
-#'
-#' @examples
-#' \dontrun{
-#' # Minimal server
-#' mcpr_server()
-#' 
-#' # Server with custom tools from file
-#' # Server with ToolRegistry from directory
-#' registry <- ToolRegistry$new(tools_dir = "inst/tools")
-#' mcpr_server(registry = registry)
-#' 
-#' # Server with ToolRegistry
-#' registry <- ToolRegistry$new()
-#' mcpr_server(registry = registry)
-#' }
-#' 
+#' @param registry A ToolRegistry instance to use for tool discovery
 #' @return The server instance (invisibly)
 #' @export
 mcpr_server <- function(registry = NULL) {
