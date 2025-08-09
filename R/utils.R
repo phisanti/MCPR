@@ -140,6 +140,7 @@ compact_list <- function(x) {
 #' for enhanced user experience in different IDE contexts.
 #'
 #' @return Character string with IDE name
+#' @export
 infer_ide <- function() {
   first_cmd_arg <- commandArgs()[1]
   switch(
