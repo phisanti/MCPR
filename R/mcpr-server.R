@@ -208,7 +208,7 @@ mcprServer <- R6::R6Class("mcprServer",
         "tools/call" = function(data) {
           tool_name <- data$params$name
           # Execute server-side tools directly, or if no session is active
-          if (tool_name %in% c("list_r_sessions", "select_r_session", "execute_r_code") ||
+          if (tool_name %in% c("manage_r_sessions", "execute_r_code") ||
               !nanonext::stat(the$server_socket, "pipes")) {
             private$handle_request(data)
           } else {
