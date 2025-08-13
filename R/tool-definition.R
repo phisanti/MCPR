@@ -155,7 +155,7 @@ ToolDef <- R6::R6Class("ToolDef",
   ),
   
   active = list(
-    # Validates and stores tool name with MCP protocol compliance checking
+    #' @field name Tool name with MCP protocol compliance validation
     name = function(value) {
       if (missing(value)) {
         private$.name
@@ -165,7 +165,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
-    # Validates and stores tool description ensuring non-empty string format
+    #' @field description Tool description ensuring non-empty string format
     description = function(value) {
       if (missing(value)) {
         private$.description
@@ -175,7 +175,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
-    # Validates and stores argument definitions ensuring proper list structure
+    #' @field arguments Argument definitions ensuring proper list structure
     arguments = function(value) {
       if (missing(value)) {
         private$.arguments
@@ -185,7 +185,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
-    # Validates and stores JSON conversion flag ensuring logical type
+    #' @field convert JSON conversion flag ensuring logical type
     convert = function(value) {
       if (missing(value)) {
         private$.convert
@@ -198,7 +198,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
-    # Validates and stores tool annotations ensuring basic R type compliance
+    #' @field annotations Tool annotations ensuring basic R type compliance
     annotations = function(value) {
       if (missing(value)) {
         private$.annotations
@@ -226,7 +226,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
     },
     
-    # Validates and stores executable function ensuring callable object
+    #' @field fun Executable function ensuring callable object
     fun = function(value) {
       if (missing(value)) {
         private$.fun
