@@ -23,28 +23,60 @@ MCPRLogger <- R6::R6Class("MCPRLogger",
   ),
   
   public = list(
+    #' @description Initialize logger instance
+    #' @param file Log file path (optional, defaults to package log file)
+    #' @param component Component name for log entries
+    #' @param enabled Whether logging is enabled
     initialize = function(file = NULL, component = "MCPR", enabled = TRUE) {
       private$.file <- file %||% mcptools_log_file()
       private$.component <- component
       private$.enabled <- enabled
     },
     
-    # Core logging method - everything goes through this
+    #' @description Core logging method - everything goes through this
+    #' @param message Log message text
+    #' @param level Log level indicator (default: "I")
+    #' @param component Optional component override
     log = function(message, level = "I", component = NULL) {
       private$write(level, message, component)
       invisible(self)
     },
     
-    # Fluent interface methods
+    #' @description Log info message
+    #' @param msg Message text
+    #' @param comp Optional component override
     info = function(msg, comp = NULL) self$log(msg, "INFO", comp),
+    
+    #' @description Log warning message
+    #' @param msg Message text
+    #' @param comp Optional component override
     warn = function(msg, comp = NULL) self$log(msg, "WARNING", comp),
+    
+    #' @description Log error message
+    #' @param msg Message text
+    #' @param comp Optional component override
     error = function(msg, comp = NULL) self$log(msg, "ERRO", comp),
+    
+    #' @description Log debug message
+    #' @param msg Message text
+    #' @param comp Optional component override
     debug = function(msg, comp = NULL) self$log(msg, "DEBUG", comp),
+    
+    #' @description Log communication message
+    #' @param msg Message text
+    #' @param comp Optional component override
     comm = function(msg, comp = NULL) self$log(msg, "COMMUNICATION", comp),
     
-    # Configuration
+    #' @description Enable or disable logging
+    #' @param state Logging enabled state (default: TRUE)
     enable = function(state = TRUE) { private$.enabled <- state; invisible(self) },
+    
+    #' @description Set component name for log entries
+    #' @param component Component name
     set_component = function(component) { private$.component <- component; invisible(self) },
+    
+    #' @description Set log file path
+    #' @param file Log file path
     set_file = function(file) { private$.file <- file; invisible(self) }
   )
 )
