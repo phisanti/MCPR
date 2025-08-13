@@ -216,6 +216,7 @@ mcprSession <- R6::R6Class("mcprSession",
 #'
 #' @param timeout_seconds Timeout in seconds before session cleanup (default: 900)
 #' @return mcprSession instance (invisibly)
+#' @export
 mcpr_session <- function(timeout_seconds = 900) {
   if (!rlang::is_interactive()) {
     return(invisible())
@@ -247,3 +248,12 @@ mcpr_session_stop <- function() {
   }
   invisible()
 }
+
+#' Legacy Naming Assignment for MCP Session
+#'
+#' @title Legacy Naming Assignment for MCP Session
+#' @description Direct assignment alias for backward compatibility.
+#' Provides the old function name as a direct reference to the new function.
+#'
+#' @export
+mcp_session <- mcpr_session

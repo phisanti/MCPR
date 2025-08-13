@@ -372,3 +372,21 @@ mcpr_tools <- function(config = NULL) {
   
   return(tools)
 }
+
+#' Legacy Naming Assignment for MCP Client
+#'
+#' @title Legacy Naming Assignment for MCP Client
+#' @description Direct assignment alias for backward compatibility.
+#' Provides the old R6 class name as a direct reference to the new class.
+#'
+#' @export
+mcpClient <- mcprClient
+
+#' Legacy Naming Assignment for MCP Tools
+#'
+#' @title Legacy Naming Assignment for MCP Tools
+#' @description Direct assignment alias for backward compatibility.
+#' Provides the old function name as a direct reference to the new function.
+#'
+#' @export
+mcp_tools <- mcpr_tools

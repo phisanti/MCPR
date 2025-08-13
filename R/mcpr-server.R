@@ -208,8 +208,8 @@ mcprServer <- R6::R6Class("mcprServer",
         "tools/call" = function(data) {
           tool_name <- data$params$name
           # Execute server-side tools directly, or if no session is active
-          if (tool_name %in% c("manage_r_sessions", "execute_r_code") ||
-              !nanonext::stat(the$server_socket, "pipes")) {
+          if (tool_name %in% c("manage_r_sessions") ||
+              (!nanonext::stat(the$server_socket, "pipes") && !tool_name %in% c("execute_r_code"))) {
             private$handle_request(data)
           } else {
             private$forward_request(data)
@@ -258,11 +258,13 @@ mcprServer <- R6::R6Class("mcprServer",
     # Forwards validated tool requests to active R sessions for execution
     forward_request = function(data) {
       logcat(c("TO SESSION: ", jsonlite::toJSON(data)))
-      prepared <- private$append_tool_fn(data)
-      if (inherits(prepared, "jsonrpc_error")) {
-        return(nanonext::write_stdout(to_json(unclass(prepared))))
-      }
-      nanonext::send_aio(the$server_socket, prepared, mode = "serial")
+      # Don't append server-side tool functions - let sessions resolve tools locally
+      # prepared <- private$append_tool_fn(data)  # REMOVED
+      # if (inherits(prepared, "jsonrpc_error")) {
+      #   return(nanonext::write_stdout(to_json(unclass(prepared))))
+      # }
+      nanonext::send_aio(the$server_socket, data, mode = "serial")  # Send clean data
+      NULL
     },
 
     # Validates tool existence and appends function reference to request data
@@ -302,3 +304,12 @@ mcpr_server <- function(registry = NULL) {
   server$start()
   invisible(server)
 }
+
+#' Legacy Naming Assignment for MCP Server
+#'
+#' @title Legacy Naming Assignment for MCP Server
+#' @description Direct assignment alias for backward compatibility.
+#' Provides the old function name as a direct reference to the new function.
+#'
+#' @export
+mcp_server <- mcpr_server
