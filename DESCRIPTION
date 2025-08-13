@@ -21,7 +21,6 @@ Imports:
     promises,
     rlang,
     tools,
-    promises,
     roxygen2,
     utils,
     grDevices,
@@ -49,3 +48,4 @@ Collate:
     'type-conversion-from-json.R'
     'type-conversion-serializers.R'
     'type-conversion-to-json.R'
+    'type-definitions.R'
