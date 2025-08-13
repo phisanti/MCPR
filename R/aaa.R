@@ -10,5 +10,6 @@ the <- rlang::new_environment()
 
 #' Server Process Registry
 #'
+#' @name server_processes
 #' @description Initialize empty list for tracking active MCP server processes
 the$server_processes <- list()
