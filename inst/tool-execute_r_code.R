@@ -79,7 +79,7 @@ execute_r_code <- function(code) {
   response_parts <- character(0)
   
   if (result$success) {
-    response_parts <- c(response_parts, "✓ Code executed successfully")
+    response_parts <- c(response_parts, "Code executed successfully")
     
     # Add output if any
     if (!is.null(result$output) && nchar(result$output) > 0) {
@@ -121,7 +121,7 @@ execute_r_code <- function(code) {
     
   } else {
     response_parts <- c(response_parts, 
-                       paste("✗ Error:", result$error))
+                       paste("Error:", result$error))
   }
   
   return(paste(response_parts, collapse = "\n\n"))

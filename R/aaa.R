@@ -2,7 +2,7 @@
 #'
 #' @title Global State Container
 #' @description Creates a dedicated environment for managing MCPR package state.
-#' Provides centralized storage for server processes, tools registry, and 
+#' Provides centralized storage for server processes, tools registry, and
 #' inter-process communication channels. Ensures state isolation from user
 #' workspace while maintaining package-wide accessibility for session
 #' management and tool execution coordination.

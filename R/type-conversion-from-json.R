@@ -12,7 +12,7 @@
 #'
 #' @param json JSON string or already parsed JSON data
 #' @return R object reconstructed with preserved type information
-#' 
+#'
 #' @details
 #' This function reverses the conversion done by \code{to_mcpr_json}, reconstructing:
 #' \itemize{
@@ -26,15 +26,15 @@
 #'   \item Raw vectors from base64
 #'   \item Formulas and language objects
 #' }
-#' 
+#'
 #' Note: Environments cannot be reconstructed and are replaced with marker objects.
-#' 
+#'
 #' @export
 #' @examples
 #' # Simple JSON string
 #' json_str <- '{"a": 1, "b": ["hello", "world"]}'
 #' from_mcpr_json(json_str)
-#' 
+#'
 #' # Round-trip conversion
 #' original <- list(
 #'   date = Sys.Date(),
@@ -50,17 +50,17 @@ from_mcpr_json <- function(json) {
   } else {
     x <- json
   }
-  
+
   # Recursive function to reconstruct R objects
   reconstruct <- function(obj) {
     if (is.null(obj)) {
       return(NULL)
     }
-    
+
     # Check for MCP type markers
     if (is.list(obj)) {
       mcp_type <- obj[["_mcp_type"]]
-      
+
       if (!is.null(mcp_type)) {
         if (mcp_type == "matrix") {
           # Reconstruct matrix
@@ -104,9 +104,15 @@ from_mcpr_json <- function(json) {
         } else if (mcp_type == "special_numeric") {
           # Reconstruct special numeric value
           val <- obj$value
-          if (identical(val, "Inf")) return(Inf)
-          if (identical(val, "-Inf")) return(-Inf)
-          if (identical(val, "NaN")) return(NaN)
+          if (identical(val, "Inf")) {
+            return(Inf)
+          }
+          if (identical(val, "-Inf")) {
+            return(-Inf)
+          }
+          if (identical(val, "NaN")) {
+            return(NaN)
+          }
           return(as.numeric(val))
         } else if (mcp_type == "numeric_vector_special") {
           # Reconstruct numeric vector with special values
@@ -167,14 +173,14 @@ from_mcpr_json <- function(json) {
           return(structure(obj, class = "mcp_large_object_marker"))
         }
       }
-      
+
       # Regular list - recursively process elements
       return(lapply(obj, reconstruct))
     }
-    
+
     # Return as-is
     return(obj)
   }
-  
+
   reconstruct(x)
 }

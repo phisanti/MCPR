@@ -2,23 +2,23 @@
 test_that("from_mcpr_json handles basic types correctly", {
   # Test NULL
   expect_null(from_mcpr_json(NULL))
-  
+
   # Test basic JSON string
   json_str <- '{"a": 1, "b": ["hello", "world"]}'
   result <- from_mcpr_json(json_str)
   expect_equal(result$a, 1)
-  expect_equal(result$b, list("hello", "world"))  # JSON arrays become lists
-  
+  expect_equal(result$b, list("hello", "world")) # JSON arrays become lists
+
   # Test already parsed JSON
   parsed_json <- list(x = 42, y = "test")
   result2 <- from_mcpr_json(parsed_json)
   expect_equal(result2, parsed_json)
-  
+
   # Test simple values and objects
-  expect_equal(from_mcpr_json('42'), 42)
+  expect_equal(from_mcpr_json("42"), 42)
   expect_equal(from_mcpr_json('"hello"'), "hello")
-  expect_equal(from_mcpr_json('[1, 2, 3]'), list(1, 2, 3))
-  
+  expect_equal(from_mcpr_json("[1, 2, 3]"), list(1, 2, 3))
+
   # Test objects
   json_obj <- '{"a": 1, "b": ["x", "y"]}'
   result <- from_mcpr_json(json_obj)
@@ -32,11 +32,11 @@ test_that("from_mcpr_json reconstructs special numeric values", {
   original <- c(1.5, Inf, -Inf, NaN)
   json_data <- to_mcpr_json(original)
   result <- from_mcpr_json(json_data)
-  
-  expect_equal(result[1], 1.5)                          # regular number
-  expect_true(is.infinite(result[2]) && result[2] > 0)  # Inf
-  expect_true(is.infinite(result[3]) && result[3] < 0)  # -Inf
-  expect_true(is.nan(result[4]))                        # NaN
+
+  expect_equal(result[1], 1.5) # regular number
+  expect_true(is.infinite(result[2]) && result[2] > 0) # Inf
+  expect_true(is.infinite(result[3]) && result[3] < 0) # -Inf
+  expect_true(is.nan(result[4])) # NaN
 })
 
 # Test for nested structures
@@ -49,7 +49,7 @@ test_that("from_mcpr_json handles nested structures", {
       numbers = c(1, 2, 3)
     )
   )
-  
+
   result <- from_mcpr_json(nested_json)
   expect_equal(result$simple, 42)
   expect_equal(result$nested$inner, "value")
@@ -59,10 +59,10 @@ test_that("from_mcpr_json handles nested structures", {
 # Test for large object markers
 test_that("Large object markers are created for reconstruction", {
   large_vec <- 1:100000
-  
+
   json_str <- mcpr_serialize(large_vec, auto_unbox = FALSE)
   json_obj <- jsonlite::fromJSON(json_str, simplifyVector = FALSE)
-  
+
   # Manually create large object for testing reconstruction
   large_obj_json <- list(
     `_mcp_type` = "large_object",
@@ -70,7 +70,7 @@ test_that("Large object markers are created for reconstruction", {
     size = 400000,
     summary = c("Min: 1", "Max: 100000")
   )
-  
+
   reconstructed <- from_mcpr_json(large_obj_json)
   expect_true(inherits(reconstructed, "mcp_large_object_marker"))
 })
@@ -79,12 +79,12 @@ test_that("Large object markers are created for reconstruction", {
 test_that("from_mcpr_json handles invalid JSON and empty structures gracefully", {
   # Test invalid JSON string
   expect_error(from_mcpr_json('{"invalid": json}'))
-  
+
   # Test empty structures
-  expect_equal(from_mcpr_json('{}'), structure(list(), names = character(0)))
-  expect_equal(from_mcpr_json('[]'), list())
+  expect_equal(from_mcpr_json("{}"), structure(list(), names = character(0)))
+  expect_equal(from_mcpr_json("[]"), list())
   expect_equal(from_mcpr_json('""'), "")
-  
+
   # Test empty MCP type objects
   empty_matrix <- list(`_mcp_type` = "matrix", data = numeric(0), dim = c(0, 0))
   result <- from_mcpr_json(empty_matrix)
@@ -98,12 +98,12 @@ test_that("from_mcpr_json handles malformed MCP type markers", {
   # Test unknown MCP type
   unknown_type <- list(`_mcp_type` = "unknown_type", data = "test")
   result <- from_mcpr_json(unknown_type)
-  expect_equal(result, unknown_type)  # Should return as-is
-  
+  expect_equal(result, unknown_type) # Should return as-is
+
   # Test MCP type with missing required fields
-  incomplete_matrix <- list(`_mcp_type` = "matrix", data = c(1, 2, 3))  # missing dim
+  incomplete_matrix <- list(`_mcp_type` = "matrix", data = c(1, 2, 3)) # missing dim
   expect_error(from_mcpr_json(incomplete_matrix))
-  
+
   # Test MCP type with NULL values
   null_factor <- list(`_mcp_type` = "factor", values = NULL, levels = c("a", "b"))
   result <- from_mcpr_json(null_factor)
@@ -131,7 +131,7 @@ test_that("from_mcpr_json reconstructs complex S3 objects with nested MCP types"
       values = "2023-01-01"
     )
   )
-  
+
   result <- from_mcpr_json(s3_object)
   expect_true(inherits(result, "custom_class"))
   expect_true(is.matrix(result$matrix_data))
@@ -162,7 +162,7 @@ test_that("from_mcpr_json reconstructs data frames with complex column types", {
       timezone = "UTC"
     )
   )
-  
+
   result <- from_mcpr_json(df_json)
   expect_true(is.data.frame(result))
   expect_equal(nrow(result), 3)
@@ -185,14 +185,14 @@ test_that("from_mcpr_json reconstructs complex multi-dimensional arrays", {
       c("slice1", "slice2")
     )
   )
-  
+
   result <- from_mcpr_json(array_json)
   expect_true(is.array(result))
   expect_equal(dim(result), c(2, 2, 2))
   expect_equal(dimnames(result)[[1]], c("row1", "row2"))
   expect_equal(dimnames(result)[[2]], c("col1", "col2"))
   expect_equal(dimnames(result)[[3]], c("slice1", "slice2"))
-  
+
   # Check that values are preserved correctly
   expect_equal(result[1, 1, 1], 1)
   expect_equal(result[2, 2, 2], 8)

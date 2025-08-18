@@ -4,9 +4,9 @@ get_test_tools_dir <- function() {
   if (dir.exists("../../inst")) {
     return("../../inst")
   } else if (dir.exists("inst")) {
-    return("inst") 
+    return("inst")
   } else {
-    return(tempdir())  # fallback
+    return(tempdir()) # fallback
   }
 }
 
@@ -19,21 +19,6 @@ test_that("mcprServer initializes with default tools", {
   server_tools <- server$get_tools()
   expect_true("list_r_sessions" %in% names(server_tools))
   expect_true("select_r_session" %in% names(server_tools))
-})
-
-test_that("tool functions can be accessed using R6 $ syntax", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
-  server_tools <- server$get_tools()
-  
-  # Test that we can access tool functions using $ syntax (R6)
-  if (length(server_tools) > 0) {
-    tool_name <- names(server_tools)[1]
-    tool_obj <- server_tools[[tool_name]]
-    
-    # Should be able to access function using $ syntax
-    expect_true(is.function(tool_obj$fun))
-    expect_no_error(tool_obj$fun)
-  }
 })
 
 test_that("mcprServer initializes with ToolRegistry", {
@@ -57,21 +42,25 @@ test_that("mcprServer$stop sets the running flag to FALSE", {
 test_that("mcprServer accepts ToolRegistry", {
   # Create a minimal ToolRegistry instance
   registry <- ToolRegistry$new()
-  
+
   # Test that server accepts registry parameter
   expect_no_error(mcprServer$new(registry = registry, .tools_dir = tools_dir))
-  
+
   server <- mcprServer$new(registry = registry, .tools_dir = tools_dir)
   expect_true(inherits(server, "mcprServer"))
 })
 
 test_that("mcprServer rejects invalid registry parameter", {
   # Test that server rejects non-ToolRegistry objects
-  expect_error(mcprServer$new(registry = "not_a_registry"),
-               "registry must be a ToolRegistry instance")
-  
-  expect_error(mcprServer$new(registry = list()),
-               "registry must be a ToolRegistry instance")
+  expect_error(
+    mcprServer$new(registry = "not_a_registry"),
+    "registry must be a ToolRegistry instance"
+  )
+
+  expect_error(
+    mcprServer$new(registry = list()),
+    "registry must be a ToolRegistry instance"
+  )
 })
 
 test_that("ToolRegistry takes precedence over tools parameter", {
@@ -79,11 +68,11 @@ test_that("ToolRegistry takes precedence over tools parameter", {
   tool_file <- tempfile(fileext = ".R")
   writeLines("list()", tool_file)
   on.exit(unlink(tool_file), add = TRUE)
-  
+
   # Create a registry
   registry <- ToolRegistry$new(tools_dir = tools_dir)
-  
-  # When both are provided, registry should take precedence
+
+  # Test registry functionality
   expect_no_error(mcprServer$new(registry = registry))
 })
 

@@ -47,6 +47,8 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       }
     }
     pipes <- nanonext::read_monitor(monitor)
+    # TODO: The return needs to be updated so that it uses the detailed decription and also imporove the detailed description
+    # The final goal is that the model gets a nicely formatted table with the Session ID, timestamp, working directory, and IDE information
     res <- lapply(
       pipes,
       function(x) nanonext::recv_aio(sock, mode = "string", timeout = 5000L)

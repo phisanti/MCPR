@@ -22,12 +22,12 @@
 mcpr_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = get_mcpr_serializers()) {
   # Convert to MCP-compatible format
   mcp_obj <- to_mcpr_json(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers)
-  
+
   # Serialize to JSON
   jsonlite::toJSON(
     mcp_obj,
     pretty = pretty,
-    auto_unbox = FALSE,  # We handle unboxing in to_mcpr_json
+    auto_unbox = FALSE, # We handle unboxing in to_mcpr_json
     null = "null",
     na = "null"
   )
@@ -61,12 +61,15 @@ mcpr_deserialize <- function(json) {
 #' @return TRUE if object can be serialized, FALSE otherwise
 #' @export
 can_serialize <- function(x) {
-  tryCatch({
-    mcpr_serialize(x)
-    TRUE
-  }, error = function(e) {
-    FALSE
-  })
+  tryCatch(
+    {
+      mcpr_serialize(x)
+      TRUE
+    },
+    error = function(e) {
+      FALSE
+    }
+  )
 }
 
 
@@ -86,14 +89,14 @@ can_serialize <- function(x) {
 stream_dataframe <- function(df, chunk_size = 1000, callback) {
   n_rows <- nrow(df)
   n_chunks <- ceiling(n_rows / chunk_size)
-  
+
   for (i in seq_len(n_chunks)) {
     start_row <- (i - 1) * chunk_size + 1
     end_row <- min(i * chunk_size, n_rows)
-    
+
     chunk <- df[start_row:end_row, , drop = FALSE]
     chunk_json <- to_mcpr_json(chunk, size_limit = Inf)
-    
+
     callback(list(
       chunk = i,
       total_chunks = n_chunks,
@@ -164,9 +167,9 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 #'
 #' # The closest equivalent to a data frame is an array of objects
 #' type_array(type_object(
-#'    x = type_boolean(),
-#'    y = type_string(),
-#'    z = type_number()
+#'   x = type_boolean(),
+#'   y = type_string(),
+#'   z = type_number()
 #' ))
 #'
 #' # There's no specific type for dates, but you use a string with the
@@ -245,15 +248,15 @@ type_object <- function(
 map_type_schema <- function(type_str, description = NULL, input_type = "definition") {
   if (input_type == "json") {
     # Handle JSON schema object input
-    schema <- type_str  # Rename for clarity
+    schema <- type_str # Rename for clarity
     description <- schema$description %||% NULL
-    required <- TRUE  # Default to required for MCP compatibility
-    
+    required <- TRUE # Default to required for MCP compatibility
+
     # Handle enum types
     if (!is.null(schema$enum)) {
       return(type_enum(schema$enum, description = description, required = required))
     }
-    
+
     switch(schema$type %||% "string",
       "string" = type_string(description = description, required = required),
       "number" = type_number(description = description, required = required),
@@ -284,10 +287,12 @@ map_type_schema <- function(type_str, description = NULL, input_type = "definiti
   } else {
     # Handle string-based type definition input (original logic)
     description <- description %||% ""
-    
+
     switch(tolower(type_str),
-      "character" = , "string" = type_string(description = description),
-      "numeric" = , "number" = {
+      "character" = ,
+      "string" = type_string(description = description),
+      "numeric" = ,
+      "number" = {
         # If description mentions "vector" or "array", create an array type
         if (grepl("vector|array", description, ignore.case = TRUE)) {
           type_array(description = description, items = type_number())
@@ -295,10 +300,14 @@ map_type_schema <- function(type_str, description = NULL, input_type = "definiti
           type_number(description = description)
         }
       },
-      "integer" = , "int" = type_integer(description = description),
-      "logical" = , "boolean" = , "bool" = type_boolean(description = description),
-      "list" = , "array" = type_array(description = description, items = type_string()),
+      "integer" = ,
+      "int" = type_integer(description = description),
+      "logical" = ,
+      "boolean" = ,
+      "bool" = type_boolean(description = description),
+      "list" = ,
+      "array" = type_array(description = description, items = type_string()),
       type_string(description = description)
     )
   }
-} 
+}

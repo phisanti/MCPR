@@ -49,35 +49,6 @@ to_json <- function(x, ...) {
   jsonlite::toJSON(x, ..., auto_unbox = TRUE)
 }
 
-#' Log Output to File
-#'
-#' @title Log Output to File
-#' @description Logs output to file for MCP client processes where stdout/stderr aren't visible.
-#' Enables debugging and monitoring of MCP server processes through file-based logging.
-#' Provides essential diagnostic capability for background process troubleshooting
-#' and development workflows.
-#'
-#' @param x Content to log
-#' @param ... Additional arguments passed to cat function
-#' @param append Whether to append to existing log file (default: TRUE)
-#' @return None (writes to log file)
-logcat <- function(x, ..., append = TRUE) {
-  log_file <- mcptools_log_file()
-  cat(x, "\n", sep = "", append = append, file = log_file)
-}
-
-#' Get MCP Tools Log File Path
-#'
-#' @title Get MCP Tools Log File Path
-#' @description Returns log file path from environment variable or creates temporary file.
-#' Provides consistent log file location for MCP tools debugging and monitoring.
-#' Enables configurable logging through MCPTOOLS_LOG_FILE environment variable
-#' with fallback to temporary file creation.
-#'
-#' @return Character string with log file path
-mcptools_log_file <- function() {
-  Sys.getenv("MCPTOOLS_LOG_FILE", tempfile(fileext = ".txt"))
-}
 
 #' Check Session is Not Interactive
 #'
@@ -130,7 +101,6 @@ compact_list <- function(x) {
   Filter(Negate(is.null), x)
 }
 
-
 #' Infer Current IDE
 #'
 #' @title Infer Current IDE
@@ -143,8 +113,7 @@ compact_list <- function(x) {
 #' @export
 infer_ide <- function() {
   first_cmd_arg <- commandArgs()[1]
-  switch(
-    first_cmd_arg,
+  switch(first_cmd_arg,
     ark = "Positron",
     RStudio = "RStudio",
     first_cmd_arg
@@ -172,15 +141,15 @@ infer_ide <- function() {
 #' Check Object is Function
 #'
 #' @title Check Object is Function
-#' @description Validates that object is a function with informative error messaging.
-#' Provides type checking utility for function parameter validation in MCPR framework.
-#' Ensures proper function types for tool definition and execution workflows through
-#' comprehensive validation with clear error reporting.
+#' @description Validates that object is callable function with clear error reporting.
+#' Provides function type checking utility for parameter validation in MCPR framework.
+#' Ensures proper function objects for tool definitions and callback handling through
+#' comprehensive validation with informative error messages.
 #'
 #' @param x Object to check for function type
 #' @param arg Argument name for error messages
 #' @param call Calling environment for error reporting
-#' @return None (throws error if not function)
+#' @return None (throws error if not valid function)
 check_function <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
   if (!is.function(x)) {
     cli::cli_abort("{.arg {arg}} must be a function, not {.obj_type_friendly {x}}", call = call)
@@ -190,10 +159,10 @@ check_function <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_e
 #' Check Object is String
 #'
 #' @title Check Object is String
-#' @description Validates that object is single non-NA string with optional NULL allowance.
+#' @description Validates that object is single non-NA character value with optional NULL allowance.
 #' Provides string type checking utility for parameter validation in MCPR framework.
-#' Ensures proper string types for tool names, descriptions, and configuration values
-#' through comprehensive validation with clear error reporting.
+#' Ensures proper character types for names, descriptions, and text parameters through
+#' comprehensive validation with clear error reporting.
 #'
 #' @param x Object to check for string type
 #' @param allow_null Whether to allow NULL values (default: FALSE)
@@ -201,7 +170,9 @@ check_function <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_e
 #' @param call Calling environment for error reporting
 #' @return None (throws error if not valid string)
 check_string <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
-  if (allow_null && is.null(x)) return()
+  if (allow_null && is.null(x)) {
+    return()
+  }
   if (!is.character(x) || length(x) != 1 || is.na(x)) {
     cli::cli_abort("{.arg {arg}} must be a single string, not {.obj_type_friendly {x}}", call = call)
   }
@@ -221,36 +192,54 @@ check_string <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call
 #' @param call Calling environment for error reporting
 #' @return None (throws error if not valid boolean)
 check_bool <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
-  if (allow_null && is.null(x)) return()
+  if (allow_null && is.null(x)) {
+    return()
+  }
   if (!is.logical(x) || length(x) != 1 || is.na(x)) {
     cli::cli_abort("{.arg {arg}} must be a single logical value, not {.obj_type_friendly {x}}", call = call)
   }
 }
 
-#' Create JSON-RPC 2.0 Response Object
+#' Check Current Session Socket
 #'
-#' @title Create JSON-RPC 2.0 Response Object
-#' @description Creates properly formatted JSON-RPC 2.0 response object with result or error.
-#' Handles protocol compliance for MCP communication through structured response creation.
-#' Validates mutual exclusivity of result and error fields while maintaining protocol
-#' standards for reliable client-server communication.
+#' @title Check Current Session Socket
+#' @description Determines the socket number that the current R session is using for MCP communication.
+#' Reports basic session and socket information for debugging and logging purposes.
 #'
-#' @param id Request ID for response matching
-#' @param result Success result of method execution (mutually exclusive with error)
-#' @param error Error object if method execution failed (mutually exclusive with result)
-#' @return List representing JSON-RPC 2.0 response
-jsonrpc_response <- function(id, result = NULL, error = NULL) {
-  if (!xor(is.null(result), is.null(error))) {
-    warning("Either `result` or `error` must be provided, but not both.")
-  }
+#' @param verbose Logical. If TRUE (default), prints diagnostic messages to console.
+#'   If FALSE, returns diagnostic information as a list for programmatic use.
+#' @return If verbose=TRUE, returns socket number invisibly and prints messages.
+#'   If verbose=FALSE, returns list with socket_number, is_interactive, and has_session components.
+#' @export
+check_session_socket <- function(verbose = TRUE) {
+  is_interactive_session <- interactive()
+  has_mcp_session <- exists("session", envir = the) && !is.null(the$session)
+  socket_num <- if (has_mcp_session && is.numeric(the$session)) the$session else NULL
 
-  drop_nulls(list(
-    jsonrpc = "2.0",
-    id = id,
-    result = result,
-    error = error
-  ))
+  if (verbose) {
+    if (!is_interactive_session) {
+      cli::cli_alert_info("Not in an interactive R session")
+    } else if (!has_mcp_session) {
+      cli::cli_alert_info("No MCP session detected")
+      cli::cli_alert_info("Run {.fn mcp_session} to start an MCP session")
+    } else if (is.null(socket_num)) {
+      cli::cli_alert_warning("MCP session detected but socket number is invalid")
+    } else {
+      cli::cli_alert_success("MCP session running on socket: {socket_num}")
+    }
+
+    return(invisible(socket_num))
+  } else {
+    return(list(
+      socket_number = socket_num,
+      is_interactive = is_interactive_session,
+      has_session = has_mcp_session
+    ))
+  }
 }
+
+# Additional global environment for tool naming
+the <- new.env()
 
 # Mocking for testing
 interactive <- NULL

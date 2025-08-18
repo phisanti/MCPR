@@ -13,11 +13,20 @@
 "_PACKAGE"
 
 .onLoad <- function(libname, pkgname) {
-  the$socket_url <- switch(
-    Sys.info()[["sysname"]],
+  the$socket_url <- switch(Sys.info()[["sysname"]],
     Linux = "abstract://MCPR-socket",
     Windows = "ipc://MCPR-socket",
     "ipc:///tmp/MCPR-socket"
+  )
+
+  # Initialize diagnostic logger for execution tracing
+  tryCatch(
+    {
+      initialize_diagnostic_logger()
+    },
+    error = function(e) {
+      # Silently continue if logger initialization fails
+    }
   )
 }
 # nocov end

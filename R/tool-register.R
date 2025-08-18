@@ -23,14 +23,14 @@
 #' # Basic usage
 #' registry <- ToolRegistry$new()
 #' tools <- registry$search_tools()
-#' 
+#'
 #' # Custom configuration
 #' registry <- ToolRegistry$new(
 #'   tools_dir = "custom/tools",
 #'   pattern = "\\.R$",
 #'   recursive = TRUE
 #' )
-#' 
+#'
 #' # Get tool information
 #' summary <- registry$get_tool_summary()
 #' if (registry$has_tool("my_function")) {
@@ -42,15 +42,15 @@
 ToolRegistry <- R6::R6Class("ToolRegistry",
   public = list(
     #' @description Create a new ToolRegistry instance with specified configuration
-    #' @param tools_dir Directory path to scan for tool files (default: "inst/mcpr_tools")
+    #' @param tools_dir Directory path to scan for tool files (default: "inst")
     #' @param pattern File pattern to match (regex) (default: "tool-.*\\.R$")
     #' @param recursive Whether to search subdirectories (default: FALSE)
     #' @param verbose Enable verbose output during search (default: FALSE)
     #' @return New ToolRegistry instance
-    initialize = function(tools_dir = "inst/mcpr_tools", 
-                         pattern = "tool-.*\\.R$", 
-                         recursive = FALSE,
-                         verbose = FALSE) {
+    initialize = function(tools_dir = "inst",
+                          pattern = "tool-.*\\.R$",
+                          recursive = FALSE,
+                          verbose = FALSE) {
       private$.tools_dir <- tools_dir
       private$.pattern <- pattern
       private$.recursive <- recursive
@@ -66,14 +66,14 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       if (!force_refresh && length(private$.tools) > 0) {
         return(private$.tools)
       }
-      
+
       if (!dir.exists(private$.tools_dir)) {
         if (private$.verbose) {
           cli::cli_inform("Tools directory {.path {private$.tools_dir}} does not exist.")
         }
         return(list())
       }
-      
+
       private$.tool_files <- list.files(
         path = private$.tools_dir,
         pattern = private$.pattern,
@@ -81,38 +81,41 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
         recursive = private$.recursive,
         ignore.case = TRUE
       )
-      
+
       if (length(private$.tool_files) == 0) {
         if (private$.verbose) {
           cli::cli_inform("No tool files found.")
         }
         return(list())
       }
-      
+
       if (private$.verbose) {
         cli::cli_inform("Searching for tools in {length(private$.tool_files)} file{?s}...")
       }
-      
+
       private$.tools <- list()
-      
+
       for (tool_file in private$.tool_files) {
-        tryCatch({
-          file_tools <- private$parse_file(tool_file)
-          private$.tools <- c(private$.tools, file_tools)
-          if (private$.verbose && length(file_tools) > 0) {
-            cli::cli_inform("✓ Loaded {length(file_tools)} tool{?s} from {.file {basename(tool_file)}}")
+        tryCatch(
+          {
+            file_tools <- private$parse_file(tool_file)
+            private$.tools <- c(private$.tools, file_tools)
+            if (private$.verbose && length(file_tools) > 0) {
+              cli::cli_inform("✓ Loaded {length(file_tools)} tool{?s} from {.file {basename(tool_file)}}")
+            }
+          },
+          error = function(e) {
+            cli::cli_warn("Failed to load {.file {basename(tool_file)}}: {conditionMessage(e)}")
           }
-        }, error = function(e) {
-          cli::cli_warn("Failed to load {.file {basename(tool_file)}}: {conditionMessage(e)}")
-        })
+        )
       }
-      
+
       private$validate_tools(private$.tools)
-      
+
       if (private$.verbose) {
         cli::cli_inform("Successfully found {length(private$.tools)} tool{?s}.")
       }
-      
+
       private$.tools
     },
 
@@ -128,7 +131,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       if (length(private$.tools) == 0) {
         return(data.frame(name = character(), description = character(), stringsAsFactors = FALSE))
       }
-      
+
       tool_info <- lapply(private$.tools, function(tool) {
         data.frame(
           name = tool$name,
@@ -137,7 +140,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
           stringsAsFactors = FALSE
         )
       })
-      
+
       do.call(rbind, tool_info)
     },
 
@@ -145,7 +148,9 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' @param name Name of the tool to check
     #' @return TRUE if tool exists, FALSE otherwise
     has_tool = function(name) {
-      if (length(private$.tools) == 0) return(FALSE)
+      if (length(private$.tools) == 0) {
+        return(FALSE)
+      }
       tool_names <- vapply(private$.tools, function(x) x$name, character(1))
       name %in% tool_names
     },
@@ -155,7 +160,9 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
     #' @return MCPR tool object or NULL if not found
     get_tool = function(name) {
       for (tool in private$.tools) {
-        if (tool$name == name) return(tool)
+        if (tool$name == name) {
+          return(tool)
+        }
       }
       NULL
     },
@@ -169,7 +176,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       if (!is.null(tools_dir)) private$.tools_dir <- tools_dir
       if (!is.null(pattern)) private$.pattern <- pattern
       if (!is.null(recursive)) private$.recursive <- recursive
-      
+
       private$.tools <- list()
       private$.tool_files <- character()
       invisible(self)
@@ -196,7 +203,6 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       invisible(self)
     }
   ),
-
   private = list(
     .tools_dir = NULL,
     .pattern = NULL,
@@ -210,34 +216,37 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
       if (!file.exists(file_path)) {
         cli::cli_abort("Tool file {.file {file_path}} does not exist.")
       }
-      
+
       if (private$.verbose) {
         cli::cli_inform("Parsing: {.file {basename(file_path)}}")
       }
-      
+
       # Parse roxygen blocks using roxygen2
-      tryCatch({
-        parsed_blocks <- roxygen2::parse_file(file_path)
-      }, error = function(e) {
-        cli::cli_warn("Failed to parse {.file {basename(file_path)}}: {conditionMessage(e)}")
-        return(list())
-      })
-      
+      tryCatch(
+        {
+          parsed_blocks <- roxygen2::parse_file(file_path)
+        },
+        error = function(e) {
+          cli::cli_warn("Failed to parse {.file {basename(file_path)}}: {conditionMessage(e)}")
+          return(list())
+        }
+      )
+
       # Filter blocks that have @keywords mcpr_tool tag
       tool_blocks <- Filter(function(block) {
         any(sapply(block$tags, function(tag) {
           inherits(tag, "roxy_tag_keywords") && "mcpr_tool" %in% tag$val
         }))
       }, parsed_blocks)
-      
+
       if (length(tool_blocks) == 0) {
         return(list())
       }
-      
+
       # Source the file to get functions
       sourced_env <- new.env()
       source(file_path, local = sourced_env)
-      
+
       # Create tools from parsed blocks
       tools <- list()
       for (block in tool_blocks) {
@@ -246,21 +255,23 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
           tools[[length(tools) + 1]] <- tool
         }
       }
-      
+
       tools
     },
 
     # Validates tool collection for naming conflicts and protocol compliance
     validate_tools = function(tools) {
-      if (length(tools) == 0) return(TRUE)
-      
+      if (length(tools) == 0) {
+        return(TRUE)
+      }
+
       tool_names <- vapply(tools, function(x) x$name, character(1))
       duplicates <- tool_names[duplicated(tool_names)]
       if (length(duplicates) > 0) {
         cli::cli_warn("Duplicate tool names: {.field {unique(duplicates)}}")
         return(FALSE)
       }
-          
+
       TRUE
     }
   )
@@ -274,31 +285,18 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 #' simplified tool registration workflow. Provides direct access to discovered
 #' tools without manual registry management.
 #'
-#' @param tools_dir Directory path to scan for tool files (default: "inst/mcpr_tools")
+#' @param tools_dir Directory path to scan for tool files (default: "inst")
 #' @param pattern File pattern to match (regex) (default: "tool-.*\\.R$")
 #' @param recursive Whether to search subdirectories (default: FALSE)
 #' @param verbose Enable verbose output during search (default: FALSE)
 #' @return List of MCPR tool objects
 #'
-#' @examples
-#' \dontrun{
-#' # Basic usage
-#' tools <- register_tools()
-#' 
-#' # Custom configuration
-#' tools <- register_tools(
-#'   tools_dir = "custom/tools",
-#'   recursive = TRUE,
-#'   verbose = FALSE
-#' )
-#' }
-#'
 #' @seealso \code{\link{ToolRegistry}} for the underlying class
 #' @export
-register_tools <- function(tools_dir = "inst/mcpr_tools", 
-                                       pattern = "tool-.*\\.R$", 
-                                       recursive = FALSE,
-                                       verbose = FALSE) {
+register_tools <- function(tools_dir = "inst",
+                           pattern = "tool-.*\\.R$",
+                           recursive = FALSE,
+                           verbose = FALSE) {
   registry <- ToolRegistry$new(tools_dir, pattern, recursive, verbose)
   registry$search_tools()
 }

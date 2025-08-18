@@ -4,9 +4,9 @@ get_test_tools_dir <- function() {
   if (dir.exists("../../inst")) {
     return("../../inst")
   } else if (dir.exists("inst")) {
-    return("inst") 
+    return("inst")
   } else {
-    return(tempdir())  # fallback
+    return(tempdir()) # fallback
   }
 }
 
@@ -138,7 +138,7 @@ test_that("ToolRegistry discovers tools correctly", {
   temp_dir <- tempfile()
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-  
+
   # Create a mock tool file
   tool_file <- file.path(temp_dir, "tool-test_tool.R")
   writeLines(c(
@@ -150,11 +150,11 @@ test_that("ToolRegistry discovers tools correctly", {
     "  return(x * 2)",
     "}"
   ), tool_file)
-  
+
   # Create registry and search for tools
   registry <- ToolRegistry$new(tools_dir = temp_dir)
   tools <- registry$search_tools()
-  
+
   # Verify tool discovery
   expect_length(tools, 1)
   expect_true(inherits(tools[[1]], "ToolDef"))
@@ -166,7 +166,7 @@ test_that("ToolRegistry integration with mcpServer provides tools", {
   temp_dir <- tempfile()
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-  
+
   # Create a mock tool file
   tool_file <- file.path(temp_dir, "tool-integration_tool.R")
   writeLines(c(
@@ -178,27 +178,27 @@ test_that("ToolRegistry integration with mcpServer provides tools", {
     "  paste('Processed:', message)",
     "}"
   ), tool_file)
-  
+
   # COPY built-in tools to temp directory OR use a registry that includes both
   # Option 1: Copy built-in tools to temp directory
-  builtin_tools_src <- get_test_tools_dir()  # or wherever the built-in tools are
+  builtin_tools_src <- get_test_tools_dir() # or wherever the built-in tools are
   if (dir.exists(builtin_tools_src)) {
     builtin_files <- list.files(builtin_tools_src, pattern = "tool-.*\\.R$", full.names = TRUE)
     for (file in builtin_files) {
       file.copy(file, temp_dir)
     }
   }
-  
+
   # Create registry and server
   registry <- ToolRegistry$new(tools_dir = temp_dir)
   registry$search_tools()
-  
+
   server <- mcprServer$new(registry = registry)
-  
+
   # Get the tools and verify they include our custom tool plus built-ins
   server_tools <- server$get_tools()
   tool_names <- names(server_tools)
-  
+
   # Should include our custom tool plus built-in tools
   expect_true("integration_function" %in% tool_names)
   expect_true("list_r_sessions" %in% tool_names)
@@ -206,17 +206,16 @@ test_that("ToolRegistry integration with mcpServer provides tools", {
 })
 
 
-
 test_that("ToolRegistry handles empty directory gracefully", {
   # Create an empty temporary directory
   temp_dir <- tempfile()
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-  
+
   # Create registry for empty directory
   registry <- ToolRegistry$new(tools_dir = temp_dir)
   tools <- registry$search_tools()
-  
+
   # Should return empty list without error
   expect_length(tools, 0)
   expect_true(is.list(tools))
@@ -226,7 +225,7 @@ test_that("ToolRegistry handles non-existent directory gracefully", {
   # Create registry for non-existent directory
   registry <- ToolRegistry$new(tools_dir = "/non/existent/path")
   tools <- registry$search_tools()
-  
+
   # Should return empty list without error
   expect_length(tools, 0)
   expect_true(is.list(tools))
@@ -236,13 +235,17 @@ test_that("set_server_tools validates ToolRegistry parameter", {
   # Test with valid ToolRegistry
   registry <- ToolRegistry$new()
   expect_no_error(set_server_tools(registry = registry))
-  
+
   # Test with invalid registry parameter
-  expect_error(set_server_tools(registry = "not_a_registry"),
-               "registry must be a ToolRegistry instance")
-  
-  expect_error(set_server_tools(registry = list()),
-               "registry must be a ToolRegistry instance")
+  expect_error(
+    set_server_tools(registry = "not_a_registry"),
+    "registry must be a ToolRegistry instance"
+  )
+
+  expect_error(
+    set_server_tools(registry = list()),
+    "registry must be a ToolRegistry instance"
+  )
 })
 
 test_that("ToolRegistry precedence over tools parameter works correctly", {
@@ -250,31 +253,31 @@ test_that("ToolRegistry precedence over tools parameter works correctly", {
   temp_dir <- tempfile()
   dir.create(temp_dir, recursive = TRUE)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-  
+
   # Create a mock tool file
   tool_file <- file.path(temp_dir, "tool-precedence_tool.R")
   writeLines(c(
     "#' Precedence Test Tool",
     "#' @description Tool from registry should have precedence",
-    "#' @param message character A test message", 
+    "#' @param message character A test message",
     "#' @keywords mcpr_tool",
     "precedence_function <- function(message = 'default') {",
     "  paste('From registry:', message)",
     "}"
   ), tool_file)
-  
+
   # Create a tool list that would conflict
   temp_tools_file <- tempfile(fileext = ".R")
   writeLines("list()", temp_tools_file)
   on.exit(unlink(temp_tools_file), add = TRUE)
-  
+
   # Create registry and set tools with both parameters
   registry <- ToolRegistry$new(tools_dir = temp_dir)
-  registry$search_tools()  # Populate registry
-  
-  # When both are provided, registry should take precedence
+  registry$search_tools() # Populate registry
+
+  # Test registry functionality
   set_server_tools(registry = registry)
-  
+
   # Verify registry tools are used
   # Create a server instance to access the get_tools method
   server <- mcprServer$new(registry = registry)

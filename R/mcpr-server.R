@@ -1,13 +1,10 @@
-#' @include mcpr-server-tools.R
-#' @include tool-execution.R
-
 # MCP Server Implementation
-# Core server class for handling MCP protocol communication and tool execution.
-# Manages three-layer architecture: client communication, tool routing, and session forwarding.
-#'
-#' @title MCP Server
+# Core server class implementing Model Context Protocol for persistent R session management.
+# Handles JSON-RPC communication, tool discovery, and routing between MCP clients and R sessions.
+
+#' MCP Server
 #' @description Implements Model Context Protocol server for persistent R session management.
-#' Operates through nanonext sockets for non-blocking message handling between JSON-RPC 
+#' Operates through nanonext sockets for non-blocking message handling between JSON-RPC
 #' clients and R sessions, enabling tool execution routing and workspace state persistence.
 #' @details Server operates through layered message handling:
 #' \itemize{
@@ -22,8 +19,8 @@
 #' \dontrun{
 #' # Basic server initialization
 #' server <- mcprServer$new()
-#' server$start()  # Blocking call
-#' 
+#' server$start() # Blocking call
+#'
 #' # Server with custom tools
 #' my_tool <- list(
 #'   name = "mean",
@@ -31,16 +28,15 @@
 #'   fun = mean,
 #'   arguments = list(x = "numeric")
 #' )
-#' registry <- ToolRegistry$new(); registry$add_tool(my_tool)
+#' registry <- ToolRegistry$new()
+#' registry$add_tool(my_tool)
 #' server <- mcprServer$new(registry = registry)
 #' server$start()
-#' 
+#'
 #' # Using convenience function
 #' registry <- ToolRegistry$new(tools_dir = "path/to/tools")
 #' mcpr_server(registry = registry)
 #' }
-#'
-#' @export
 mcprServer <- R6::R6Class("mcprServer",
   public = list(
     #' @description Initialize the MCP server with optional tools
@@ -48,20 +44,16 @@ mcprServer <- R6::R6Class("mcprServer",
     #' @param .tools_dir Internal parameter for specifying tools directory path
     #' @return A new mcprServer instance
     initialize = function(registry = NULL, .tools_dir = NULL) {
+      # Initialize logger for SERVER component
+      private$.logger <- MCPRLogger$new(component = "SERVER")
+
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
-        cli::cli_abort("registry must be a ToolRegistry instance")
+        error_msg <- "registry must be a ToolRegistry instance"
+        private$.logger$error(error_msg)
+        cli::cli_abort(error_msg)
       }
-      
-      # Initialize messenger for JSON-RPC communication
-      private$.messenger <- MessageHandler$new(logger = logcat)
       if (is.null(registry)) {
-        pkg_tools_dir <- if (!is.null(.tools_dir)) {
-          .tools_dir
-        } else {
-          # If the package is installed, the inst/ folder is off-loaded to 
-          # the package directory
-          find.package("MCPR") 
-        }
+        pkg_tools_dir <- if (!is.null(.tools_dir)) .tools_dir else find.package("MCPR")
         if (dir.exists(pkg_tools_dir)) {
           registry <- ToolRegistry$new(
             tools_dir = pkg_tools_dir,
@@ -88,8 +80,16 @@ mcprServer <- R6::R6Class("mcprServer",
 
       the$server_socket <- nanonext::socket("poly")
       on.exit(nanonext::reap(the$server_socket), add = TRUE)
-      # TODO: Make session discovery more robust than dialing a fixed number
       nanonext::dial(the$server_socket, url = sprintf("%s%d", the$socket_url, 1L))
+
+      # Log socket diagnostics for troubleshooting
+      socket_info <- check_session_socket(verbose = FALSE)
+      private$.logger$info(sprintf(
+        "MCP server started - Socket: %s, Interactive: %s, Has Session: %s",
+        socket_info$socket_number %||% "NULL",
+        socket_info$is_interactive,
+        socket_info$has_session
+      ))
 
       client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
       session <- nanonext::recv_aio(the$server_socket, mode = "string", cv = private$.cv)
@@ -107,38 +107,39 @@ mcprServer <- R6::R6Class("mcprServer",
       }
     },
 
-    #' @description Stop the running server with graceful shutdown and resource cleanup
+    #' Stop the running server with graceful shutdown and resource cleanup
     #' @param timeout_ms Timeout in milliseconds for graceful shutdown (default: 5000)
     #' @return The server instance (invisibly) for method chaining
     stop = function(timeout_ms = 5000) {
       if (!private$.running) {
         return(invisible(self))
       }
-      
+
       private$.running <- FALSE
-      
-      # Graceful shutdown with timeout
-      start_time <- Sys.time()
-      while (!is.null(private$.cv) && 
-             as.numeric(difftime(Sys.time(), start_time, units = "secs")) < (timeout_ms/1000)) {
-        Sys.sleep(0.1)
-        if (nanonext::unresolved(private$.cv) == 0) break
+
+      # Graceful shutdown with timeout for condition variable resolution
+      if (!is.null(private$.cv)) {
+        start_time <- Sys.time()
+        while (as.numeric(difftime(Sys.time(), start_time, units = "secs")) < (timeout_ms / 1000)) {
+          Sys.sleep(0.1)
+          if (nanonext::unresolved(private$.cv) == 0) break
+        }
       }
-      
+
       # Close and cleanup sockets
       if (!is.null(private$.reader_socket)) {
         nanonext::reap(private$.reader_socket)
         private$.reader_socket <- NULL
       }
-      
+
       if (!is.null(the$server_socket)) {
         nanonext::reap(the$server_socket)
         the$server_socket <- NULL
       }
-      
+
       # Reset condition variable
       private$.cv <- NULL
-      
+
       invisible(self)
     },
 
@@ -153,66 +154,114 @@ mcprServer <- R6::R6Class("mcprServer",
     #' @return For "list": named list of ToolDef objects. For "json": list suitable for JSON serialization
     get_tools = function(format = c("list", "json")) {
       format <- match.arg(format)
-      
+
       if (format == "json") {
-        tools <- lapply(the$server_tools, tool_as_json)
+        tools <- lapply(unname(get_mcptools_tools()), tool_as_json)
         return(compact(tools))
       }
-      
+
       # Default to list format
-      res <- the$server_tools  
+      res <- get_mcptools_tools()
       stats::setNames(res, vapply(res, \(x) x$name, character(1)))
+    },
+
+    #' @description Get server capabilities for MCP protocol
+    #' @return List of server capabilities
+    get_capabilities = function() {
+      list(
+        protocolVersion = "2024-11-05",
+        capabilities = list(
+          prompts = list(
+            listChanged = FALSE
+          ),
+          resources = list(
+            subscribe = FALSE,
+            listChanged = FALSE
+          ),
+          tools = list(
+            listChanged = FALSE
+          )
+        ),
+        serverInfo = list(
+          name = "R MCPR server",
+          version = "1.0.0"
+        ),
+        instructions = "This provides information about a running R session."
+      )
     }
   ),
-
   private = list(
+    .server_socket = NULL,
     .reader_socket = NULL,
     .cv = NULL,
     .running = FALSE,
-    .messenger = NULL,
+    .logger = NULL,
 
-    # === MESSAGE HANDLERS ===
-
-    # Parses and routes incoming JSON-RPC messages from MCP clients to appropriate handlers
+    # Handle incoming messages from MCP clients
     handle_message_from_client = function(line) {
       if (length(line) == 0) {
         return()
       }
-      
-      data <- private$.messenger$parse_message(line)
-      if (is.null(data)) return()
+      private$.logger$comm(paste("FROM CLIENT:", line))
+      data <- tryCatch(
+        jsonlite::parse_json(line),
+        error = function(e) NULL
+      )
+      if (is.null(data)) {
+        return()
+      }
+
+      if (!is.list(data) || is.null(data$method)) {
+        return(cat_json(jsonrpc_response(
+          data$id,
+          error = list(code = -32600, message = "Invalid Request")
+        )))
+      }
 
       # Define method handlers
       handlers <- list(
         "initialize" = function(data) {
-          private$.messenger$create_response(data$id, private$.messenger$create_capabilities())
+          jsonrpc_response(data$id, self$get_capabilities())
         },
         "tools/list" = function(data) {
-          private$.messenger$create_response(
+          jsonrpc_response(
             data$id,
             list(tools = self$get_tools("json"))
           )
         },
         "resources/list" = function(data) {
-          private$.messenger$create_response(
+          jsonrpc_response(
             data$id,
             list(resources = list())
           )
         },
         "prompts/list" = function(data) {
-          private$.messenger$create_response(
+          jsonrpc_response(
             data$id,
             list(prompts = list())
           )
         },
         "tools/call" = function(data) {
           tool_name <- data$params$name
-          # Execute server-side tools directly, or if no session is active
-          if (tool_name %in% c("manage_r_sessions") ||
-              (!nanonext::stat(the$server_socket, "pipes") && !tool_name %in% c("execute_r_code"))) {
+          if (tool_name %in% c("list_r_sessions", "select_r_session", "manage_r_sessions") ||
+            !nanonext::stat(the$server_socket, "pipes")) {
             private$handle_request(data)
+
+            # Log socket state AFTER tool execution for socket-changing tools
+            if (tool_name %in% c("select_r_session", "manage_r_sessions")) {
+              socket_info <- check_session_socket(verbose = FALSE)
+              private$.logger$info(sprintf(
+                "Socket state after %s - Socket: %s, Interactive: %s, Has Session: %s",
+                tool_name,
+                socket_info$socket_number %||% "NULL",
+                socket_info$is_interactive,
+                socket_info$has_session
+              ))
+            }
+            return(NULL) # Response handled in handle_request
           } else {
             private$forward_request(data)
+            return(NULL) # Response handled in forward_request
           }
         },
         "notifications/initialized" = function(data) {
@@ -222,49 +271,57 @@ mcprServer <- R6::R6Class("mcprServer",
       )
 
       # Route message and send response
-      response <- private$.messenger$route_message(data, handlers)
+      response <- private$route_message(data, handlers)
       if (!is.null(response)) {
-        private$.messenger$output_json(response)
+        cat_json(response)
       }
     },
 
-    # Forwards responses from R sessions directly back to MCP clients
+    # Handle messages from R sessions
     handle_message_from_session = function(data) {
       if (!is.character(data)) {
         return()
       }
-      logcat(c("FROM SESSION: ", data))
-      # Forward response directly to the client
+      private$.logger$comm(paste("FROM SESSION:", data))
       nanonext::write_stdout(data)
     },
 
-    # Executes tool requests locally on server and sends results to client
+    # Handle tool execution requests locally on the server
     handle_request = function(data) {
       prepared <- private$append_tool_fn(data)
-      result <- if (inherits(prepared, "jsonrpc_error")) {
+      result <- if (is.list(prepared) && !is.null(prepared$error)) {
         prepared
       } else {
         execute_tool_call(prepared)
       }
-      log_result <- if (inherits(result, "jsonrpc_error")) unclass(result) else result
-      logcat(c("FROM SERVER: ", to_json(log_result)))
-      if (inherits(result, "jsonrpc_error")) {
-        nanonext::write_stdout(to_json(unclass(result)))
-      } else {
-        nanonext::write_stdout(to_json(result))
-      }
+      private$.logger$comm(paste("FROM SERVER:", to_json(result)))
+      cat_json(result)
     },
 
-    # Forwards validated tool requests to active R sessions for execution
+    # Forward requests to an R session for execution
     forward_request = function(data) {
-      logcat(c("TO SESSION: ", jsonlite::toJSON(data)))
-      # Don't append server-side tool functions - let sessions resolve tools locally
-      # prepared <- private$append_tool_fn(data)  # REMOVED
-      # if (inherits(prepared, "jsonrpc_error")) {
-      #   return(nanonext::write_stdout(to_json(unclass(prepared))))
-      # }
-      nanonext::send_aio(the$server_socket, data, mode = "serial")  # Send clean data
-      NULL
+      private$.logger$comm(paste("TO SESSION:", jsonlite::toJSON(data)))
+      prepared <- private$append_tool_fn(data)
+      if (is.list(prepared) && !is.null(prepared$error)) {
+        return(cat_json(prepared))
+      }
+      nanonext::send_aio(the$server_socket, prepared, mode = "serial")
+    },
+
+    # Routes incoming JSON-RPC messages to appropriate handlers
+    route_message = function(data, handlers) {
+      method <- data$method
+
+      if (method %in% names(handlers)) {
+        handler <- handlers[[method]]
+        return(handler(data))
+      }
+
+      # Default error response for unknown methods
+      jsonrpc_response(
+        data$id,
+        error = list(code = -32601, message = "Method not found")
+      )
     },
 
     # Validates tool existence and appends function reference to request data
@@ -273,16 +330,13 @@ mcprServer <- R6::R6Class("mcprServer",
         return(data)
       }
       tool_name <- data$params$name
-      if (!tool_name %in% names(self$get_tools())) {
-        return(structure(
-          jsonrpc_response(
-            data$id,
-            error = list(code = -32601, message = "Method not found")
-          ),
-          class = "jsonrpc_error"
+      if (!tool_name %in% names(get_mcptools_tools())) {
+        return(jsonrpc_response(
+          data$id,
+          error = list(code = -32601, message = "Method not found")
         ))
       }
-      data$tool <- self$get_tools()[[tool_name]]$fun
+      data$tool <- get_mcptools_tools()[[tool_name]]$fun
       data
     }
   )

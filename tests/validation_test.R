@@ -23,7 +23,7 @@ writeLines(c(
   "#' Concatenate Strings",
   "#' @description Concatenates two strings with a separator",
   "#' @param first string The first string",
-  "#' @param second string The second string", 
+  "#' @param second string The second string",
   "#' @param sep string The separator to use",
   "#' @keywords mcpr_tool",
   "concat_strings <- function(first, second, sep = ' ') {",
@@ -77,9 +77,9 @@ json_names <- sapply(json_tools, function(x) x$name)
 cat("   JSON tools:", paste(json_names, collapse = ", "), "\n")
 
 # Test 7: Test convenience function
-cat("7. Testing mcpr_server convenience function...\n")
-if (FALSE) {  # Skip actual server start in validation
-  server_via_convenience <- mcpr_server(registry = registry)
+cat("7. Testing mcp_server convenience function...\n")
+if (FALSE) { # Skip actual server start in validation
+  server_via_convenience <- mcp_server(registry = registry)
   cat("   Convenience function works\n")
 } else {
   cat("   Convenience function test skipped (would block)\n")

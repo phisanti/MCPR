@@ -1,7 +1,7 @@
 Package: MCPR
 Type: Package
 Title: Model Context Protocol for R
-Version: 0.0.1
+Version: 0.0.2
 Authors@R: 
     person("Santiago", "Cano-Muniz", , "tisalon@outlook.com", role = c("aut", "cre"))
 Author: Santiago Cano-Muniz [aut, cre]
@@ -32,20 +32,21 @@ Config/testthat/edition: 3
 Collate: 
     'aaa.R'
     'logger.R'
+    'mcpr-base.R'
+    'mcpr-client-tools.R'
     'mcpr-client.R'
     'mcpr-package.R'
-    'tool-execution.R'
-    'tool-definition-validators.R'
-    'type-conversion-utilities.R'
-    'utils.R'
-    'tool-definition.R'
     'mcpr-server-tools.R'
     'mcpr-server.R'
     'mcpr-session.R'
-    'messenger.R'
+    'protocol.R'
+    'tool-definition-validators.R'
+    'tool-definition.R'
+    'tool-execution.R'
     'tool-register.R'
     'tool-registry-helpers.R'
     'type-conversion-from-json.R'
     'type-conversion-serializers.R'
     'type-conversion-to-json.R'
-    'type-definitions.R'
+    'type-conversion-utilities.R'
+    'utils.R'

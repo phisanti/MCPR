@@ -10,7 +10,7 @@ test_that("mcprSession initializes with correct defaults", {
   
   expect_null(info$session_id)
   expect_false(info$is_running)
-  expect_true(info$socket_active)  # Socket is created in initialize
+  expect_false(info$socket_active)  # Socket is NOT created in initialize
   expect_true(is.null(info$last_activity) || inherits(info$last_activity, "POSIXt"))
 })
 
@@ -60,17 +60,17 @@ test_that("mcprSession handles non-interactive environment gracefully", {
   expect_identical(result, session)
 })
 
-test_that("mcpr_session functional wrapper works", {
+test_that("mcp_session functional wrapper works", {
   # Should return invisibly without error in non-interactive mode
-  expect_invisible(result <- mcpr_session())
+  expect_invisible(result <- mcp_session())
   
   # Clean up any session that might have been created
-  mcpr_session_stop()
+  mcp_session_stop()
 })
 
-test_that("mcpr_session_stop is safe to call when no session exists", {
+test_that("mcp_session_stop is safe to call when no session exists", {
   # Should not error when called without an active session
-  expect_silent(mcpr_session_stop())
+  expect_silent(mcp_session_stop())
 })
 
 test_that("mcprSession get_info provides complete status", {

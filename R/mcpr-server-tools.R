@@ -1,5 +1,6 @@
-#' @include tool-definition.R
-#' @include tool-execution.R
+# MCP Server Tool Management
+# Functions for defining, managing, and executing tools on the MCP server side.
+# Handles tool registration, discovery, and server-side execution coordination.
 
 # MCP Server Tools Management
 # Functions for managing server-side tool registration and JSON conversion.
@@ -7,68 +8,82 @@
 
 #' Set MCP Server Tools
 #'
-#' @title Set MCP Server Tools
-#' @description Configures tools available for MCP server through registry assignment.
-#' Validates registry instance and updates global server tools collection. Enables
-#' tool discovery and registration for client-server communication through centralized
-#' tool management and validation.
-#'
-#' @param registry A ToolRegistry instance to use for tool discovery
-#' @param call The calling environment
-#' @return None (invisible)
+#' @param registry A ToolRegistry instance to use for tool discovery. If NULL,
+#'   an empty tools list is set.
+#' @param call The calling environment.
 set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
-  # Handle ToolRegistry parameter - takes precedence over x
-  if (!inherits(registry, "ToolRegistry")) {
-    cli::cli_abort("registry must be a ToolRegistry instance", call = call)
+  # Handle ToolRegistry parameter
+  if (!is.null(registry)) {
+    if (!inherits(registry, "ToolRegistry")) {
+      error_msg <- "registry must be a ToolRegistry instance"
+      MCPRLogger$new(component = "SERVER")$error(error_msg)
+      cli::cli_abort(error_msg, call = call)
+    }
+    registry_tools <- registry$get_tools()
+    the$server_tools <- registry_tools
+    return()
   }
 
-  the$server_tools <- registry$get_tools()
-
+  # No registry provided - use empty tools list
+  the$server_tools <- list()
 }
 
 
 #' Convert ToolDef to MCP JSON Format
 #'
-#' @title Convert ToolDef to MCP JSON Format
-#' @description Converts ToolDef object to MCP protocol-compliant JSON structure.
-#' Transforms MCPR type definitions to JSON Schema format through schema mapping
-#' and property serialization. Enables tool registration and discovery by converting
-#' internal tool representations to standardized MCP protocol format.
+#' @return A named list of `ToolDef` objects.
+#' @export
+get_mcptools_tools <- function() {
+  res <- the$server_tools
+  stats::setNames(res, vapply(res, \(x) x$name, character(1)))
+}
+
+#' Get server tools formatted as a JSON list for the MCP protocol
 #'
 #' @param tool A ToolDef object containing name, description, and typed arguments
 #' @return List with name, description, and inputSchema fields for MCP protocol
 tool_as_json <- function(tool) {
-  check_tool(tool)
-  
-  if (length(tool$arguments) == 0) {
-    inputSchema <- list(type = "object", properties = named_list())
-  } else {
-    properties <- list()
-    for (name in names(tool$arguments)) {
-      arg <- tool$arguments[[name]]
-      if (inherits(arg, "mcpr_type")) {
-        # Convert mcpr_type to JSON schema format
-        schema <- list(type = arg$type)
-        if (!is.null(arg$description)) schema$description <- arg$description
-        if (arg$type == "array" && !is.null(arg$items)) {
-          schema$items <- to_mcpr_json(arg$items, auto_unbox = TRUE)
-        }
-        if (arg$type == "enum" && !is.null(arg$values)) {
-          schema$enum <- arg$values
-        }
-        properties[[name]] <- schema
-      } else {
-        # Default to string type for non-mcpr_type arguments
-        properties[[name]] <- list(type = "string")
-      }
-    }
-    inputSchema <- list(type = "object", properties = properties)
-  }
-  inputSchema$description <- NULL # This field is not needed
+  # Convert tool arguments to JSON schema format
+  inputSchema <- convert_arguments_to_schema(tool$arguments)
 
-  list(
+  compact(list(
     name = tool$name,
     description = tool$description,
     inputSchema = inputSchema
+  ))
+}
+
+#' Convert tool arguments to JSON schema format
+#' @param arguments Named list of argument specifications
+#' @return JSON schema object
+#' @export
+convert_arguments_to_schema <- function(arguments) {
+  if (length(arguments) == 0) {
+    return(list(
+      type = "object",
+      properties = named_list() # Use named_list for empty properties
+    ))
+  }
+
+  properties <- named_list() # Start with named list
+  for (arg_name in names(arguments)) {
+    arg_spec <- arguments[[arg_name]]
+    if (is.list(arg_spec) && !is.null(arg_spec$type)) {
+      properties[[arg_name]] <- list(
+        type = arg_spec$type,
+        description = arg_spec$description %||% ""
+      )
+    } else {
+      # Fallback for simple specifications
+      properties[[arg_name]] <- list(
+        type = "string",
+        description = as.character(arg_spec %||% "")
+      )
+    }
+  }
+
+  list(
+    type = "object",
+    properties = properties
   )
 }

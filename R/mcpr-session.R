@@ -1,14 +1,18 @@
-#' MCP Session Management
+# MCP Session Management
+# Provides R6 class for session lifecycle management with timeout and resource cleanup.
+# Maintains compatibility with existing global state for server communication.
+
+#' MCP Session Management Class
 #'
 #' @title MCP Session
-#' @description Provides class-based approach to managing MCP session communication.
-#' Encapsulates session state through nanonext socket management with async message
-#' processing and automatic resource cleanup. Enables persistent R session discovery
-#' and tool execution coordination through proper state encapsulation.
-#' @details Handles session lifecycle management:
+#' @description R6 class for managing MCP session communication with timeout management.
+#' Encapsulates session state while maintaining compatibility with existing global state
+#' for server communication. Provides automatic resource cleanup and session lifecycle
+#' management.
+#' @details Handles session lifecycle:
 #' \itemize{
 #'   \item \strong{Socket Management}: Creates and binds nanonext sockets for communication
-#'   \item \strong{Message Processing}: Async tool execution and response handling
+#'   \item \strong{Message Processing}: Async tool execution and response handling  
 #'   \item \strong{Timeout Management}: Automatic session cleanup after inactivity
 #'   \item \strong{Resource Cleanup}: Proper socket and state resource management
 #' }
@@ -17,17 +21,13 @@
 #'
 #' @export
 mcprSession <- R6::R6Class("mcprSession",
-
-  
   public = list(
     #' @description Create new mcprSession instance
     #' @param timeout_seconds Timeout in seconds (default: 900)
     #' @return A new mcprSession instance
     initialize = function(timeout_seconds = 900) {
       private$.timeout_seconds <- timeout_seconds
-      private$.socket <- nanonext::socket("poly")
       private$.last_activity <- Sys.time()
-      private$.messenger <- MessageHandler$new()
       
       # Set up automatic cleanup
       reg.finalizer(self, function(x) x$stop(), onexit = TRUE)
@@ -42,12 +42,33 @@ mcprSession <- R6::R6Class("mcprSession",
       
       if (private$.is_running) {
         warning("Session is already running")
+        if (!is.null(private$.logger)) {
+          private$.logger$warn("SESSION_ALREADY_RUNNING - Attempted to start running session")
+        }
         return(invisible(self))
       }
       
+      # Initialize logger for SESSION component
+      private$.logger <- MCPRLogger$new(component = "SESSION")
+      
+      # CRITICAL: Use global state for server compatibility
+      the$session_logger <- private$.logger
+      the$session_socket <- nanonext::socket("poly")
+      
       # Find and bind to available port
       private$.session_id <- private$find_available_port()
+      the$session <- private$.session_id  # CRITICAL: Global state for server
+      
       private$.is_running <- TRUE
+      
+      # Log socket diagnostics
+      socket_info <- check_session_socket(verbose = FALSE)
+      private$.logger$info(sprintf(
+        "MCP session started - Socket: %s, Interactive: %s, Has Session: %s",
+        socket_info$socket_number %||% "NULL",
+        socket_info$is_interactive,
+        socket_info$has_session
+      ))
       
       # Start async message loop
       private$start_listening()
@@ -57,7 +78,6 @@ mcprSession <- R6::R6Class("mcprSession",
       
       invisible(self)
     },
-    
     
     #' @description Check for session timeout and cleanup if expired
     #' @return Self (invisibly) for method chaining
@@ -84,14 +104,20 @@ mcprSession <- R6::R6Class("mcprSession",
       
       private$.is_running <- FALSE
       
-      if (!is.null(private$.socket)) {
-        nanonext::reap(private$.socket)
-        private$.socket <- NULL
+      # CRITICAL: Clean up global state carefully
+      if (!is.null(the$session_socket)) {
+        nanonext::reap(the$session_socket)
+        the$session_socket <- NULL
       }
       
+      the$session <- NULL
+      the$raio <- NULL
+      the$session_logger <- NULL
+      
+      # Clean up private state
       private$.session_id <- NULL
-      private$.raio <- NULL
       private$.last_activity <- NULL
+      private$.logger <- NULL
       
       invisible(self)
     },
@@ -103,25 +129,24 @@ mcprSession <- R6::R6Class("mcprSession",
         session_id = private$.session_id,
         is_running = private$.is_running,
         last_activity = private$.last_activity,
-        socket_active = !is.null(private$.socket)
+        socket_active = !is.null(the$session_socket)
       )
     }
   ),
+  
   private = list(
-    .socket = NULL,
     .session_id = NULL,
-    .raio = NULL,
     .last_activity = NULL,
     .timeout_seconds = 900,  # 15 minutes
     .is_running = FALSE,
-    .messenger = NULL,
+    .logger = NULL,
     
-    # Iterates through available ports to find unused socket binding
+    # Find available port using global socket
     find_available_port = function() {
       i <- 1L
       while (i < 1024L) {
         if (nanonext::listen(
-          private$.socket,
+          the$session_socket,
           url = sprintf("%s%d", the$socket_url, i),
           fail = "none"
         )) {
@@ -133,19 +158,20 @@ mcprSession <- R6::R6Class("mcprSession",
       stop("No available socket ports found", call. = FALSE)
     },
     
-    # Schedules delayed timeout check using later package for async execution
+    # Schedule delayed timeout check
     schedule_timeout_check = function() {
       if (private$.is_running) {
         later::later(function() self$check_timeout(), delay = private$.timeout_seconds)
       }
     },
     
-    # Initiates async message reception loop with promise-based error handling
+    # Start async message reception loop
     start_listening = function() {
       if (!private$.is_running) return(invisible(self))
       
-      private$.raio <- nanonext::recv_aio(private$.socket, mode = "serial")
-      promises::as.promise(private$.raio)$then(
+      # CRITICAL: Use global state for compatibility
+      the$raio <- nanonext::recv_aio(the$session_socket, mode = "serial")
+      promises::as.promise(the$raio)$then(
         function(data) private$handle_message(data)
       )$catch(
         function(e) {
@@ -157,45 +183,78 @@ mcprSession <- R6::R6Class("mcprSession",
       invisible(self)
     },
     
-    # Processes incoming messages and executes tool calls with response routing
+    # Process incoming messages
     handle_message = function(data) {
       if (!private$.is_running) return(invisible(self))
       
-      pipe <- nanonext::pipe_id(private$.raio)
+      pipe <- nanonext::pipe_id(the$raio)
       private$.last_activity <- Sys.time()
+      
+      if (!is.null(private$.logger)) {
+        private$.logger$comm(paste("RECEIVED_MESSAGE | Session:", private$.session_id, "| Pipe:", pipe))
+      }
       
       # Schedule next message listen
       private$start_listening()
       
       # Handle discovery ping
       if (length(data) == 0) {
+        if (!is.null(private$.logger)) {
+          private$.logger$comm(paste("DISCOVERY_PING | Session:", private$.session_id, "| Pipe:", pipe))
+        }
         private$send_response(describe_session(), pipe)
         return(invisible(self))
       }
       
-      # Process tool call or return error
+      # Log incoming message (exclude tool function to prevent log pollution)
+      if (!is.null(private$.logger)) {
+        # Create clean data for logging (remove tool function)
+        log_data <- data
+        if (!is.null(log_data$tool)) {
+          log_data$tool <- paste0("<function: ", data$params$name %||% "unknown", ">")
+        }
+        private$.logger$comm(paste("FROM SERVER | Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Tool:", data$params$name %||% "unknown", "| Data:", jsonlite::toJSON(log_data, auto_unbox = TRUE)))
+      }
+      
+      # Process tool call or return error with timing
+      start_time <- Sys.time()
       body <- if (data$method == "tools/call") {
-        execute_tool_call(data)
+        tool_name <- data$params$name %||% "unknown"
+        if (!is.null(private$.logger)) {
+          private$.logger$comm(paste("EXECUTING_TOOL | Session:", private$.session_id, "| Tool:", tool_name, "| ID:", data$id %||% "unknown"))
+        }
+        result <- execute_tool_call(data)
+        execution_time <- round(as.numeric(difftime(Sys.time(), start_time, units = "secs")) * 1000, 2)
+        if (!is.null(private$.logger)) {
+          private$.logger$comm(paste("TOOL_COMPLETED | Session:", private$.session_id, "| Tool:", tool_name, "| Duration:", paste0(execution_time, "ms")))
+        }
+        result
       } else {
-        private$.messenger$create_error(
+        jsonrpc_response(
           data$id,
-          code = -32601,
-          message = "Method not found"
+          error = list(code = -32601, message = "Method not found")
         )
       }
       
+      # Send response
+      if (!is.null(private$.logger)) {
+        response_info <- if (inherits(body, "list") && !is.null(body$result)) {
+          if (body$result$isError) "ERROR" else "SUCCESS"
+        } else "UNKNOWN"
+        private$.logger$comm(paste("TO SERVER | Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Status:", response_info, "| Response:", to_json(body)))
+      }
       private$send_response(to_json(body), pipe)
       invisible(self)
     },
     
-    # Sends response data back to server through specified pipe channel
+    # Send response using global socket
     send_response = function(response, pipe) {
-      if (!private$.is_running || is.null(private$.socket)) {
+      if (!private$.is_running || is.null(the$session_socket)) {
         return(invisible(self))
       }
       
       nanonext::send_aio(
-        private$.socket,
+        the$session_socket,
         response,
         mode = "raw",
         pipe = pipe
@@ -208,7 +267,7 @@ mcprSession <- R6::R6Class("mcprSession",
 
 #' Make R Session Available to MCP Server
 #'
-#' @title Make R Session Available to MCP Server
+#' @title Make R Session Available to MCP Server  
 #' @description Makes interactive R session discoverable by MCP server for tool execution.
 #' Creates nanonext socket and listens on unique URL for server communication.
 #' Enables AI assistants to execute code and tools within specific R session
@@ -217,19 +276,33 @@ mcprSession <- R6::R6Class("mcprSession",
 #' @param timeout_seconds Timeout in seconds before session cleanup (default: 900)
 #' @return mcprSession instance (invisibly)
 #' @export
-mcpr_session <- function(timeout_seconds = 900) {
+mcp_session <- function(timeout_seconds = 900) {
   if (!rlang::is_interactive()) {
     return(invisible())
   }
   
-  # Store session in global environment for compatibility
+  # Create and store session instance in global environment for compatibility
   the$mcpr_session <- mcprSession$new(timeout_seconds = timeout_seconds)
   the$mcpr_session$start()
   
-  # Legacy compatibility - store session ID
-  the$session <- the$mcpr_session$get_info()$session_id
-  
   invisible(the$mcpr_session)
+}
+
+#' Stop MCP Session
+#'
+#' @title Stop MCP Session
+#' @description Stops active MCP session and cleans up resources including socket
+#' connections and global state variables. Provides clean session termination
+#' for resource management and session lifecycle control.
+#'
+#' @return None (invisible)
+#' @export
+mcp_session_stop <- function() {
+  if (!is.null(the$mcpr_session)) {
+    the$mcpr_session$stop()
+    the$mcpr_session <- NULL
+  }
+  invisible()
 }
 
 #' Stop MCP Session
@@ -256,4 +329,4 @@ mcpr_session_stop <- function() {
 #' Provides the old function name as a direct reference to the new function.
 #'
 #' @export
-mcp_session <- mcpr_session
+mcpr_session <- mcp_session

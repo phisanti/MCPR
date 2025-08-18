@@ -1,20 +1,12 @@
-#' @include utils.R
-#' @include type-conversion-utilities.R
-#' @include tool-definition-validators.R
-
 # Tool Definition Framework
-# Core framework for defining MCP tools with R6 class structure and type specifications.
-# Provides ToolDef class for tool creation, validation, and JSON Schema conversion.
-
-NULL
+# Core framework for defining MCP tools with R6 class structure.
+# Simplified version for basic ToolDef integration without complex type system.
 
 #' Define Tool for MCP Framework
 #'
 #' @title Define Tool for MCP Framework
-#' @description Annotates function for use in tool calls through comprehensive validation
-#' and type definition. Creates ToolDef object with name, description, and argument
-#' specifications for MCP protocol integration. Enables automatic JSON type conversion
-#' and provides validation to ensure proper tool construction.
+#' @description Creates ToolDef object with name, description, and argument
+#' specifications for MCP protocol integration. Simplified version for initial integration.
 #'
 #' @param fun The function to be invoked when the tool is called
 #' @param name The name of the function. This can be omitted if fun is an existing function
@@ -24,19 +16,12 @@ NULL
 #' @param convert Should JSON inputs be automatically convert to their R data type equivalents (default: TRUE)
 #' @return An R6 ToolDef object
 #' @examples
-#' # Define a tool for drawing random numbers
-#' tool_rnorm <- tool(
-#'   rnorm,
-#'   description = "Draw numbers from a random normal distribution",
-#'   arguments = list(
-#'     n = type_integer("The number of observations. Must be a positive integer."),
-#'     mean = type_number("The mean value of the distribution."),
-#'     sd = type_number("The standard deviation of the distribution. Must be a non-negative number.")
-#'   )
+#' # Define a simple tool
+#' my_tool <- tool(
+#'   function(x) x + 1,
+#'   description = "Add 1 to a number",
+#'   arguments = list(x = list(type = "number", description = "Input number"))
 #' )
-#' 
-#' # Call the tool directly
-#' tool_rnorm$call(n = 5, mean = 0, sd = 1)
 #' @export
 tool <- function(
   fun,
@@ -73,7 +58,7 @@ tool <- function(
   )
 }
 
-#' Tool Definition for MCP Framework
+#' Tool Definition
 #'
 #' @title Tool Definition
 #' @description Encapsulates tool metadata and execution logic for MCP protocol integration.
@@ -113,7 +98,7 @@ ToolDef <- R6::R6Class("ToolDef",
       self$convert <- convert
       self$annotations <- annotations
     },
-    
+
     #' @description Execute tool with arguments and optional type conversion
     #' @param ... Arguments to pass to the tool function
     #' @return Result of tool function execution
@@ -124,7 +109,7 @@ ToolDef <- R6::R6Class("ToolDef",
       }
       do.call(self$fun, args)
     },
-    
+
     #' @description Print formatted tool definition with metadata
     #' @param ... Additional arguments (unused)
     #' @return Self (invisibly)
@@ -134,14 +119,14 @@ ToolDef <- R6::R6Class("ToolDef",
       } else {
         fake_call <- rlang::call2(self$name)
       }
-      
+
       cli::cli_text("{.comment # <MCPR::ToolDef>} {.code {deparse1(fake_call)}}")
       cli::cli_text("{.comment # @name:} {.field {self$name}}")
       cli::cli_text("{.comment # @description:} {self$description}")
       cli::cli_text("{.comment # @convert:} {.val {self$convert}}")
       cli::cli_text("{.comment #}")
       print(self$fun)
-      
+
       invisible(self)
     }
   ),
@@ -153,7 +138,6 @@ ToolDef <- R6::R6Class("ToolDef",
     .annotations = NULL,
     .fun = NULL
   ),
-  
   active = list(
     #' @field name Tool name with MCP protocol compliance validation
     name = function(value) {
@@ -164,7 +148,7 @@ ToolDef <- R6::R6Class("ToolDef",
         private$.name <- value
       }
     },
-    
+
     #' @field description Tool description ensuring non-empty string format
     description = function(value) {
       if (missing(value)) {
@@ -174,7 +158,7 @@ ToolDef <- R6::R6Class("ToolDef",
         private$.description <- value
       }
     },
-    
+
     #' @field arguments Argument definitions ensuring proper list structure
     arguments = function(value) {
       if (missing(value)) {
@@ -184,48 +168,31 @@ ToolDef <- R6::R6Class("ToolDef",
         private$.arguments <- value
       }
     },
-    
+
     #' @field convert JSON conversion flag ensuring logical type
     convert = function(value) {
       if (missing(value)) {
         private$.convert
       } else {
-        # Inline validation equivalent to validate_tool_convert
         if (!is.logical(value) || length(value) != 1 || is.na(value)) {
           cli::cli_abort("Property {.field convert} must be a single logical value, not {.obj_type_friendly {value}}")
         }
         private$.convert <- value
       }
     },
-    
+
     #' @field annotations Tool annotations ensuring basic R type compliance
     annotations = function(value) {
       if (missing(value)) {
         private$.annotations
       } else {
-        # Inline validation equivalent to validate_tool_annotations
         if (!is.list(value)) {
           cli::cli_abort("Property {.field annotations} must be a list, not {.obj_type_friendly {value}}")
-        }
-        if (length(value) > 0) {
-          for (i in seq_along(value)) {
-            element_name <- names(value)[i] %||% paste0("element_", i)
-            element <- value[[i]]
-            if (!is.null(element) && 
-                !is.character(element) && 
-                !is.logical(element) && 
-                !is.numeric(element) && 
-                !is.list(element)) {
-              cli::cli_abort(
-                "Property {.field annotations} element {.val {element_name}} must be a basic R type (character, logical, numeric, or list), not {.obj_type_friendly {element}}"
-              )
-            }
-          }
         }
         private$.annotations <- value
       }
     },
-    
+
     #' @field fun Executable function ensuring callable object
     fun = function(value) {
       if (missing(value)) {
@@ -292,7 +259,6 @@ check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()
   }
 }
 
-
 #' Tool Annotations for MCP Protocol
 #'
 #' @title Tool Annotations for MCP Protocol
@@ -315,8 +281,6 @@ check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()
 #' @param ... Additional named parameters to include in the tool annotations.
 #'
 #' @return A list of tool annotations.
-#'
-#' @family tool calling helpers
 #' @export
 tool_annotations <- function(
   title = NULL,
@@ -350,89 +314,8 @@ tool_annotations <- function(
 #' handling. Provides user-controlled tool call rejection for security and workflow
 #' control in MCP interactions.
 #'
-#' Here's an example where `utils::askYesNo()` is used to ask the user for
-#' permission before accessing their current working directory. This happens
-#' directly in the tool function and is appropriate when you write the tool
-#' definition and know exactly how it will be called.
-#'
-#' ```r
-#' chat <- chat_openai(model = "gpt-4.1-nano")
-#'
-#' list_files <- function() {
-#'   allow_read <- utils::askYesNo(
-#'     "Would you like to allow access to your current directory?"
-#'   )
-#'   if (isTRUE(allow_read)) {
-#'     dir(pattern = "[.](r|R|csv)$")
-#'   } else {
-#'     tool_reject()
-#'   }
-#' }
-#'
-#' chat$register_tool(tool(
-#'   list_files,
-#'   "List files in the user's current directory"
-#' ))
-#'
-#' chat$chat("What files are available in my current directory?")
-#' #> [tool call] list_files()
-#' #> Would you like to allow access to your current directory? (Yes/no/cancel) no
-#' #> #> Error: Tool call rejected. The user has chosen to disallow the tool #' call.
-#' #> It seems I am unable to access the files in your current directory right now.
-#' #> If you can tell me what specific files you're looking for or if you can #' provide
-#' #> the list, I can assist you further.
-#'
-#' chat$chat("Try again.")
-#' #> [tool call] list_files()
-#' #> Would you like to allow access to your current directory? (Yes/no/cancel) yes
-#' #> #> app.R
-#' #> #> data.csv
-#' #> The files available in your current directory are "app.R" and "data.csv".
-#' ```
-#'
-#' You can achieve a similar experience with tools written by others by using a
-#' `tool_request` callback. In the next example, imagine the tool is provided by
-#' a third-party package. This example implements a simple menu to ask the user
-#' for consent before running *any*  tool.
-#'
-#' ```r
-#' packaged_list_files_tool <- tool(
-#'   function() dir(pattern = "[.](r|R|csv)$"),
-#'   "List files in the user's current directory"
-#' )
-#'
-#' chat <- chat_openai(model = "gpt-4.1-nano")
-#' chat$register_tool(packaged_list_files_tool)
-#'
-#' always_allowed <- c()
-#'
-#' # ContentToolRequest
-#' chat$on_tool_request(function(request) {
-#'   if (request@name %in% always_allowed) return()
-#'
-#'   answer <- utils::menu(
-#'     title = sprintf("Allow tool `%s()` to run?", request@name),
-#'     choices = c("Always", "Once", "No"),
-#'     graphics = FALSE
-#'   )
-#'
-#'   if (answer == 1) {
-#'     always_allowed <<- append(always_allowed, request@name)
-#'   } else if (answer %in% c(0, 3)) {
-#'     tool_reject()
-#'   }
-#' })
-#'
-#' # Try choosing different answers to the menu each time
-#' chat$chat("What files are available in my current directory?")
-#' chat$chat("How about now?")
-#' chat$chat("And again now?")
-#' ```
-#'
 #' @param reason A character string describing the reason for rejecting the tool call
 #' @return Throws an error of class mcpr_tool_reject with the provided reason
-#'
-#' @family tool calling helpers
 #' @export
 tool_reject <- function(
   reason = "The user has chosen to disallow the tool call."
@@ -444,7 +327,6 @@ tool_reject <- function(
     class = "mcpr_tool_reject"
   )
 }
-
 
 #' Generate Unique Tool Name
 #'

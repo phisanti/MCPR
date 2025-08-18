@@ -1,6 +1,6 @@
 # Tool Registry Helper Functions
-# Helper functions for converting roxygen2 documentation blocks into ToolDef objects.
-# Processes parsed roxygen metadata to create structured tool definitions.
+# Helper functions for tool discovery and roxygen2 parsing in the ToolRegistry system.
+# Provides roxygen2 block processing, function extraction, and tool metadata conversion.
 
 #' Create Tool from Roxygen Block
 #'
@@ -17,37 +17,40 @@
 create_tool_from_block <- function(block, env, file_path) {
   # Extract function name from the block object
   func_name <- block$object$alias
-  
+
   if (is.null(func_name) || !exists(func_name, envir = env)) {
     cli::cli_warn("Function {.fn {func_name %||% 'unknown'}} not found in {.file {basename(file_path)}}")
     return(NULL)
   }
-  
+
   func <- get(func_name, envir = env)
   if (!is.function(func)) {
     cli::cli_warn("{.fn {func_name}} is not a function")
     return(NULL)
   }
-  
+
   # Extract description
   description <- extract_description(block)
-  
+
   # Extract parameters
   param_tags <- Filter(function(tag) inherits(tag, "roxy_tag_param"), block$tags)
   mcpr_args <- convert_to_schema(param_tags)
-  
-  # Create the tool
-  tryCatch({
-    tool(
-      fun = func, 
-      description = description, 
-      name = func_name,
-      arguments = mcpr_args
-    )
-  }, error = function(e) {
-    cli::cli_warn("Failed to create tool for {.fn {func_name}}: {conditionMessage(e)}")
-    NULL
-  })
+
+  # Create the tool using new ToolDef system
+  tryCatch(
+    {
+      tool(
+        fun = func,
+        name = func_name,
+        description = description,
+        arguments = mcpr_args
+      )
+    },
+    error = function(e) {
+      cli::cli_warn("Failed to create tool for {.fn {func_name}}: {conditionMessage(e)}")
+      NULL
+    }
+  )
 }
 
 #' Extract Description from Roxygen Block
@@ -66,13 +69,13 @@ extract_description <- function(block) {
   if (!is.null(desc_tag)) {
     return(paste(desc_tag$val, collapse = " "))
   }
-  
+
   # Fall back to title/introduction
   intro_tag <- Find(function(tag) inherits(tag, "roxy_tag_intro"), block$tags)
   if (!is.null(intro_tag)) {
     return(paste(intro_tag$val, collapse = " "))
   }
-  
+
   # Default
   return("No description available")
 }
@@ -89,28 +92,36 @@ extract_description <- function(block) {
 #' @return Named list of MCPR type objects for tool arguments
 convert_to_schema <- function(param_tags) {
   mcpr_args <- list()
-  
+
   for (param_tag in param_tags) {
-    # The 'val' field of a roxy_tag_param is already parsed into name and description
-    param_name <- param_tag$val$name
-    param_desc <- param_tag$val$description
-    
-    # A more robust way to infer type is needed, but for now, we assume string
-    # or look for hints in the description. This part remains a weak point.
-    # A better convention would be {type} description, e.g., @param name [string] The name.
-    type_str <- "string" # Default type
-    
-    # Simple heuristic to guess type from description
-    if (grepl("\\b(numeric|number|integer|int)\\b", param_desc, ignore.case = TRUE)) {
-      type_str <- "numeric"
-    } else if (grepl("\\b(logical|boolean|bool)\\b", param_desc, ignore.case = TRUE)) {
-      type_str <- "boolean"
-    } else if (grepl("\\b(list|array|vector)\\b", param_desc, ignore.case = TRUE)) {
-      type_str <- "array"
+    # Parse the val field which contains "param_name type description"
+    val_str <- paste(param_tag$val, collapse = " ")
+    val_parts <- trimws(strsplit(val_str, "\\s+", perl = TRUE)[[1]])
+
+    if (length(val_parts) < 2) {
+      next
     }
 
-    mcpr_args[[param_name]] <- map_type_schema(type_str, param_desc)
+    param_name <- val_parts[1]
+    type_and_desc <- paste(val_parts[-1], collapse = " ")
+
+    # Extract type from beginning of type_and_desc
+    type_pattern <- "^(character|string|numeric|number|integer|int|logical|boolean|bool|list|array)\\s+"
+    type_match <- regexpr(type_pattern, type_and_desc, ignore.case = TRUE)
+
+    if (type_match != -1) {
+      type_str <- regmatches(type_and_desc, type_match)
+      type_str <- trimws(gsub("\\s+$", "", type_str))
+      param_desc <- sub(type_pattern, "", type_and_desc, ignore.case = TRUE)
+    } else {
+      type_str <- "string" # default
+      param_desc <- type_and_desc
+    }
+
+    # Create proper mcpr_type objects directly
+    mcpr_args[[param_name]] <- map_type_schema(type_str, description = param_desc, input_type = "definition")
   }
-  
+
   mcpr_args
 }
+
