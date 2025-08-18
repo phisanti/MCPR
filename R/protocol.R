@@ -100,7 +100,7 @@ create_capabilities <- function() {
 #' @return List representing JSON-RPC 2.0 response
 jsonrpc_response <- function(id, result = NULL, error = NULL) {
   if (!xor(is.null(result), is.null(error))) {
-    warning("Either `result` or `error` must be provided, but not both.")
+    cli::cli_warn("Either `result` or `error` must be provided, but not both.")
   }
 
   drop_nulls(list(

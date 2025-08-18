@@ -27,7 +27,7 @@ BaseMCPR <- R6::R6Class("BaseMCPR",
     #' @return New BaseMCPR instance
     initialize_base = function(component_name) {
       if (missing(component_name) || !is.character(component_name) || length(component_name) != 1) {
-        stop("component_name must be a single character string", call. = FALSE)
+        cli::cli_abort("component_name must be a single character string")
       }
       
       private$.component_name <- component_name
@@ -114,7 +114,7 @@ BaseMCPR <- R6::R6Class("BaseMCPR",
     register_cleanup = function(cleanup_fn, description = "resource") {
       private$check_initialized()
       if (!is.function(cleanup_fn)) {
-        stop("cleanup_fn must be a function", call. = FALSE)
+        cli::cli_abort("cleanup_fn must be a function")
       }
       
       private$.cleanup_registry[[length(private$.cleanup_registry) + 1]] <- list(
@@ -226,7 +226,7 @@ BaseMCPR <- R6::R6Class("BaseMCPR",
     # Check that initialize_base was called
     check_initialized = function() {
       if (!private$.initialized) {
-        stop("BaseMCPR not initialized. Call initialize_base() first.", call. = FALSE)
+        cli::cli_abort("BaseMCPR not initialized. Call initialize_base() first.")
       }
     },
     

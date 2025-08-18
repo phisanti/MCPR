@@ -44,7 +44,7 @@ mcprSession <- R6::R6Class("mcprSession",
       }
       
       if (private$.is_running) {
-        warning("Session is already running")
+        cli::cli_warn("Session is already running")
         private$log_warn("SESSION_ALREADY_RUNNING - Attempted to start running session")
         return(invisible(self))
       }
@@ -145,7 +145,7 @@ mcprSession <- R6::R6Class("mcprSession",
           return(i)
         }
       }
-      stop("No available socket ports found", call. = FALSE)
+      cli::cli_abort("No available socket ports found")
     },
     
     # Schedule delayed timeout check
