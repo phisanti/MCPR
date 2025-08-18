@@ -18,7 +18,7 @@ MCPRLogger <- R6::R6Class("MCPRLogger",
       comp <- component %||% private$.component
       entry <- sprintf(
         "[%s] [%s] [%s] %s\n",
-        format(Sys.time(), "%H:%M:%S"), level, comp, message
+        format(Sys.time(), "%Y-%m-%d %H:%M:%S"), level, comp, message
       )
       cat(entry, file = private$.file, append = TRUE)
     }
