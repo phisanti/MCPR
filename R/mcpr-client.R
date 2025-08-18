@@ -13,14 +13,15 @@
 #'
 #' @param config Path to configuration file (uses default location if NULL)
 #' @return New mcprClient instance
+#' @export
 mcprClient <- R6::R6Class("mcprClient",
+  inherit = BaseMCPR,
   public = list(
     #' @description Creates new mcprClient instance
     #' @param config Path to configuration file (character). Uses default location if NULL
     #' @return Self (invisible)
     initialize = function(config = NULL) {
-      # Initialize logger for CLIENT component
-      private$.logger <- MCPRLogger$new(component = "CLIENT")
+      self$initialize_base("CLIENT")
 
       private$.servers <- list()
       private$.server_processes <- list()
@@ -43,7 +44,7 @@ mcprClient <- R6::R6Class("mcprClient",
     #' @return Self (invisible, enables method chaining)
     connect_servers = function() {
       if (is.null(private$.config) || length(private$.config) == 0) {
-        private$.logger$warn("No servers configured")
+        private$log_warn("No servers configured")
         return(invisible(self))
       }
 
@@ -145,12 +146,11 @@ mcprClient <- R6::R6Class("mcprClient",
     .server_processes = NULL,
     .config_path = NULL,
     .config = NULL,
-    .logger = NULL,
 
     # Send JSON-RPC message and receive response from process
     send_and_receive = function(process, message) {
       json_msg <- jsonlite::toJSON(message, auto_unbox = TRUE)
-      private$.logger$comm(paste("FROM CLIENT:", json_msg))
+      private$log_comm("FROM CLIENT", json_msg)
       process$write_input(paste0(json_msg, "\n"))
 
       output <- NULL
@@ -164,11 +164,11 @@ mcprClient <- R6::R6Class("mcprClient",
       }
 
       if (!is.null(output) && length(output) > 0) {
-        private$.logger$comm(paste("FROM SERVER:", output[1]))
+        private$log_comm("FROM SERVER", output[1])
         return(jsonlite::parse_json(output[1]))
       }
 
-      private$.logger$warn(paste("No response received after", attempts, "attempts"))
+      private$log_warn(paste("No response received after", attempts, "attempts"))
       return(NULL)
     },
 
@@ -305,7 +305,7 @@ mcprClient <- R6::R6Class("mcprClient",
         },
         error = function(e) {
           error_msg <- "Configuration processing failed: The configuration file must be valid JSON."
-          MCPRLogger$new(component = "CLIENT")$error(paste(error_msg, "Error:", e$message))
+          private$log_error(paste(error_msg, "Error:", e$message))
           cli::cli_abort(
             c(
               "Configuration processing failed",
@@ -318,7 +318,7 @@ mcprClient <- R6::R6Class("mcprClient",
 
       if (!"mcpServers" %in% names(config)) {
         error_msg <- "Configuration processing failed: config must have a top-level mcpServers entry."
-        MCPRLogger$new(component = "CLIENT")$error(error_msg)
+        private$log_error(error_msg)
         cli::cli_abort(
           c(
             "Configuration processing failed.",
@@ -333,7 +333,7 @@ mcprClient <- R6::R6Class("mcprClient",
     # Throw error when MCP configuration file is missing
     error_no_mcp_config = function() {
       error_msg <- "The mcptools MCP client configuration file does not exist."
-      MCPRLogger$new(component = "CLIENT")$error(error_msg)
+      private$log_error(error_msg)
       cli::cli_abort(
         c(
           "The mcptools MCP client configuration file does not exist.",

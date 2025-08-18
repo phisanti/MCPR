@@ -21,11 +21,14 @@
 #'
 #' @export
 mcprSession <- R6::R6Class("mcprSession",
+  inherit = BaseMCPR,
   public = list(
     #' @description Create new mcprSession instance
     #' @param timeout_seconds Timeout in seconds (default: 900)
     #' @return A new mcprSession instance
     initialize = function(timeout_seconds = 900) {
+      self$initialize_base("SESSION")
+      
       private$.timeout_seconds <- timeout_seconds
       private$.last_activity <- Sys.time()
       
@@ -42,28 +45,24 @@ mcprSession <- R6::R6Class("mcprSession",
       
       if (private$.is_running) {
         warning("Session is already running")
-        if (!is.null(private$.logger)) {
-          private$.logger$warn("SESSION_ALREADY_RUNNING - Attempted to start running session")
-        }
+        private$log_warn("SESSION_ALREADY_RUNNING - Attempted to start running session")
         return(invisible(self))
       }
       
-      # Initialize logger for SESSION component
-      private$.logger <- MCPRLogger$new(component = "SESSION")
+      self$state_set("session_logger", private$get_logger())
       
-      # CRITICAL: Use global state for server compatibility
-      the$session_logger <- private$.logger
-      the$session_socket <- nanonext::socket("poly")
+      session_socket <- self$create_socket("poly", "session_communication")
+      self$state_set("session_socket", session_socket)
       
       # Find and bind to available port
       private$.session_id <- private$find_available_port()
-      the$session <- private$.session_id  # CRITICAL: Global state for server
+      self$state_set("session", private$.session_id)  # CRITICAL: Global state for server compatibility
       
       private$.is_running <- TRUE
       
       # Log socket diagnostics
       socket_info <- check_session_socket(verbose = FALSE)
-      private$.logger$info(sprintf(
+      private$log_info(sprintf(
         "MCP session started - Socket: %s, Interactive: %s, Has Session: %s",
         socket_info$socket_number %||% "NULL",
         socket_info$is_interactive,
@@ -104,20 +103,11 @@ mcprSession <- R6::R6Class("mcprSession",
       
       private$.is_running <- FALSE
       
-      # CRITICAL: Clean up global state carefully
-      if (!is.null(the$session_socket)) {
-        nanonext::reap(the$session_socket)
-        the$session_socket <- NULL
-      }
-      
-      the$session <- NULL
-      the$raio <- NULL
-      the$session_logger <- NULL
+      self$cleanup_all()
       
       # Clean up private state
       private$.session_id <- NULL
       private$.last_activity <- NULL
-      private$.logger <- NULL
       
       invisible(self)
     },
@@ -129,7 +119,7 @@ mcprSession <- R6::R6Class("mcprSession",
         session_id = private$.session_id,
         is_running = private$.is_running,
         last_activity = private$.last_activity,
-        socket_active = !is.null(the$session_socket)
+        socket_active = self$state_has("session_socket")
       )
     }
   ),
@@ -139,15 +129,15 @@ mcprSession <- R6::R6Class("mcprSession",
     .last_activity = NULL,
     .timeout_seconds = 900,  # 15 minutes
     .is_running = FALSE,
-    .logger = NULL,
     
     # Find available port using global socket
     find_available_port = function() {
       i <- 1L
+      session_socket <- self$state_get("session_socket")
       while (i < 1024L) {
         if (nanonext::listen(
-          the$session_socket,
-          url = sprintf("%s%d", the$socket_url, i),
+          session_socket,
+          url = self$socket_url(i),
           fail = "none"
         )) {
           i <- i + 1L
@@ -169,9 +159,11 @@ mcprSession <- R6::R6Class("mcprSession",
     start_listening = function() {
       if (!private$.is_running) return(invisible(self))
       
-      # CRITICAL: Use global state for compatibility
-      the$raio <- nanonext::recv_aio(the$session_socket, mode = "serial")
-      promises::as.promise(the$raio)$then(
+      session_socket <- self$state_get("session_socket")
+      raio <- nanonext::recv_aio(session_socket, mode = "serial")
+      self$state_set("raio", raio)
+      
+      promises::as.promise(raio)$then(
         function(data) private$handle_message(data)
       )$catch(
         function(e) {
@@ -187,47 +179,38 @@ mcprSession <- R6::R6Class("mcprSession",
     handle_message = function(data) {
       if (!private$.is_running) return(invisible(self))
       
-      pipe <- nanonext::pipe_id(the$raio)
+      raio <- self$state_get("raio")
+      pipe <- nanonext::pipe_id(raio)
       private$.last_activity <- Sys.time()
       
-      if (!is.null(private$.logger)) {
-        private$.logger$comm(paste("RECEIVED_MESSAGE | Session:", private$.session_id, "| Pipe:", pipe))
-      }
+      private$log_comm("RECEIVED_MESSAGE", paste("Session:", private$.session_id, "| Pipe:", pipe))
       
       # Schedule next message listen
       private$start_listening()
       
       # Handle discovery ping
       if (length(data) == 0) {
-        if (!is.null(private$.logger)) {
-          private$.logger$comm(paste("DISCOVERY_PING | Session:", private$.session_id, "| Pipe:", pipe))
-        }
-        private$send_response(describe_session(), pipe)
+        private$log_comm("DISCOVERY_PING", paste("Session:", private$.session_id, "| Pipe:", pipe))
+        private$send_response(describe_session(detailed = TRUE), pipe)
         return(invisible(self))
       }
       
       # Log incoming message (exclude tool function to prevent log pollution)
-      if (!is.null(private$.logger)) {
-        # Create clean data for logging (remove tool function)
-        log_data <- data
-        if (!is.null(log_data$tool)) {
-          log_data$tool <- paste0("<function: ", data$params$name %||% "unknown", ">")
-        }
-        private$.logger$comm(paste("FROM SERVER | Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Tool:", data$params$name %||% "unknown", "| Data:", jsonlite::toJSON(log_data, auto_unbox = TRUE)))
+      # Create clean data for logging (remove tool function)
+      log_data <- data
+      if (!is.null(log_data$tool)) {
+        log_data$tool <- paste0("<function: ", data$params$name %||% "unknown", ">")
       }
+      private$log_comm("FROM SERVER", paste("Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Tool:", data$params$name %||% "unknown", "| Data:", jsonlite::toJSON(log_data, auto_unbox = TRUE)))
       
       # Process tool call or return error with timing
       start_time <- Sys.time()
       body <- if (data$method == "tools/call") {
         tool_name <- data$params$name %||% "unknown"
-        if (!is.null(private$.logger)) {
-          private$.logger$comm(paste("EXECUTING_TOOL | Session:", private$.session_id, "| Tool:", tool_name, "| ID:", data$id %||% "unknown"))
-        }
+        private$log_comm("EXECUTING_TOOL", paste("Session:", private$.session_id, "| Tool:", tool_name, "| ID:", data$id %||% "unknown"))
         result <- execute_tool_call(data)
         execution_time <- round(as.numeric(difftime(Sys.time(), start_time, units = "secs")) * 1000, 2)
-        if (!is.null(private$.logger)) {
-          private$.logger$comm(paste("TOOL_COMPLETED | Session:", private$.session_id, "| Tool:", tool_name, "| Duration:", paste0(execution_time, "ms")))
-        }
+        private$log_comm("TOOL_COMPLETED", paste("Session:", private$.session_id, "| Tool:", tool_name, "| Duration:", paste0(execution_time, "ms")))
         result
       } else {
         jsonrpc_response(
@@ -237,24 +220,23 @@ mcprSession <- R6::R6Class("mcprSession",
       }
       
       # Send response
-      if (!is.null(private$.logger)) {
-        response_info <- if (inherits(body, "list") && !is.null(body$result)) {
-          if (body$result$isError) "ERROR" else "SUCCESS"
-        } else "UNKNOWN"
-        private$.logger$comm(paste("TO SERVER | Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Status:", response_info, "| Response:", to_json(body)))
-      }
+      response_info <- if (inherits(body, "list") && !is.null(body$result)) {
+        if (body$result$isError) "ERROR" else "SUCCESS"
+      } else "UNKNOWN"
+      private$log_comm("TO SERVER", paste("Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Status:", response_info, "| Response:", to_json(body)))
       private$send_response(to_json(body), pipe)
       invisible(self)
     },
     
     # Send response using global socket
     send_response = function(response, pipe) {
-      if (!private$.is_running || is.null(the$session_socket)) {
+      if (!private$.is_running || !self$state_has("session_socket")) {
         return(invisible(self))
       }
       
+      session_socket <- self$state_get("session_socket")
       nanonext::send_aio(
-        the$session_socket,
+        session_socket,
         response,
         mode = "raw",
         pipe = pipe

@@ -15,6 +15,7 @@
 #'
 #' @param registry A ToolRegistry instance for tool discovery and management
 #' @param .tools_dir Internal parameter for specifying tools directory path
+#' @export
 #' @examples
 #' \dontrun{
 #' # Basic server initialization
@@ -38,18 +39,18 @@
 #' mcpr_server(registry = registry)
 #' }
 mcprServer <- R6::R6Class("mcprServer",
+  inherit = BaseMCPR,
   public = list(
     #' @description Initialize the MCP server with optional tools
     #' @param registry A ToolRegistry instance to use for tool discovery
     #' @param .tools_dir Internal parameter for specifying tools directory path
     #' @return A new mcprServer instance
     initialize = function(registry = NULL, .tools_dir = NULL) {
-      # Initialize logger for SERVER component
-      private$.logger <- MCPRLogger$new(component = "SERVER")
+      self$initialize_base("SERVER")
 
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         error_msg <- "registry must be a ToolRegistry instance"
-        private$.logger$error(error_msg)
+        private$log_error(error_msg)
         cli::cli_abort(error_msg)
       }
       if (is.null(registry)) {
@@ -75,16 +76,16 @@ mcprServer <- R6::R6Class("mcprServer",
 
       private$.cv <- nanonext::cv()
       private$.reader_socket <- nanonext::read_stdin()
-      on.exit(nanonext::reap(private$.reader_socket), add = TRUE)
+      self$register_cleanup(function() nanonext::reap(private$.reader_socket), "reader_socket")
       nanonext::pipe_notify(private$.reader_socket, private$.cv, remove = TRUE, flag = TRUE)
 
-      the$server_socket <- nanonext::socket("poly")
-      on.exit(nanonext::reap(the$server_socket), add = TRUE)
-      nanonext::dial(the$server_socket, url = sprintf("%s%d", the$socket_url, 1L))
+      server_socket <- self$create_socket("poly", "server_communication")
+      self$state_set("server_socket", server_socket)
+      nanonext::dial(server_socket, url = self$socket_url(1L))
 
       # Log socket diagnostics for troubleshooting
       socket_info <- check_session_socket(verbose = FALSE)
-      private$.logger$info(sprintf(
+      private$log_info(sprintf(
         "MCP server started - Socket: %s, Interactive: %s, Has Session: %s",
         socket_info$socket_number %||% "NULL",
         socket_info$is_interactive,
@@ -92,7 +93,8 @@ mcprServer <- R6::R6Class("mcprServer",
       ))
 
       client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
-      session <- nanonext::recv_aio(the$server_socket, mode = "string", cv = private$.cv)
+      server_socket <- self$state_get("server_socket")
+      session <- nanonext::recv_aio(server_socket, mode = "string", cv = private$.cv)
 
       private$.running <- TRUE
       while (nanonext::wait(private$.cv)) {
@@ -126,16 +128,7 @@ mcprServer <- R6::R6Class("mcprServer",
         }
       }
 
-      # Close and cleanup sockets
-      if (!is.null(private$.reader_socket)) {
-        nanonext::reap(private$.reader_socket)
-        private$.reader_socket <- NULL
-      }
-
-      if (!is.null(the$server_socket)) {
-        nanonext::reap(the$server_socket)
-        the$server_socket <- NULL
-      }
+      self$cleanup_all()
 
       # Reset condition variable
       private$.cv <- NULL
@@ -191,18 +184,16 @@ mcprServer <- R6::R6Class("mcprServer",
     }
   ),
   private = list(
-    .server_socket = NULL,
     .reader_socket = NULL,
     .cv = NULL,
     .running = FALSE,
-    .logger = NULL,
 
     # Handle incoming messages from MCP clients
     handle_message_from_client = function(line) {
       if (length(line) == 0) {
         return()
       }
-      private$.logger$comm(paste("FROM CLIENT:", line))
+      private$log_comm("FROM CLIENT", line)
       data <- tryCatch(
         jsonlite::parse_json(line),
         error = function(e) NULL
@@ -250,7 +241,7 @@ mcprServer <- R6::R6Class("mcprServer",
             # Log socket state AFTER tool execution for socket-changing tools
             if (tool_name %in% c("select_r_session", "manage_r_sessions")) {
               socket_info <- check_session_socket(verbose = FALSE)
-              private$.logger$info(sprintf(
+              private$log_info(sprintf(
                 "Socket state after %s - Socket: %s, Interactive: %s, Has Session: %s",
                 tool_name,
                 socket_info$socket_number %||% "NULL",
@@ -282,7 +273,7 @@ mcprServer <- R6::R6Class("mcprServer",
       if (!is.character(data)) {
         return()
       }
-      private$.logger$comm(paste("FROM SESSION:", data))
+      private$log_comm("FROM SESSION", data)
       nanonext::write_stdout(data)
     },
 
@@ -294,18 +285,19 @@ mcprServer <- R6::R6Class("mcprServer",
       } else {
         execute_tool_call(prepared)
       }
-      private$.logger$comm(paste("FROM SERVER:", to_json(result)))
+      private$log_comm("FROM SERVER", to_json(result))
       cat_json(result)
     },
 
     # Forward requests to an R session for execution
     forward_request = function(data) {
-      private$.logger$comm(paste("TO SESSION:", jsonlite::toJSON(data)))
+      private$log_comm("TO SESSION", jsonlite::toJSON(data))
       prepared <- private$append_tool_fn(data)
       if (is.list(prepared) && !is.null(prepared$error)) {
         return(cat_json(prepared))
       }
-      nanonext::send_aio(the$server_socket, prepared, mode = "serial")
+      server_socket <- self$state_get("server_socket")
+      nanonext::send_aio(server_socket, prepared, mode = "serial")
     },
 
     # Routes incoming JSON-RPC messages to appropriate handlers

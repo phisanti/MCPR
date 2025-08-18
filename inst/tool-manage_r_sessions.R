@@ -2,17 +2,80 @@
 # Unified tool for listing, joining, and starting R sessions with enhanced status information.
 # Combines functionality from list_r_sessions and select_r_session with session creation capabilities.
 
-#' Create a descriptive string for the current R session with enhanced details
+#' Format Session List as Table
 #'
-#' Used for the `manage_r_sessions` tool with action "list".
-#' @return A string like "1: /path/to/project (RStudio) - 2024-08-08 10:30:15"
-describe_session_detailed <- function() {
-  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  sprintf("%d: %s (%s) - %s", 
-          the$session, 
-          getwd(), 
-          infer_ide(), 
-          timestamp)
+#' @description Helper function to format session list as aligned table
+#' @param session_data Character vector of session descriptions
+#' @return Formatted table string
+format_sessions_table <- function(session_data) {
+  if (length(session_data) == 0) {
+    return("No active R sessions found.")
+  }
+  
+  # Parse session data - expect format: "ID: directory (IDE) - timestamp" or "No session: directory (IDE) - timestamp"
+  sessions <- list()
+  
+  for (i in seq_along(session_data)) {
+    line <- session_data[i]
+    
+    # Try to parse "ID: directory (IDE) - timestamp"
+    if (grepl("^\\d+:", line)) {
+      parts <- regmatches(line, regexec("^(\\d+): (.+) \\((.+)\\) - (.+)$", line))[[1]]
+      if (length(parts) == 5) {
+        sessions[[i]] <- list(
+          id = parts[2],
+          directory = basename(parts[3]), # Use basename for cleaner display
+          ide = parts[4],
+          timestamp = parts[5]
+        )
+      }
+    } else if (grepl("^No session:", line)) {
+      parts <- regmatches(line, regexec("^No session: (.+) \\((.+)\\) - (.+)$", line))[[1]]
+      if (length(parts) == 4) {
+        sessions[[i]] <- list(
+          id = "?",
+          directory = basename(parts[2]),
+          ide = parts[3],
+          timestamp = "Unknown"
+        )
+      }
+    }
+  }
+  
+  # Remove any failed parses
+  sessions <- sessions[!sapply(sessions, is.null)]
+  
+  if (length(sessions) == 0) {
+    return("No parseable session data found.")
+  }
+  
+  # Calculate column widths
+  max_id <- max(nchar(c("ID", sapply(sessions, function(s) s$id))))
+  max_dir <- max(nchar(c("Working Directory", sapply(sessions, function(s) s$directory))))
+  max_ide <- max(nchar(c("IDE", sapply(sessions, function(s) s$ide))))
+  max_time <- max(nchar(c("Timestamp", sapply(sessions, function(s) s$timestamp))))
+  
+  # Create formatted table
+  separator <- paste0(rep("-", max_id + max_dir + max_ide + max_time + 10), collapse = "")
+  
+  # Header
+  header <- sprintf("%-*s | %-*s | %-*s | %-*s",
+                    max_id, "ID",
+                    max_dir, "Working Directory", 
+                    max_ide, "IDE",
+                    max_time, "Timestamp")
+  
+  # Data rows
+  rows <- sapply(sessions, function(s) {
+    sprintf("%-*s | %-*s | %-*s | %-*s",
+            max_id, s$id,
+            max_dir, s$directory,
+            max_ide, s$ide, 
+            max_time, s$timestamp)
+  })
+  
+  # Combine all parts
+  paste(c(separator, header, separator, rows, separator), collapse = "\n")
 }
 
 #* @mcp_tool
@@ -22,22 +85,27 @@ describe_session_detailed <- function() {
 #' @keywords mcpr_tool
 #' @return For "list": vector of detailed session descriptions. For "join": success message. For "start": new session information.
 manage_r_sessions <- function(action = "list", session = NULL) {
-  
   if (!action %in% c("list", "join", "start")) {
     stop("action must be one of: 'list', 'join', 'start'")
   }
   
+  # Get platform-specific socket URL once and reuse
+  socket_base <- get_system_socket_url()
+  
   if (action == "list") {
     # Enhanced listing with working directory and timestamp
+    # Use manual socket management to avoid BaseMCPR cleanup conflicts
     sock <- nanonext::socket("poly")
-    on.exit(nanonext::reap(sock))
+    on.exit(nanonext::reap(sock), add = TRUE)
+    
     cv <- nanonext::cv()
     monitor <- nanonext::monitor(sock, cv)
+    
     for (i in seq_len(1024L)) {
       if (
         nanonext::dial(
           sock,
-          url = sprintf("%s%d", the$socket_url, i),
+          url = sprintf("%s%d", socket_base, i),
           autostart = NA,
           fail = "none"
         ) &&
@@ -47,8 +115,7 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       }
     }
     pipes <- nanonext::read_monitor(monitor)
-    # TODO: The return needs to be updated so that it uses the detailed decription and also imporove the detailed description
-    # The final goal is that the model gets a nicely formatted table with the Session ID, timestamp, working directory, and IDE information
+    # Get session data from all active sessions
     res <- lapply(
       pipes,
       function(x) nanonext::recv_aio(sock, mode = "string", timeout = 5000L)
@@ -57,7 +124,10 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       pipes,
       function(x) nanonext::send_aio(sock, character(), mode = "serial", pipe = x)
     )
-    sort(as.character(nanonext::collect_aio_(res)))
+    
+    # Collect and format session data as table
+    session_data <- sort(as.character(nanonext::collect_aio_(res)))
+    format_sessions_table(session_data)
     
   } else if (action == "join") {
     # Join existing session (renamed from select)
@@ -68,11 +138,17 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       stop("session must be a single integer")
     }
     
-    nanonext::reap(the$server_socket[["dialer"]][[1L]])
-    attr(the$server_socket, "dialer") <- NULL
+    server_socket <- if (exists("server_socket", envir = the) && !is.null(the$server_socket)) {
+      the$server_socket
+    } else {
+      stop("No server socket available - server may not be running")
+    }
+    
+    nanonext::reap(server_socket[["dialer"]][[1L]])
+    attr(server_socket, "dialer") <- NULL
     nanonext::dial(
-      the$server_socket,
-      url = sprintf("%s%d", the$socket_url, session)
+      server_socket,
+      url = sprintf("%s%d", socket_base, session)
     )
     sprintf("Joined session %d successfully.", session)
     
@@ -81,13 +157,13 @@ manage_r_sessions <- function(action = "list", session = NULL) {
     tryCatch({
       # Find next available session number
       sock <- nanonext::socket("poly")
-      on.exit(nanonext::reap(sock))
+      on.exit(nanonext::reap(sock), add = TRUE)
       
       next_session <- 1L
       for (i in seq_len(1024L)) {
         if (!nanonext::dial(
           sock,
-          url = sprintf("%s%d", the$socket_url, i),
+          url = sprintf("%s%d", socket_base, i),
           autostart = NA,
           fail = "none"
         )) {

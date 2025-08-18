@@ -238,8 +238,66 @@ check_session_socket <- function(verbose = TRUE) {
   }
 }
 
-# Additional global environment for tool naming
-the <- new.env()
+#' Get System Socket URL Base
+#'
+#' @title Get System Socket URL Base
+#' @description Returns platform-specific socket URL base for nanonext operations.
+#' Provides cross-platform socket URLs optimized for each operating system.
+#' Uses global state when available, otherwise falls back to platform detection.
+#'
+#' @return Character string with platform-appropriate socket URL base
+#' @export
+get_system_socket_url <- function() {
+  # Use global state (set by .onLoad) with fallback to platform detection
+  the$socket_url %||% switch(Sys.info()[["sysname"]],
+    Linux = "abstract://MCPR-socket",
+    Windows = "ipc://MCPR-socket", 
+    "ipc:///tmp/MCPR-socket"
+  )
+}
+
+#' Describe Current Session
+#'
+#' @title Describe Current Session
+#' @description Creates session description with optional detailed information.
+#' Used for both discovery ping responses (detailed=FALSE) and session management
+#' tools (detailed=TRUE). When detailed=TRUE, includes timestamp for table formatting.
+#'
+#' @param detailed Logical. If TRUE, includes timestamp for detailed session information.
+#'   If FALSE (default), returns basic session description for discovery pings.
+#' @return Character string with session description
+#' @export
+describe_session <- function(detailed = FALSE) {
+  session_num <- if (exists("session", envir = the) && !is.null(the$session)) {
+    the$session
+  } else {
+    NULL
+  }
+  
+  if (detailed) {
+    # Detailed version with timestamp for manage_r_sessions tool
+    timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    if (is.null(session_num)) {
+      sprintf("No session: %s (%s) - %s", 
+              getwd(), 
+              infer_ide(), 
+              timestamp)
+    } else {
+      sprintf("%d: %s (%s) - %s", 
+              session_num, 
+              getwd(), 
+              infer_ide(), 
+              timestamp)
+    }
+  } else {
+    # Basic version for discovery ping responses
+    if (is.null(session_num)) {
+      sprintf("No session: %s (%s)", basename(getwd()), infer_ide())
+    } else {
+      sprintf("%d: %s (%s)", session_num, basename(getwd()), infer_ide())
+    }
+  }
+}
 
 # Mocking for testing
 interactive <- NULL
