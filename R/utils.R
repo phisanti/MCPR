@@ -122,6 +122,7 @@ infer_ide <- function() {
 
 #' Null Coalescing Operator
 #'
+#' @name null-coalesce
 #' @title Null Coalescing Operator
 #' @description Returns left-hand side if not NULL, otherwise returns right-hand side value.
 #' Provides convenient NULL value handling for default value assignment and conditional
