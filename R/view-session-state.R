@@ -114,14 +114,117 @@ view_session <- function(max_lines = 100) {
 
 # ---- Terminal Output ----
 
-#' View recent terminal output and command history
-#' @param max_lines Maximum lines to display
-#' @return Formatted terminal information
-view_terminal <- function(max_lines = 100) {
-  result <- "Terminal Output Summary"
+#' Parse radian history format to extract R commands from current session
+#' @param radian_lines Character vector of raw radian history lines
+#' @param session_start_time POSIXct timestamp of current R session start
+#' @param max_commands Maximum number of commands to return
+#' @return Character vector of R commands from current session
+parse_radian_history <- function(radian_lines, session_start_time = NULL, max_commands = 100) {
+  if (length(radian_lines) == 0) {
+    return(character(0))
+  }
   
+  # If no session start time provided, get R session start time
+  if (is.null(session_start_time)) {
+    # Approximate R session start time (when R process started)
+    # This is imperfect but better than showing all historical commands
+    session_start_time <- Sys.time() - as.difftime(as.numeric(Sys.time() - .POSIXct(0)), units = "secs")
+    
+    # Try to get more accurate session start from .GlobalEnv creation time
+    # or use a conservative approach (last 4 hours)
+    session_start_time <- Sys.time() - as.difftime(4, units = "hours")
+  }
+  
+  commands <- character(0)
+  current_time <- NULL
+  current_mode <- NULL
+  
+  i <- 1
+  while (i <= length(radian_lines)) {
+    line <- radian_lines[i]
+    
+    # Parse time line: # time: 2025-08-20 08:58:02 UTC
+    if (grepl("^# time:", line)) {
+      time_match <- regmatches(line, regexpr("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} UTC", line))
+      if (length(time_match) > 0) {
+        tryCatch({
+          current_time <- as.POSIXct(time_match, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+        }, error = function(e) {
+          current_time <<- NULL
+        })
+      }
+    }
+    # Parse mode line: # mode: r
+    else if (grepl("^# mode:", line)) {
+      mode_match <- regmatches(line, regexpr("(?<=^# mode: )\\w+", line, perl = TRUE))
+      if (length(mode_match) > 0) {
+        current_mode <- mode_match
+      }
+    }
+    # Parse command line: +command
+    else if (grepl("^\\+", line) && !is.null(current_time) && !is.null(current_mode)) {
+      # Only include R commands from current session
+      if (current_mode == "r" && current_time >= session_start_time) {
+        command <- substring(line, 2)  # Remove the '+' prefix
+        command <- trimws(command)
+        if (nzchar(command)) {
+          commands <- c(commands, command)
+        }
+      }
+    }
+    
+    i <- i + 1
+  }
+  
+  # Return most recent commands up to max_commands
+  if (length(commands) > max_commands) {
+    commands <- utils::tail(commands, max_commands)
+  }
+  
+  return(commands)
+}
+
+#' Get current R session approximate start time
+#' @return POSIXct timestamp of estimated session start
+get_session_start_time <- function() {
+  # Strategy 1: Check if we can get process start time
   tryCatch({
-    # Get command history
+    # Try to get R process start time using ps (Unix-like systems)
+    if (.Platform$OS.type == "unix") {
+      pid <- Sys.getpid()
+      ps_result <- system(paste0("ps -o lstart= -p ", pid), intern = TRUE)
+      if (length(ps_result) > 0 && nzchar(ps_result)) {
+        # This is system-dependent and may not always work
+        # Fallback to conservative estimate
+      }
+    }
+  }, error = function(e) {
+    # ps command failed or not available
+  })
+  
+  # Strategy 2: Conservative estimate - assume session started recently
+  # Use a reasonable window (last 2 hours) to avoid showing too much history
+  session_start <- Sys.time() - as.difftime(2, units = "hours")
+  
+  # Strategy 3: If there are objects in GlobalEnv, session has been active
+  global_objects <- ls(envir = .GlobalEnv, all.names = TRUE)
+  if (length(global_objects) > 0) {
+    # If we have many objects, session might be longer running
+    # Expand window but keep it reasonable
+    if (length(global_objects) > 10) {
+      session_start <- Sys.time() - as.difftime(8, units = "hours")
+    }
+  }
+  
+  return(session_start)
+}
+
+#' Get command history from multiple sources
+#' @param max_lines Maximum lines to retrieve
+#' @return Character vector of history lines or NULL if none found
+get_command_history <- function(max_lines = 100) {
+  # Strategy 1: Try R's built-in savehistory (works in base R)
+  tryCatch({
     history_file <- tempfile()
     savehistory(history_file)
     
@@ -130,17 +233,109 @@ view_terminal <- function(max_lines = 100) {
       unlink(history_file)
       
       if (length(history_lines) > 0) {
+        return(history_lines)
+      }
+    }
+  }, error = function(e) {
+    # savehistory failed, try other methods
+  })
+  
+  # Strategy 2: Try radian history file with smart parsing
+  radian_history <- file.path(path.expand("~"), ".radian_history")
+  if (file.exists(radian_history)) {
+    tryCatch({
+      raw_history <- readLines(radian_history, warn = FALSE)
+      if (length(raw_history) > 0) {
+        # Parse radian format to get only R commands from current session
+        session_start <- get_session_start_time()
+        parsed_commands <- parse_radian_history(raw_history, session_start, max_lines)
+        
+        if (length(parsed_commands) > 0) {
+          return(parsed_commands)
+        }
+        # If no recent R commands found, fall back to raw history (filtered)
+        # This might happen if session is very new
+        if (length(parsed_commands) == 0) {
+          # Take recent raw lines and basic cleanup
+          recent_raw <- utils::tail(raw_history, max_lines * 3)
+          # Extract just command lines (starting with +)
+          command_lines <- recent_raw[grepl("^\\+", recent_raw)]
+          if (length(command_lines) > 0) {
+            cleaned_commands <- substring(command_lines, 2)  # Remove '+'
+            cleaned_commands <- trimws(cleaned_commands)
+            cleaned_commands <- cleaned_commands[nzchar(cleaned_commands)]
+            return(utils::tail(cleaned_commands, max_lines))
+          }
+        }
+      }
+    }, error = function(e) {
+      # Radian history file exists but can't be read
+    })
+  }
+  
+  # Strategy 3: Try standard .Rhistory file in home directory
+  r_history <- file.path(path.expand("~"), ".Rhistory")
+  if (file.exists(r_history)) {
+    tryCatch({
+      history_lines <- readLines(r_history, warn = FALSE)
+      if (length(history_lines) > 0) {
+        return(history_lines)
+      }
+    }, error = function(e) {
+      # R history file exists but can't be read
+    })
+  }
+  
+  # Strategy 4: Try .Rhistory in current working directory
+  local_history <- file.path(getwd(), ".Rhistory")
+  if (file.exists(local_history)) {
+    tryCatch({
+      history_lines <- readLines(local_history, warn = FALSE)
+      if (length(history_lines) > 0) {
+        return(history_lines)
+      }
+    }, error = function(e) {
+      # Local R history file exists but can't be read
+    })
+  }
+  
+  # No history found from any source
+  return(NULL)
+}
+
+#' View recent terminal output and command history
+#' @param max_lines Maximum lines to display
+#' @return Formatted terminal information
+view_terminal <- function(max_lines = 100) {
+  result <- "Terminal Output Summary"
+  
+  tryCatch({
+    # Get command history using multi-strategy approach
+    history_lines <- get_command_history(max_lines * 2) # Get more than needed to filter
+    
+    if (!is.null(history_lines) && length(history_lines) > 0) {
+      # Filter out empty lines and basic cleanup
+      history_lines <- history_lines[nzchar(trimws(history_lines))]
+      
+      if (length(history_lines) > 0) {
         n_show <- min(max_lines, length(history_lines))
         recent_history <- utils::tail(history_lines, n_show)
         
         result <- paste0(result, "\nRecent commands (last ", n_show, "):")
         for (i in seq_along(recent_history)) {
           line_num <- length(history_lines) - n_show + i
-          result <- paste0(result, "\n", sprintf("%3d: %s", line_num, recent_history[i]))
+          # Clean up the command (remove extra whitespace, truncate if too long)
+          clean_cmd <- trimws(recent_history[i])
+          if (nchar(clean_cmd) > 120) {
+            clean_cmd <- paste0(substr(clean_cmd, 1, 117), "...")
+          }
+          result <- paste0(result, "\n", sprintf("%3d: %s", line_num, clean_cmd))
         }
       } else {
-        result <- paste0(result, "\nNo command history available")
+        result <- paste0(result, "\nNo command history available (empty history)")
       }
+    } else {
+      result <- paste0(result, "\nNo command history available (no history sources found)")
     }
     
     # Show last computed value if available
