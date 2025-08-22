@@ -74,8 +74,8 @@ format_sessions_table <- function(session_data) {
             max_time, s$timestamp)
   })
   
-  # Combine all parts
-  paste(c(separator, header, separator, rows, separator), collapse = "\n")
+  # Combine all parts - only separator between header and first row
+  paste(c(header, separator, rows), collapse = "\n")
 }
 
 #* @mcp_tool
