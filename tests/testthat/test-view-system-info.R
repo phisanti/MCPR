@@ -3,7 +3,7 @@
 
 test_that("view_installed_packages returns package info", {
   result <- MCPR:::view_installed_packages(20)
-  
+
   expect_type(result, "character")
   expect_true(grepl("Installed Packages Summary", result))
   expect_true(grepl("Total packages:", result))
@@ -12,7 +12,7 @@ test_that("view_installed_packages returns package info", {
 
 test_that("view_search_path returns search path info", {
   result <- MCPR:::view_search_path(15)
-  
+
   expect_type(result, "character")
   expect_true(grepl("Package Search Path", result))
   expect_true(grepl("Search path entries:", result))
@@ -24,7 +24,7 @@ test_that("system info functions handle different max_lines values", {
   small_result <- MCPR:::view_installed_packages(5)
   expect_type(small_result, "character")
   expect_true(grepl("Installed Packages Summary", small_result))
-  
+
   # Test with large max_lines
   large_result <- MCPR:::view_search_path(100)
   expect_type(large_result, "character")

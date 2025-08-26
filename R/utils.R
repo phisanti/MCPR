@@ -252,7 +252,7 @@ get_system_socket_url <- function() {
   # Use global state (set by .onLoad) with fallback to platform detection
   the$socket_url %||% switch(Sys.info()[["sysname"]],
     Linux = "abstract://MCPR-socket",
-    Windows = "ipc://MCPR-socket", 
+    Windows = "ipc://MCPR-socket",
     "ipc:///tmp/MCPR-socket"
   )
 }
@@ -274,21 +274,25 @@ describe_session <- function(detailed = FALSE) {
   } else {
     NULL
   }
-  
+
   if (detailed) {
     # Detailed version with timestamp for manage_r_sessions tool
     timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
     if (is.null(session_num)) {
-      sprintf("No session: %s (%s) - %s", 
-              getwd(), 
-              infer_ide(), 
-              timestamp)
+      sprintf(
+        "No session: %s (%s) - %s",
+        getwd(),
+        infer_ide(),
+        timestamp
+      )
     } else {
-      sprintf("%d: %s (%s) - %s", 
-              session_num, 
-              getwd(), 
-              infer_ide(), 
-              timestamp)
+      sprintf(
+        "%d: %s (%s) - %s",
+        session_num,
+        getwd(),
+        infer_ide(),
+        timestamp
+      )
     }
   } else {
     # Basic version for discovery ping responses

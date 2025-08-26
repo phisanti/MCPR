@@ -100,7 +100,7 @@ test_that("enhanced tool execution handles complex R objects", {
 })
 
 test_that("tool execution handles arrays correctly", {
-  # Test that numeric vectors are handled properly  
+  # Test that numeric vectors are handled properly
   array_tool <- function(numbers) sum(numbers)
 
   # This mimics how JSON arrays come in

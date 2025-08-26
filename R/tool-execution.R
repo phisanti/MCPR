@@ -18,11 +18,11 @@ has_mcpr_types_deep <- function(obj) {
     if (!is.null(obj[["_mcp_type"]])) {
       return(TRUE)
     }
-    
+
     # Check recursively
     return(any(sapply(obj, has_mcpr_types_deep, USE.NAMES = FALSE)))
   }
-  
+
   FALSE
 }
 
@@ -42,7 +42,7 @@ has_mcpr_types_deep <- function(obj) {
 #' @param client Optional client instance for communication handling
 #' @return Execution context object with structured parameters
 #' @export
-create_execution_context <- function(id, tool_name, arguments, 
+create_execution_context <- function(id, tool_name, arguments,
                                      tool = NULL, process = NULL, client = NULL) {
   list(
     id = id,
@@ -57,7 +57,7 @@ create_execution_context <- function(id, tool_name, arguments,
 }
 
 #' @title Decode Tool Arguments
-#' 
+#'
 #' @description
 #' Processes JSON arguments from MCP clients, reconstructing R object types
 #' that may have been serialized during transmission. Handles both legacy
@@ -85,16 +85,16 @@ create_execution_context <- function(id, tool_name, arguments,
 #'   ),
 #'   method = "mean"
 #' )
-#' 
+#'
 #' processed <- decode_tool_args(args_with_types)
 #' # Returns: list(data = c(1, 2, 3, 4, 5), method = "mean")
-#' 
+#'
 #' # Legacy arguments without type markers
 #' legacy_args <- list(
-#'   data = list(1, 2, 3, 4, 5),  # unnamed list
+#'   data = list(1, 2, 3, 4, 5), # unnamed list
 #'   method = "mean"
 #' )
-#' 
+#'
 #' processed <- decode_tool_args(legacy_args)
 #' # Applies legacy coercion for unnamed lists
 #' }
@@ -107,12 +107,12 @@ decode_tool_args <- function(arguments) {
     has_mcpr_types <- any(sapply(arguments, function(x) {
       is.list(x) && !is.null(x[["_mcp_type"]])
     }))
-    
+
     if (has_mcpr_types) {
       return(from_mcpr_json(arguments))
     }
   }
-  
+
   # Fallback
   return(arguments)
 }
@@ -151,11 +151,11 @@ decode_tool_args <- function(arguments) {
 #' request_data <- list(id = 1)
 #' result <- "Analysis complete"
 #' response <- encode_tool_results(request_data, result)
-#' 
+#'
 #' # Character vector result
 #' result <- c("Line 1", "Line 2", "Line 3")
 #' response <- encode_tool_results(request_data, result)
-#' 
+#'
 #' # Complex object result
 #' result <- data.frame(x = 1:5, y = letters[1:5])
 #' response <- encode_tool_results(request_data, result)
@@ -165,7 +165,7 @@ decode_tool_args <- function(arguments) {
 #' @seealso \code{\link{mcpr_serialize}} for complex object serialization
 encode_tool_results <- function(data, result) {
   is_error <- FALSE
-  
+
   # For simple text results
   if (is.character(result) && length(result) == 1) {
     return(jsonrpc_response(
@@ -173,13 +173,13 @@ encode_tool_results <- function(data, result) {
       list(
         content = list(list(
           type = "text",
-          text = result  # Use result directly, not paste(result, collapse = "\n")
+          text = result # Use result directly, not paste(result, collapse = "\n")
         )),
         isError = is_error
       )
     ))
   }
-  
+
   # For character vectors, join with newlines
   if (is.character(result) && length(result) > 1) {
     return(jsonrpc_response(
@@ -193,10 +193,10 @@ encode_tool_results <- function(data, result) {
       )
     ))
   }
-  
+
   # For complex objects, use rich type conversion
   serialized_result <- mcpr_serialize(result, pretty = TRUE)
-  
+
   jsonrpc_response(
     data$id,
     list(
@@ -224,7 +224,7 @@ decode_tool_response <- function(response_result) {
   if (is.list(response_result) && has_mcpr_types_deep(response_result)) {
     return(from_mcpr_json(response_result))
   }
-  
+
   # Return as-is for simple responses
   response_result
 }
@@ -241,7 +241,7 @@ decode_tool_response <- function(response_result) {
 #' @return JSON-RPC response object with results or error information
 execute_local_tool <- function(data) {
   tool_name <- data$params$name
-  
+
   # Enhanced argument processing with type reconstruction
   args <- decode_tool_args(data$params$arguments)
 
@@ -269,33 +269,33 @@ execute_local_tool <- function(data) {
 execute_remote_tool <- function(data) {
   # Encode arguments with type preservation
   encoded_args <- to_mcpr_json(data$params$arguments, auto_unbox = TRUE)
-  
+
   # Create messenger with client logging if available
   messenger <- if (!is.null(data$client) && !is.null(data$client$log_communication)) {
     MessageHandler$new(logger = data$client$log_communication)
   } else {
     MessageHandler$new()
   }
-  
+
   # Create JSON-RPC request
   request <- messenger$create_tool_request(
     id = data$id,
     tool = data$params$name,
     arguments = encoded_args
   )
-  
+
   # Send request and receive response
   response <- messenger$send_receive(
     process = data$process,
     message = request,
     context = "CLIENT"
   )
-  
+
   # Decode response with type reconstruction
   if (!is.null(response$result)) {
     response$result <- decode_tool_response(response$result)
   }
-  
+
   response
 }
 
@@ -353,7 +353,7 @@ execute_remote_tool <- function(data) {
 #'   tool = summary_stats_function
 #' )
 #' response <- execute_tool_call(local_data)
-#' 
+#'
 #' # Remote tool execution (client-side)
 #' remote_data <- list(
 #'   id = 2,

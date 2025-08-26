@@ -370,7 +370,7 @@ mcprClient <- R6::R6Class("mcprClient",
         }
       }
     },
-    
+
     # Logs JSON-RPC communication for protocol debugging and troubleshooting
     log_communication = function(message) {
       log_file <- "~/mcp_client_test.txt"

@@ -45,7 +45,7 @@ validate_mcpr_type_structure <- function(arg_spec, property_name = "argument") {
   if (!inherits(arg_spec, "mcpr_type")) {
     cli::cli_abort("Property {.field {property_name}} must be an mcpr_type object created with type_*() functions")
   }
-  
+
   # Validate mcpr_type object structure
   validate_mcpr_type_object(arg_spec, property_name)
 }
@@ -63,13 +63,13 @@ validate_mcpr_type_object <- function(mcpr_obj, property_name = "argument") {
   if (is.null(mcpr_obj$type)) {
     cli::cli_abort("Property {.field {property_name}} mcpr_type object must have a 'type' field")
   }
-  
+
   # Validate type field
   valid_types <- c("boolean", "integer", "number", "string", "enum", "array", "object")
   if (!mcpr_obj$type %in% valid_types) {
     cli::cli_abort("Property {.field {property_name}} has invalid type '{mcpr_obj$type}'. Valid types: {.val {valid_types}}")
   }
-  
+
   # Type-specific validation
   switch(mcpr_obj$type,
     "enum" = {

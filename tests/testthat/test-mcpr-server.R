@@ -14,7 +14,7 @@ tools_dir <- get_test_tools_dir()
 test_that("mcprServer initializes with default tools", {
   server <- mcprServer$new(.tools_dir = tools_dir)
   expect_true(inherits(server, "mcprServer"))
-  
+
   # Should have default built-in tools
   server_tools <- server$get_tools()
   expect_true("list_r_sessions" %in% names(server_tools))
@@ -93,16 +93,15 @@ test_that("mcpr_server convenience function creates and returns a server instanc
   })
 
   # Test with explicit ToolRegistry (recommended approach)
-  tools_dir <- "/Users/santiago/projects/MCPR/inst"  # or use get_test_tools_dir() helper
+  tools_dir <- "/Users/santiago/projects/MCPR/inst" # or use get_test_tools_dir() helper
   registry <- ToolRegistry$new(tools_dir = tools_dir)
   server_instance_registry <- mcpr_server(registry = registry)
   expect_s3_class(server_instance_registry, "mcprServer")
   expect_true(server_instance_registry$is_running(), "Server with registry should be running")
 
   # Test with empty registry (no tools)
-  empty_registry <- ToolRegistry$new(tools_dir = tempdir())  # empty directory
+  empty_registry <- ToolRegistry$new(tools_dir = tempdir()) # empty directory
   server_instance_empty <- mcpr_server(registry = empty_registry)
   expect_s3_class(server_instance_empty, "mcprServer")
   expect_true(server_instance_empty$is_running(), "Server with empty registry should be running")
-  
 })

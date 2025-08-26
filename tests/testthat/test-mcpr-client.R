@@ -3,7 +3,7 @@ test_that("mcprClient finalize implements graceful shutdown", {
   alive_state <- TRUE
   signal_called <- FALSE
   kill_called <- FALSE
-  
+
   mock_process <- list(
     is_alive = function() alive_state,
     signal = function(sig) {
@@ -18,14 +18,14 @@ test_that("mcprClient finalize implements graceful shutdown", {
       TRUE
     }
   )
-  
+
   # Create client instance and inject mock process
   client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(test_server = mock_process)
-  
+
   # Call finalize
   client$.__enclos_env__$private$finalize()
-  
+
   # Verify graceful shutdown was attempted
   expect_true(signal_called, "SIGTERM should be sent for graceful shutdown")
   expect_false(kill_called, "Kill should not be called if process responds to SIGTERM")
@@ -36,7 +36,7 @@ test_that("mcprClient finalize implements timeout and force kill", {
   alive_state <- TRUE
   signal_called <- FALSE
   kill_called <- FALSE
-  
+
   mock_process <- list(
     is_alive = function() alive_state,
     signal = function(sig) {
@@ -51,18 +51,18 @@ test_that("mcprClient finalize implements timeout and force kill", {
       TRUE
     }
   )
-  
+
   # Create client instance and inject mock process
   client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(test_server = mock_process)
-  
+
   # Override the timeout to be very short for testing
   finalize_fn <- client$.__enclos_env__$private$finalize
-  environment(finalize_fn)$timeout_ms <- 100  # 100ms timeout
-  
+  environment(finalize_fn)$timeout_ms <- 100 # 100ms timeout
+
   # Call finalize
   finalize_fn()
-  
+
   # Verify both graceful shutdown and force kill were attempted
   expect_true(signal_called, "SIGTERM should be sent for graceful shutdown")
   expect_true(kill_called, "Kill should be called after timeout")
@@ -77,25 +77,25 @@ test_that("mcprClient finalize handles dead processes", {
     signal_called = FALSE,
     kill_called = FALSE
   )
-  
+
   # Override methods to track calls
   mock_process$signal <- function(sig) {
     mock_process$signal_called <<- TRUE
     TRUE
   }
-  
+
   mock_process$kill <- function() {
     mock_process$kill_called <<- TRUE
     TRUE
   }
-  
+
   # Create client instance and inject mock process
   client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(test_server = mock_process)
-  
+
   # Call finalize
   client$.__enclos_env__$private$finalize()
-  
+
   # Verify no shutdown attempts on dead process
   expect_false(mock_process$signal_called, "No signal should be sent to dead process")
   expect_false(mock_process$kill_called, "No kill should be called on dead process")
@@ -106,12 +106,12 @@ test_that("mcprClient finalize handles multiple processes", {
   responsive_alive <- TRUE
   responsive_signal_called <- FALSE
   responsive_kill_called <- FALSE
-  
+
   responsive_process <- list(
     is_alive = function() responsive_alive,
     signal = function(sig) {
       responsive_signal_called <<- TRUE
-      responsive_alive <<- FALSE  # Dies gracefully
+      responsive_alive <<- FALSE # Dies gracefully
       TRUE
     },
     kill = function() {
@@ -119,31 +119,37 @@ test_that("mcprClient finalize handles multiple processes", {
       TRUE
     }
   )
-  
+
   # Create dead process
   dead_signal_called <- FALSE
   dead_kill_called <- FALSE
-  
+
   dead_process <- list(
     is_alive = function() FALSE,
-    signal = function(sig) { dead_signal_called <<- TRUE; TRUE },
-    kill = function() { dead_kill_called <<- TRUE; TRUE }
+    signal = function(sig) {
+      dead_signal_called <<- TRUE
+      TRUE
+    },
+    kill = function() {
+      dead_kill_called <<- TRUE
+      TRUE
+    }
   )
-  
+
   # Create client instance and inject mock processes
   client <- mcprClient$new()
   client$.__enclos_env__$private$.server_processes <- list(
     responsive = responsive_process,
     dead = dead_process
   )
-  
+
   # Call finalize
   client$.__enclos_env__$private$finalize()
-  
+
   # Verify correct behavior for each process type
   expect_true(responsive_signal_called, "Responsive process should receive SIGTERM")
   expect_false(responsive_kill_called, "Responsive process should not be killed")
-  
+
   expect_false(dead_signal_called, "Dead process should not receive signal")
   expect_false(dead_kill_called, "Dead process should not be killed")
 })
