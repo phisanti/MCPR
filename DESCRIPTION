@@ -53,3 +53,4 @@ Collate:
     'view-utils.R'
     'view-session-state.R'
     'view-system-info.R'
+    'install-mcpr.R'
