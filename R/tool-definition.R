@@ -281,7 +281,6 @@ check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()
 #' @param ... Additional named parameters to include in the tool annotations.
 #'
 #' @return A list of tool annotations.
-#' @export
 tool_annotations <- function(
   title = NULL,
   read_only_hint = NULL,
@@ -316,7 +315,6 @@ tool_annotations <- function(
 #'
 #' @param reason A character string describing the reason for rejecting the tool call
 #' @return Throws an error of class mcpr_tool_reject with the provided reason
-#' @export
 tool_reject <- function(
   reason = "The user has chosen to disallow the tool call."
 ) {

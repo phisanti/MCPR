@@ -16,7 +16,6 @@
 #' @param size_limit Maximum object size in bytes before large object handling (default: 1MB)
 #' @param custom_serializers List of custom serializers for specific classes
 #' @return JSON string representation of the R object
-#' @export
 #' @examples
 #' mcpr_serialize(list(result = 42, message = "success"))
 mcpr_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = get_mcpr_serializers()) {
@@ -43,7 +42,6 @@ mcpr_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e
 #'
 #' @param json JSON string to deserialize
 #' @return Reconstructed R object with preserved types
-#' @export
 #' @examples
 #' mcpr_deserialize('{"result": 42, "message": "success"}')
 mcpr_deserialize <- function(json) {
@@ -59,7 +57,6 @@ mcpr_deserialize <- function(json) {
 #'
 #' @param x R object to check for serialization compatibility
 #' @return TRUE if object can be serialized, FALSE otherwise
-#' @export
 can_serialize <- function(x) {
   tryCatch(
     {
@@ -85,7 +82,6 @@ can_serialize <- function(x) {
 #' @param chunk_size Number of rows per processing chunk
 #' @param callback Function to call with each processed chunk
 #' @return None (processes chunks through callback)
-#' @export
 stream_dataframe <- function(df, chunk_size = 1000, callback) {
   n_rows <- nrow(df)
   n_chunks <- ceiling(n_rows / chunk_size)
@@ -160,7 +156,6 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 #'   provide a value. Arguments with `required = FALSE` should have a default
 #'   value in the tool function's definition. If the LLM does not provide a
 #'   value, the default value will be used.
-#' @export
 #' @examples
 #' # An integer vector
 #' type_array(type_integer())
@@ -180,24 +175,20 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 type_boolean <- function(description = NULL, required = TRUE) {
   structure(list(type = "boolean", description = description, required = required), class = "mcpr_type")
 }
-#' @export
 #' @rdname type_boolean
 type_integer <- function(description = NULL, required = TRUE) {
   structure(list(type = "integer", description = description, required = required), class = "mcpr_type")
 }
-#' @export
 #' @rdname type_boolean
 type_number <- function(description = NULL, required = TRUE) {
   structure(list(type = "number", description = description, required = required), class = "mcpr_type")
 }
-#' @export
 #' @rdname type_boolean
 type_string <- function(description = NULL, required = TRUE) {
   structure(list(type = "string", description = description, required = required), class = "mcpr_type")
 }
 
 #' @param values Character vector of permitted values.
-#' @export
 #' @rdname type_boolean
 type_enum <- function(values, description = NULL, required = TRUE) {
   structure(list(type = "enum", values = values, description = description, required = required), class = "mcpr_type")
@@ -205,7 +196,6 @@ type_enum <- function(values, description = NULL, required = TRUE) {
 
 #' @param items The type of the array items. Can be created by any of the
 #'   `type_` function.
-#' @export
 #' @rdname type_boolean
 type_array <- function(items, description = NULL, required = TRUE) {
   structure(list(type = "array", items = items, description = description, required = required), class = "mcpr_type")
@@ -215,7 +205,6 @@ type_array <- function(items, description = NULL, required = TRUE) {
 #'   possess.
 #' @param .additional_properties Can the object have arbitrary additional
 #'   properties that are not explicitly listed? Only supported by Claude.
-#' @export
 #' @rdname type_boolean
 type_object <- function(
   .description = NULL,

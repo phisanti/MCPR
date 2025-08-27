@@ -66,7 +66,8 @@ test_that("get_mcptools_tools_as_json returns JSON-compatible format", {
   registry <- ToolRegistry$new()
   set_server_tools(registry = registry)
 
-  json_tools <- get_mcptools_tools_as_json()
+  server <- mcprServer$new(registry = registry)
+  json_tools <- server$get_tools("json")
   expect_true(is.list(json_tools))
 
   # Each tool should be JSON-compatible

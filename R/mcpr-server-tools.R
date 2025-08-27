@@ -32,7 +32,6 @@ set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
 #' Convert ToolDef to MCP JSON Format
 #'
 #' @return A named list of `ToolDef` objects.
-#' @export
 get_mcptools_tools <- function() {
   res <- the$server_tools
   stats::setNames(res, vapply(res, \(x) x$name, character(1)))
@@ -56,7 +55,6 @@ tool_as_json <- function(tool) {
 #' Convert tool arguments to JSON schema format
 #' @param arguments Named list of argument specifications
 #' @return JSON schema object
-#' @export
 convert_arguments_to_schema <- function(arguments) {
   if (length(arguments) == 0) {
     return(list(

@@ -23,7 +23,6 @@
 #' @param class_name Name of the R class to register serializer for
 #' @param serializer_func Function taking object and returning JSON-compatible representation
 #' @return None (registers serializer in global registry)
-#' @export
 #' @examples
 #' # Register a custom serializer for spatial data
 #' if (requireNamespace("sf", quietly = TRUE)) {
@@ -47,7 +46,6 @@ register_mcpr_serializer <- function(class_name, serializer_func) {
 #' for MCP protocol customization.
 #'
 #' @return Named list of custom serializer functions
-#' @export
 get_mcpr_serializers <- function() {
   as.list(.mcpr_custom_serializers)
 }

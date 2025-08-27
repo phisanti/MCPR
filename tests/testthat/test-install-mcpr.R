@@ -3,20 +3,24 @@
 # Validates input validation, path resolution, and configuration file handling.
 
 test_that("install_mcpr validates agent argument correctly", {
+  # No agent (NULL) should error with helpful message
+  expect_error(install_mcpr(), "No agent specified")
+  expect_error(install_mcpr(NULL), "No agent specified")
+  
   # Multiple agents should error
   expect_error(install_mcpr(c("claude", "gemini")), "Multiple agents specified")
   expect_error(install_mcpr(c("claude", "gemini", "copilot")), "Multiple agents specified")
 
   # Invalid agent
-  expect_error(install_mcpr("invalid_agent"), "should be one of")
+  expect_error(install_mcpr("invalid_agent"), "Invalid agent")
 
   # Empty agent vector
   expect_error(install_mcpr(character(0)), "No agent specified")
 })
 
 test_that("install_mcpr validates other arguments correctly", {
-  # Invalid scope
-  expect_error(install_mcpr("claude", scope = "invalid"), "should be one of")
+  # Invalid scope for Claude
+  expect_error(install_mcpr("claude", scope = "invalid"), "Invalid scope for Claude")
 
   # Invalid server_name
   expect_error(
@@ -104,7 +108,7 @@ test_that("install_mcpr provides appropriate error messages", {
   # Test that install_mcpr provides helpful error messages for common issues
 
   # Test with invalid agent (should be caught in validation)
-  expect_error(install_mcpr("invalid"), "should be one of")
+  expect_error(install_mcpr("invalid"), "Invalid agent")
 
   # Test with multiple agents (should be caught in validation)
   expect_error(install_mcpr(c("claude", "gemini")), "Multiple agents specified")

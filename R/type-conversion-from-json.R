@@ -29,7 +29,6 @@
 #'
 #' Note: Environments cannot be reconstructed and are replaced with marker objects.
 #'
-#' @export
 #' @examples
 #' # Simple JSON string
 #' json_str <- '{"a": 1, "b": ["hello", "world"]}'

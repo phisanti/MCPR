@@ -19,7 +19,6 @@
 #' }
 #'
 #' @param component_name Component identifier for logging (e.g., "SERVER", "SESSION", "CLIENT")
-#' @export
 BaseMCPR <- R6::R6Class("BaseMCPR",
   public = list(
     #' @description Initialize base MCPR functionality with component identification

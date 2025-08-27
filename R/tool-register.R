@@ -292,7 +292,6 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
 #' @return List of MCPR tool objects
 #'
 #' @seealso \code{\link{ToolRegistry}} for the underlying class
-#' @export
 register_tools <- function(tools_dir = "inst",
                            pattern = "tool-.*\\.R$",
                            recursive = FALSE,

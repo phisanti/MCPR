@@ -41,7 +41,6 @@ has_mcpr_types_deep <- function(obj) {
 #' @param process Optional remote server process for client-side execution
 #' @param client Optional client instance for communication handling
 #' @return Execution context object with structured parameters
-#' @export
 create_execution_context <- function(id, tool_name, arguments,
                                      tool = NULL, process = NULL, client = NULL) {
   list(
@@ -367,7 +366,6 @@ execute_remote_tool <- function(data) {
 #' response <- execute_tool_call(remote_data)
 #' }
 #'
-#' @export
 execute_tool_call <- function(data) {
   # Detect execution mode
   if (!is.null(data$tool) && is.function(data$tool)) {

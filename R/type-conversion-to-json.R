@@ -391,7 +391,6 @@
 #'   \item Environments (replaced with markers)
 #' }
 #'
-#' @export
 #' @examples
 #' # Basic types
 #' to_mcpr_json(list(a = 1, b = "hello"))

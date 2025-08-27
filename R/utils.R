@@ -110,7 +110,6 @@ compact_list <- function(x) {
 #' for enhanced user experience in different IDE contexts.
 #'
 #' @return Character string with IDE name
-#' @export
 infer_ide <- function() {
   first_cmd_arg <- commandArgs()[1]
   switch(first_cmd_arg,
@@ -132,7 +131,6 @@ infer_ide <- function() {
 #' @param x Left-hand side value to check
 #' @param y Right-hand side value (used if x is NULL)
 #' @return x if not NULL, otherwise y
-#' @export
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
 }
@@ -211,7 +209,6 @@ check_bool <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call =
 #'   If FALSE, returns diagnostic information as a list for programmatic use.
 #' @return If verbose=TRUE, returns socket number invisibly and prints messages.
 #'   If verbose=FALSE, returns list with socket_number, is_interactive, and has_session components.
-#' @export
 check_session_socket <- function(verbose = TRUE) {
   is_interactive_session <- interactive()
   has_mcp_session <- exists("session", envir = the) && !is.null(the$session)
@@ -247,7 +244,6 @@ check_session_socket <- function(verbose = TRUE) {
 #' Uses global state when available, otherwise falls back to platform detection.
 #'
 #' @return Character string with platform-appropriate socket URL base
-#' @export
 get_system_socket_url <- function() {
   # Use global state (set by .onLoad) with fallback to platform detection
   the$socket_url %||% switch(Sys.info()[["sysname"]],
@@ -267,7 +263,6 @@ get_system_socket_url <- function() {
 #' @param detailed Logical. If TRUE, includes timestamp for detailed session information.
 #'   If FALSE (default), returns basic session description for discovery pings.
 #' @return Character string with session description
-#' @export
 describe_session <- function(detailed = FALSE) {
   session_num <- if (exists("session", envir = the) && !is.null(the$session)) {
     the$session

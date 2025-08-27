@@ -15,7 +15,6 @@
 #'
 #' @param registry A ToolRegistry instance for tool discovery and management
 #' @param .tools_dir Internal parameter for specifying tools directory path
-#' @export
 #' @examples
 #' \dontrun{
 #' # Basic server initialization
@@ -38,6 +37,7 @@
 #' registry <- ToolRegistry$new(tools_dir = "path/to/tools")
 #' mcpr_server(registry = registry)
 #' }
+#' @export
 mcprServer <- R6::R6Class("mcprServer",
   inherit = BaseMCPR,
   public = list(
@@ -350,12 +350,3 @@ mcpr_server <- function(registry = NULL) {
   server$start()
   invisible(server)
 }
-
-#' Legacy Naming Assignment for MCP Server
-#'
-#' @title Legacy Naming Assignment for MCP Server
-#' @description Direct assignment alias for backward compatibility.
-#' Provides the old function name as a direct reference to the new function.
-#'
-#' @export
-mcp_server <- mcpr_server

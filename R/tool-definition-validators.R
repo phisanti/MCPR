@@ -12,7 +12,6 @@
 #' @param value The value to validate
 #' @param property_name Name of the property for error messages
 #' @return NULL if valid, throws error if invalid
-#' @export
 validate_tool_arguments <- function(value, property_name = "arguments") {
   # Must be a list
   if (!is.list(value)) {
@@ -108,7 +107,6 @@ validate_mcpr_type_object <- function(mcpr_obj, property_name = "argument") {
 #' @param value The value to validate
 #' @param property_name Name of the property for error messages
 #' @return NULL if valid, throws error if invalid
-#' @export
 validate_tool_name <- function(value, property_name = "name") {
   if (length(value) != 1) {
     cli::cli_abort("Property {.field {property_name}} must be a single string, not {obj_type_friendly(value)}")
@@ -130,7 +128,6 @@ validate_tool_name <- function(value, property_name = "name") {
 #' @param value The value to validate
 #' @param property_name Name of the property for error messages
 #' @return NULL if valid, throws error if invalid
-#' @export
 validate_tool_description <- function(value, property_name = "description") {
   if (!is.character(value) || length(value) != 1) {
     cli::cli_abort("Property {.field {property_name}} must be a single string, not {obj_type_friendly(value)}")
@@ -149,7 +146,6 @@ validate_tool_description <- function(value, property_name = "description") {
 #' @param value The value to validate
 #' @param property_name Name of the property for error messages
 #' @return NULL if valid, throws error if invalid
-#' @export
 validate_tool_fun <- function(value, property_name = "fun") {
   if (!is.function(value)) {
     cli::cli_abort("Property {.field {property_name}} must be a function, not {obj_type_friendly(value)}")
