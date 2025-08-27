@@ -40,7 +40,7 @@ execute_r_code <- function(code) {
   }
   
   # Capture console output
-  output_capture <- capture.output({
+  output_capture <- utils::capture.output({
     tryCatch({
       # Execute the code with warning handling
       withCallingHandlers({
@@ -97,14 +97,14 @@ execute_r_code <- function(code) {
                   "with", nrow(result$result), "rows and", 
                   ncol(result$result), "columns")
           } else {
-            paste("Result:", capture.output(print(result$result)), collapse = "\n")
+            paste("Result:", utils::capture.output(print(result$result)), collapse = "\n")
           }
         } else if (length(result$result) > 20) {
           # For long vectors, show summary
           paste("Result: Vector of length", length(result$result), 
-                "- first few values:", paste(head(result$result, 10), collapse = ", "))
+                "- first few values:", paste(utils::head(result$result, 10), collapse = ", "))
         } else {
-          paste("Result:", capture.output(print(result$result)), collapse = "\n")
+          paste("Result:", utils::capture.output(print(result$result)), collapse = "\n")
         }
       }, error = function(e) {
         paste("Result: [Object of class", class(result$result)[1], "]")

@@ -153,7 +153,7 @@ from_mcpr_json <- function(json) {
         } else if (mcp_type == "formula") {
           # Reconstruct formula
           formula_str <- if (is.list(obj$formula)) obj$formula[[1]] else obj$formula
-          return(as.formula(formula_str))
+          return(stats::as.formula(formula_str))
         } else if (mcp_type == "language") {
           # Reconstruct language objects
           return(parse(text = obj$expression)[[1]])

@@ -24,7 +24,7 @@
 # Handle large objects
 .mcpr_convert_large_object <- function(x, auto_unbox = TRUE, size_limit = 1e6,
                                        custom_serializers = list(), ...) {
-  obj_size <- object.size(x)
+  obj_size <- utils::object.size(x)
   if (obj_size <= size_limit) {
     return(NULL)
   }
@@ -35,7 +35,7 @@
       nrow = nrow(x),
       ncol = ncol(x),
       columns = names(x),
-      head = to_mcpr_json(head(x, 5),
+      head = to_mcpr_json(utils::head(x, 5),
         auto_unbox = auto_unbox,
         size_limit = Inf, custom_serializers = custom_serializers
       )
@@ -44,7 +44,7 @@
     preview <- list(
       length = length(x),
       type = typeof(x),
-      head = head(x, 100)
+      head = utils::head(x, 100)
     )
   }
 
@@ -53,7 +53,7 @@
     class = class(x),
     size = as.numeric(obj_size),
     size_human = format(obj_size, units = "auto"),
-    summary = capture.output(summary(x)),
+    summary = utils::capture.output(summary(x)),
     preview = preview
   )
 }
@@ -186,7 +186,7 @@
     return(NULL)
   }
   env_name <- environmentName(x)
-  if (env_name == "") env_name <- capture.output(print(x))[1]
+  if (env_name == "") env_name <- utils::capture.output(print(x))[1]
   list(
     name = jsonlite::unbox(env_name),
     `_mcp_type` = jsonlite::unbox("environment")
@@ -223,9 +223,9 @@
 
   tmp <- tempfile(fileext = ".png")
   on.exit(unlink(tmp), add = TRUE)
-  png(tmp, width = 800, height = 600)
-  replayPlot(x)
-  dev.off()
+  grDevices::png(tmp, width = 800, height = 600)
+  grDevices::replayPlot(x)
+  grDevices::dev.off()
 
   list(
     `_mcp_type` = "plot",
@@ -303,10 +303,10 @@
   if (!isS4(x)) {
     return(NULL)
   }
-  slots <- slotNames(x)
+  slots <- methods::slotNames(x)
   result <- list(`_mcp_type` = "S4", `_mcp_class` = class(x))
   for (s in slots) {
-    result[[s]] <- to_mcpr_json(slot(x, s),
+    result[[s]] <- to_mcpr_json(methods::slot(x, s),
       auto_unbox = auto_unbox,
       size_limit = size_limit,
       custom_serializers = custom_serializers
@@ -369,10 +369,6 @@
 #' @param size_limit Maximum object size in bytes before large object handling (default: 1MB)
 #' @param custom_serializers List of custom serializers for specific classes
 #' @return JSON-compatible representation with preserved type information
-#' @importFrom utils object.size capture.output head
-#' @importFrom grDevices png dev.off replayPlot
-#' @importFrom methods slotNames slot
-#' @importFrom stats as.formula
 #'
 #' @details
 #' The function handles the following R types:
@@ -415,7 +411,7 @@ to_mcpr_json <- function(x, auto_unbox = TRUE, size_limit = 1e6, custom_serializ
     return(NULL)
   } else if (class(x)[1] %in% names(custom_serializers)) {
     return(custom_serializers[[class(x)[1]]](x))
-  } else if (object.size(x) > size_limit) {
+  } else if (utils::object.size(x) > size_limit) {
     return(.mcpr_convert_large_object(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
   } else if (is.atomic(x) && is.numeric(x) && any(is.infinite(x) | is.nan(x), na.rm = TRUE)) {
     return(.mcpr_convert_special_numeric(x, auto_unbox = auto_unbox))

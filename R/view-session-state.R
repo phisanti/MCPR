@@ -101,7 +101,7 @@ view_session <- function(max_lines = 100) {
         total_size <- safe_eval(
           {
             sum(sapply(visible_objects[1:min(length(visible_objects), 20)], function(name) {
-              as.numeric(object.size(get(name, envir = .GlobalEnv)))
+              as.numeric(utils::object.size(get(name, envir = .GlobalEnv)))
             }))
           },
           0,

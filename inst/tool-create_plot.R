@@ -45,10 +45,10 @@ setup_graphics_device <- function(format = "png", width = 800, height = 600) {
   } else {
     # Fallback to standard R graphics devices
     switch(format,
-      "png" = png(tmp, width = width, height = height),
-      "jpeg" = jpeg(tmp, width = width, height = height, quality = 90),
-      "pdf" = pdf(tmp, width = width/100, height = height/100), # PDF uses inches
-      "svg" = svg(tmp, width = width/100, height = height/100)  # SVG uses inches
+      "png" = grDevices::png(tmp, width = width, height = height),
+      "jpeg" = grDevices::jpeg(tmp, width = width, height = height, quality = 90),
+      "pdf" = grDevices::pdf(tmp, width = width/100, height = height/100), # PDF uses inches
+      "svg" = grDevices::svg(tmp, width = width/100, height = height/100)  # SVG uses inches
     )
     return(list(type = "standard", file = tmp))
   }
@@ -78,26 +78,26 @@ get_plot_data <- function(device_info, format = "png", width = 800, height = 600
       # Fallback: copy httpgd device to file using dev.copy
       switch(format,
         "png" = {
-          dev.copy(png, device_info$file, width = width, height = height)
-          dev.off()
+          grDevices::dev.copy(grDevices::png, device_info$file, width = width, height = height)
+          grDevices::dev.off()
         },
         "jpeg" = {
-          dev.copy(jpeg, device_info$file, width = width, height = height, quality = 90)
-          dev.off()
+          grDevices::dev.copy(grDevices::jpeg, device_info$file, width = width, height = height, quality = 90)
+          grDevices::dev.off()
         },
         "pdf" = {
-          dev.copy(pdf, device_info$file, width = width/100, height = height/100)
-          dev.off()
+          grDevices::dev.copy(grDevices::pdf, device_info$file, width = width/100, height = height/100)
+          grDevices::dev.off()
         },
         "svg" = {
-          dev.copy(svg, device_info$file, width = width/100, height = height/100)
-          dev.off()
+          grDevices::dev.copy(grDevices::svg, device_info$file, width = width/100, height = height/100)
+          grDevices::dev.off()
         }
       )
     })
   } else {
     # Standard device - just close it
-    dev.off()
+    grDevices::dev.off()
   }
   
   # Determine MIME type
@@ -269,8 +269,8 @@ create_plot <- function(expr, width = 600, height = 450, format = "png",
     
   }, error = function(e) {
     # Clean up any active devices on error
-    if (dev.cur() != 1) {
-      try(dev.off(), silent = TRUE)
+    if (grDevices::dev.cur() != 1) {
+      try(grDevices::dev.off(), silent = TRUE)
     }
     stop("Error creating plot: ", e$message)
   })
