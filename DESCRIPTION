@@ -1,16 +1,31 @@
 Package: MCPR
 Type: Package
-Title: Model Context Protocol for R
+Title: MCPR: Model Context Protocol Implementation for R Session Integration
 Version: 0.0.2
 Authors@R: 
     person("Santiago", "Cano-Muniz", , "tisalon@outlook.com", role = c("aut", "cre"))
 Author: Santiago Cano-Muniz [aut, cre]
 Maintainer: Santiago Cano-Muniz <tisalon@outlook.com>
-Description: Provides Model Context Protocol (MCP) tools to enable models to access and interact with R sessions.
+Description: Provides a robust implementation of the Model Context Protocol (MCP) 
+    for R, bridging the execution model gap between AI coding assistants and 
+    interactive R workflows. Transforms AI-R interaction from stateless script 
+    execution to collaborative session participation through JSON-RPC 2.0 
+    communication over nanonext sockets. Core capabilities include persistent 
+    workspace management, intelligent graphics rendering with token optimization, 
+    comprehensive session introspection, and multi-session coordination. 
+    Designed with principles of modularity, cross-platform compatibility, and 
+    enterprise-grade reliability. Integrates seamlessly with existing R workflows 
+    while providing standardized tool interfaces for AI agent communication. 
+    Suitable for development environments requiring stateful AI assistance and 
+    collaborative analytical workflows.
+URL: https://github.com/phisanti/MCPR
+BugReports: https://github.com/phisanti/MCPR/issues
 License: CC BY 4.0 + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+Depends: 
+    R (>= 4.0.0)
 Imports:
     R6,
     cli,
@@ -27,8 +42,16 @@ Imports:
     methods,
     stats
 Suggests: 
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    httpgd,
+    ggplot2,
+    withr,
+    mockery,
+    knitr,
+    rmarkdown
 Config/testthat/edition: 3
+VignetteBuilder: knitr
+SystemRequirements: Unix sockets (Unix), Named pipes (Windows)
 Collate: 
     'aaa.R'
     'logger.R'
