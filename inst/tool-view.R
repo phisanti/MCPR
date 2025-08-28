@@ -46,9 +46,9 @@ view <- function(what = "session", max_lines = 100) {
   
   # Format final response
   if (is.character(result) && length(result) > 0) {
-    paste0("✓ View completed: ", what, "\n\n", paste(result, collapse = "\n"))
+    paste0("View completed: ", what, "\n\n", paste(result, collapse = "\n"))
   } else {
-    paste0("✓ View completed, but no information available for: ", what)
+    paste0("View completed, but no information available for: ", what)
   }
 }
 
