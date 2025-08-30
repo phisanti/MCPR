@@ -18,7 +18,7 @@ Description: Provides a robust implementation of the Model Context Protocol (MCP
     while providing standardized tool interfaces for AI agent communication. 
     Suitable for development environments requiring stateful AI assistance and 
     collaborative analytical workflows.
-URL: https://github.com/phisanti/MCPR
+URL: https://phisanti.github.io/MCPR/, https://github.com/phisanti/MCPR
 BugReports: https://github.com/phisanti/MCPR/issues
 License: CC BY 4.0 + file LICENSE
 Encoding: UTF-8
