@@ -79,6 +79,7 @@ tool <- function(
 #' @param arguments Named list of argument type definitions
 #' @param convert Automatic JSON type conversion flag (default: TRUE)
 #' @param annotations Additional metadata for tool behavior hints
+#' @noRd
 ToolDef <- R6::R6Class("ToolDef",
   public = list(
     #' @description Initialize ToolDef with validation
@@ -217,6 +218,7 @@ ToolDef <- R6::R6Class("ToolDef",
 #' @param formals Function formals to validate against
 #' @param call Calling environment for error reporting
 #' @return NULL (invisible) if valid, throws error if invalid
+#' @noRd
 check_arguments <- function(arguments, formals, call = rlang::caller_env()) {
   if (!is.list(arguments) || !(length(arguments) == 0 || rlang::is_named(arguments))) {
     cli::cli_abort("Arguments must be a named list", call = call)
@@ -253,6 +255,7 @@ check_arguments <- function(arguments, formals, call = rlang::caller_env()) {
 #' @param arg Argument name for error reporting
 #' @param call Calling environment for error reporting
 #' @return NULL (invisible) if valid, throws error if invalid
+#' @noRd
 check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
   if (!R6::is.R6(x) || !inherits(x, "ToolDef")) {
     cli::cli_abort("{.arg {arg}} must be a <ToolDef>", call = call)
@@ -281,6 +284,7 @@ check_tool <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()
 #' @param ... Additional named parameters to include in the tool annotations.
 #'
 #' @return A list of tool annotations.
+#' @noRd
 tool_annotations <- function(
   title = NULL,
   read_only_hint = NULL,
@@ -315,6 +319,7 @@ tool_annotations <- function(
 #'
 #' @param reason A character string describing the reason for rejecting the tool call
 #' @return Throws an error of class mcpr_tool_reject with the provided reason
+#' @noRd
 tool_reject <- function(
   reason = "The user has chosen to disallow the tool call."
 ) {
@@ -335,6 +340,7 @@ tool_reject <- function(
 #' registry and MCP protocol interactions.
 #'
 #' @return Character string with unique tool name format
+#' @noRd
 unique_tool_name <- function() {
   the$cur_tool_id <- (the$cur_tool_id %||% 0) + 1
   sprintf("tool_%03d", the$cur_tool_id)

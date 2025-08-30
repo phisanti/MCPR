@@ -12,6 +12,7 @@
 #'
 #' @param obj Object to check for type markers
 #' @return Logical indicating presence of MCP type markers
+#' @noRd
 has_mcpr_types_deep <- function(obj) {
   if (is.list(obj)) {
     # Check current level for _mcp_type
@@ -41,6 +42,7 @@ has_mcpr_types_deep <- function(obj) {
 #' @param process Optional remote server process for client-side execution
 #' @param client Optional client instance for communication handling
 #' @return Execution context object with structured parameters
+#' @noRd
 create_execution_context <- function(id, tool_name, arguments,
                                      tool = NULL, process = NULL, client = NULL) {
   list(
@@ -100,6 +102,7 @@ create_execution_context <- function(id, tool_name, arguments,
 #'
 #' @keywords internal
 #' @seealso \code{\link{from_mcpr_json}} for type reconstruction details
+#' @noRd
 decode_tool_args <- function(arguments) {
   if (is.list(arguments)) {
     # Check if any arguments have MCP type markers
@@ -162,6 +165,7 @@ decode_tool_args <- function(arguments) {
 #'
 #' @keywords internal
 #' @seealso \code{\link{mcpr_serialize}} for complex object serialization
+#' @noRd
 encode_tool_results <- function(data, result) {
   is_error <- FALSE
 
@@ -218,6 +222,7 @@ encode_tool_results <- function(data, result) {
 #'
 #' @param response_result Result portion of JSON-RPC response
 #' @return Decoded R objects with proper types or original response if no markers
+#' @noRd
 decode_tool_response <- function(response_result) {
   # Check if response contains MCP type markers
   if (is.list(response_result) && has_mcpr_types_deep(response_result)) {
@@ -238,6 +243,7 @@ decode_tool_response <- function(response_result) {
 #'
 #' @param data Local execution context containing tool function and parameters
 #' @return JSON-RPC response object with results or error information
+#' @noRd
 execute_local_tool <- function(data) {
   tool_name <- data$params$name
 
@@ -265,6 +271,7 @@ execute_local_tool <- function(data) {
 #'
 #' @param data Remote execution context containing process and client information
 #' @return Parsed response from remote server with type reconstruction
+#' @noRd
 execute_remote_tool <- function(data) {
   # Encode arguments with type preservation
   encoded_args <- to_mcpr_json(data$params$arguments, auto_unbox = TRUE)
@@ -366,6 +373,7 @@ execute_remote_tool <- function(data) {
 #' response <- execute_tool_call(remote_data)
 #' }
 #'
+#' @noRd
 execute_tool_call <- function(data) {
   # Detect execution mode
   if (!is.null(data$tool) && is.function(data$tool)) {

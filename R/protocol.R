@@ -5,6 +5,7 @@
 #' Define server capabilities for the MCP 'initialize' handshake
 #'
 #' @return A list describing the server's capabilities.
+#' @noRd
 capabilities <- function() {
   list(
     protocolVersion = "2024-11-05",
@@ -31,6 +32,7 @@ capabilities <- function() {
 #' Output a JSON-formatted object to stdout
 #'
 #' @param x The object to convert to JSON and print.
+#' @noRd
 cat_json <- function(x) {
   nanonext::write_stdout(to_json(x))
 }
@@ -46,6 +48,7 @@ cat_json <- function(x) {
 #' @param tool Tool name to execute
 #' @param arguments Tool arguments (default: empty list)
 #' @return JSON-RPC request list for tool execution
+#' @noRd
 create_tool_request <- function(id, tool, arguments = list()) {
   params <- if (length(arguments) == 0) {
     list(name = tool)
@@ -69,6 +72,7 @@ create_tool_request <- function(id, tool, arguments = list()) {
 #' features and protocol compliance. Enables proper MCP protocol establishment.
 #'
 #' @return Capabilities list with protocol version and feature support
+#' @noRd
 create_capabilities <- function() {
   list(
     protocolVersion = "2024-11-05",
@@ -98,6 +102,7 @@ create_capabilities <- function() {
 #' @param result Success result of method execution (mutually exclusive with error)
 #' @param error Error object if method execution failed (mutually exclusive with result)
 #' @return List representing JSON-RPC 2.0 response
+#' @noRd
 jsonrpc_response <- function(id, result = NULL, error = NULL) {
   if (!xor(is.null(result), is.null(error))) {
     cli::cli_warn("Either `result` or `error` must be provided, but not both.")
@@ -117,6 +122,7 @@ jsonrpc_response <- function(id, result = NULL, error = NULL) {
 #' @description Simple wrapper around from_mcpr_json for compatibility with ToolDef
 #' @param args Named list of arguments from JSON
 #' @return List with converted R objects
+#' @noRd
 convert_json_types <- function(args) {
   # Simple pass-through for now - could be enhanced later
   if (is.list(args)) {
@@ -150,6 +156,7 @@ convert_json_types <- function(args) {
 #' @param client_name Client name for identification (default: "MCP Test Client")
 #' @param client_version Client version string (default: "0.1.0")
 #' @return Initialization request list for MCP protocol handshake
+#' @noRd
 create_initialize_request <- function(client_name = "MCP Test Client", client_version = "0.1.0") {
   list(
     jsonrpc = "2.0",
@@ -172,6 +179,7 @@ create_initialize_request <- function(client_name = "MCP Test Client", client_ve
 #'
 #' @param id Request ID for response matching (default: 2)
 #' @return Tools list request for MCP tool discovery
+#' @noRd
 create_tools_list_request <- function(id = 2) {
   list(
     jsonrpc = "2.0",

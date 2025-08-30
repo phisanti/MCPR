@@ -7,6 +7,7 @@
 #' View installed packages with metadata
 #' @param max_lines Maximum lines to display
 #' @return Formatted installed packages information
+#' @noRd
 view_installed_packages <- function(max_lines = 100) {
   result <- "Installed Packages Summary"
 
@@ -127,6 +128,7 @@ view_installed_packages <- function(max_lines = 100) {
 #' View package search path and namespace information
 #' @param max_lines Maximum lines to display
 #' @return Formatted search path information
+#' @noRd
 view_search_path <- function(max_lines = 100) {
   result <- "Package Search Path"
 

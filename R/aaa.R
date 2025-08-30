@@ -6,6 +6,7 @@
 #' inter-process communication channels. Ensures state isolation from user
 #' workspace while maintaining package-wide accessibility for session
 #' management and tool execution coordination.
+#' @noRd
 the <- rlang::new_environment()
 
 #' Server Process Registry

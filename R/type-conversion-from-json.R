@@ -42,6 +42,7 @@
 #' )
 #' json <- mcpr_serialize(original)
 #' reconstructed <- from_mcpr_json(json)
+#' @noRd
 from_mcpr_json <- function(json) {
   # If it's a string, parse it first
   if (is.character(json) && length(json) == 1) {

@@ -11,6 +11,7 @@
 #' @param registry A ToolRegistry instance to use for tool discovery. If NULL,
 #'   an empty tools list is set.
 #' @param call The calling environment.
+#' @noRd
 set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
   # Handle ToolRegistry parameter
   if (!is.null(registry)) {
@@ -32,6 +33,7 @@ set_server_tools <- function(registry = NULL, call = rlang::caller_env()) {
 #' Convert ToolDef to MCP JSON Format
 #'
 #' @return A named list of `ToolDef` objects.
+#' @noRd
 get_mcptools_tools <- function() {
   res <- the$server_tools
   stats::setNames(res, vapply(res, \(x) x$name, character(1)))
@@ -41,6 +43,7 @@ get_mcptools_tools <- function() {
 #'
 #' @param tool A ToolDef object containing name, description, and typed arguments
 #' @return List with name, description, and inputSchema fields for MCP protocol
+#' @noRd
 tool_as_json <- function(tool) {
   # Convert tool arguments to JSON schema format
   inputSchema <- convert_arguments_to_schema(tool$arguments)
@@ -55,6 +58,7 @@ tool_as_json <- function(tool) {
 #' Convert tool arguments to JSON schema format
 #' @param arguments Named list of argument specifications
 #' @return JSON schema object
+#' @noRd
 convert_arguments_to_schema <- function(arguments) {
   if (length(arguments) == 0) {
     return(list(

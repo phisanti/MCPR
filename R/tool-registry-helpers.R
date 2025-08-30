@@ -14,6 +14,7 @@
 #' @param env Environment where the function is defined
 #' @param file_path Path of file being parsed (for logging purposes)
 #' @return ToolDef object or NULL on failure
+#' @noRd
 create_tool_from_block <- function(block, env, file_path) {
   # Extract function name from the block object
   func_name <- block$object$alias
@@ -63,6 +64,7 @@ create_tool_from_block <- function(block, env, file_path) {
 #'
 #' @param block Roxygen2 block object containing documentation tags
 #' @return Character string with extracted description
+#' @noRd
 extract_description <- function(block) {
   # Look for @description tag first
   desc_tag <- Find(function(tag) inherits(tag, "roxy_tag_description"), block$tags)
@@ -90,6 +92,7 @@ extract_description <- function(block) {
 #'
 #' @param param_tags List of roxy_tag_param objects from roxygen2 parsing
 #' @return Named list of MCPR type objects for tool arguments
+#' @noRd
 convert_to_schema <- function(param_tags) {
   mcpr_args <- list()
 

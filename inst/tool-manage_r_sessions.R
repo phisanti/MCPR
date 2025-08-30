@@ -7,6 +7,7 @@
 #' @description Helper function to format session list as aligned table
 #' @param session_data Character vector of session descriptions
 #' @return Formatted table string
+#' @noRd
 format_sessions_table <- function(session_data) {
   if (length(session_data) == 0) {
     return("No active R sessions found.")

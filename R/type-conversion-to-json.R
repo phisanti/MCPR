@@ -406,6 +406,7 @@
 #' to_mcpr_json(matrix(1:6, nrow = 2))
 #' to_mcpr_json(factor(c("a", "b", "a")))
 #' to_mcpr_json(3 + 4i)
+#' @noRd
 to_mcpr_json <- function(x, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = list()) {
   if (is.null(x)) {
     return(NULL)

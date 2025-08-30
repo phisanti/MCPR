@@ -47,6 +47,7 @@
 #'
 #' @keywords internal
 #' @seealso \code{\link{from_mcpr_json}} for type reconstruction details
+#' @noRd
 decode_tool_args <- function(arguments) {
   if (is.list(arguments)) {
     # Check if any arguments have MCP type markers
@@ -109,6 +110,7 @@ decode_tool_args <- function(arguments) {
 #'
 #' @keywords internal
 #' @seealso \code{\link{mcpr_serialize}} for complex object serialization
+#' @noRd
 encode_tool_results <- function(data, result) {
   is_error <- FALSE
 
@@ -208,6 +210,7 @@ encode_tool_results <- function(data, result) {
 #'
 #' @keywords internal
 #' @seealso \code{\link{encode_tool_results}} for result formatting
+#' @noRd
 execute_tool_call <- function(data) {
   tool_name <- data$params$name
 

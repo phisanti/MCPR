@@ -7,6 +7,7 @@
 #' View R session information including objects and session details
 #' @param max_lines Maximum lines to display
 #' @return Formatted session information
+#' @noRd
 view_session <- function(max_lines = 100) {
   result <- "R Session Information"
 
@@ -129,6 +130,7 @@ view_session <- function(max_lines = 100) {
 #' @param session_start_time POSIXct timestamp of current R session start
 #' @param max_commands Maximum number of commands to return
 #' @return Character vector of R commands from current session
+#' @noRd
 parse_radian_history <- function(radian_lines, session_start_time = NULL, max_commands = 100) {
   if (length(radian_lines) == 0) {
     return(character(0))
@@ -199,6 +201,7 @@ parse_radian_history <- function(radian_lines, session_start_time = NULL, max_co
 
 #' Get current R session approximate start time
 #' @return POSIXct timestamp of estimated session start
+#' @noRd
 get_session_start_time <- function() {
   # Strategy 1: Check if we can get process start time
   tryCatch(
@@ -238,6 +241,7 @@ get_session_start_time <- function() {
 #' Get command history from multiple sources
 #' @param max_lines Maximum lines to retrieve
 #' @return Character vector of history lines or NULL if none found
+#' @noRd
 get_command_history <- function(max_lines = 100) {
   # Strategy 1: Try R's built-in savehistory (works in base R)
   tryCatch(
@@ -334,6 +338,7 @@ get_command_history <- function(max_lines = 100) {
 #' View recent terminal output and command history
 #' @param max_lines Maximum lines to display
 #' @return Formatted terminal information
+#' @noRd
 view_terminal <- function(max_lines = 100) {
   result <- "Terminal Output Summary"
 
@@ -417,6 +422,7 @@ view_terminal <- function(max_lines = 100) {
 #' View last error details and traceback
 #' @param max_lines Maximum lines to display
 #' @return Formatted error information
+#' @noRd
 view_last_error <- function(max_lines = 100) {
   result <- "Last Error Information"
 
@@ -514,6 +520,7 @@ view_last_error <- function(max_lines = 100) {
 #' View recent warnings from the session
 #' @param max_lines Maximum lines to display
 #' @return Formatted warnings information
+#' @noRd
 view_warnings <- function(max_lines = 100) {
   result <- "Recent Warnings Summary"
 
@@ -567,6 +574,7 @@ view_warnings <- function(max_lines = 100) {
 #' View current workspace directory structure
 #' @param max_lines Maximum lines to display
 #' @return Formatted workspace information
+#' @noRd
 view_workspace <- function(max_lines = 100) {
   result <- paste0("Workspace Directory: ", getwd())
 

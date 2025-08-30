@@ -4,6 +4,7 @@
 
 #' @title MCPRLogger - Minimal Flexible Logging
 #' @description Ultra-compact R6 logger focused on efficiency and flexibility
+#' @noRd
 MCPRLogger <- R6::R6Class("MCPRLogger",
   private = list(
     .file = NULL,

@@ -18,6 +18,7 @@
 #' @return JSON string representation of the R object
 #' @examples
 #' mcpr_serialize(list(result = 42, message = "success"))
+#' @noRd
 mcpr_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e6, custom_serializers = get_mcpr_serializers()) {
   # Convert to MCP-compatible format
   mcp_obj <- to_mcpr_json(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers)
@@ -44,6 +45,7 @@ mcpr_serialize <- function(x, pretty = FALSE, auto_unbox = TRUE, size_limit = 1e
 #' @return Reconstructed R object with preserved types
 #' @examples
 #' mcpr_deserialize('{"result": 42, "message": "success"}')
+#' @noRd
 mcpr_deserialize <- function(json) {
   from_mcpr_json(json)
 }
@@ -57,6 +59,7 @@ mcpr_deserialize <- function(json) {
 #'
 #' @param x R object to check for serialization compatibility
 #' @return TRUE if object can be serialized, FALSE otherwise
+#' @noRd
 can_serialize <- function(x) {
   tryCatch(
     {
@@ -82,6 +85,7 @@ can_serialize <- function(x) {
 #' @param chunk_size Number of rows per processing chunk
 #' @param callback Function to call with each processed chunk
 #' @return None (processes chunks through callback)
+#' @noRd
 stream_dataframe <- function(df, chunk_size = 1000, callback) {
   n_rows <- nrow(df)
   n_chunks <- ceiling(n_rows / chunk_size)
@@ -172,24 +176,29 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 #' # get this format back, but you should most of the time)
 #' type_string("The creation date, in YYYY-MM-DD format.")
 #' type_string("The update date, in dd/mm/yyyy format.")
+#' @noRd
 type_boolean <- function(description = NULL, required = TRUE) {
   structure(list(type = "boolean", description = description, required = required), class = "mcpr_type")
 }
 #' @rdname type_boolean
+#' @noRd
 type_integer <- function(description = NULL, required = TRUE) {
   structure(list(type = "integer", description = description, required = required), class = "mcpr_type")
 }
 #' @rdname type_boolean
+#' @noRd
 type_number <- function(description = NULL, required = TRUE) {
   structure(list(type = "number", description = description, required = required), class = "mcpr_type")
 }
 #' @rdname type_boolean
+#' @noRd
 type_string <- function(description = NULL, required = TRUE) {
   structure(list(type = "string", description = description, required = required), class = "mcpr_type")
 }
 
 #' @param values Character vector of permitted values.
 #' @rdname type_boolean
+#' @noRd
 type_enum <- function(values, description = NULL, required = TRUE) {
   structure(list(type = "enum", values = values, description = description, required = required), class = "mcpr_type")
 }
@@ -197,6 +206,7 @@ type_enum <- function(values, description = NULL, required = TRUE) {
 #' @param items The type of the array items. Can be created by any of the
 #'   `type_` function.
 #' @rdname type_boolean
+#' @noRd
 type_array <- function(items, description = NULL, required = TRUE) {
   structure(list(type = "array", items = items, description = description, required = required), class = "mcpr_type")
 }
@@ -206,6 +216,7 @@ type_array <- function(items, description = NULL, required = TRUE) {
 #' @param .additional_properties Can the object have arbitrary additional
 #'   properties that are not explicitly listed? Only supported by Claude.
 #' @rdname type_boolean
+#' @noRd
 type_object <- function(
   .description = NULL,
   ...,
@@ -234,6 +245,7 @@ type_object <- function(
 #' @param description Parameter description (used for string input type)
 #' @param input_type Either "definition" for string-based input or "json" for JSON schema objects
 #' @return MCPR type object with appropriate specification
+#' @noRd
 map_type_schema <- function(type_str, description = NULL, input_type = "definition") {
   if (input_type == "json") {
     # Handle JSON schema object input

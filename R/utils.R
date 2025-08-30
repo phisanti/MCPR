@@ -12,6 +12,7 @@
 #'
 #' @param x Vector or list to process
 #' @return Vector or list with NULL values removed
+#' @noRd
 drop_nulls <- function(x) {
   x[!vapply(x, is.null, FUN.VALUE = logical(1))]
 }
@@ -26,6 +27,7 @@ drop_nulls <- function(x) {
 #'
 #' @param ... Elements to include in named list
 #' @return Named list with provided elements
+#' @noRd
 named_list <- function(...) {
   res <- list(...)
   if (length(res) == 0) {
@@ -45,6 +47,7 @@ named_list <- function(...) {
 #' @param x R object to convert to JSON
 #' @param ... Additional arguments passed to jsonlite::toJSON
 #' @return JSON string representation of R object
+#' @noRd
 to_json <- function(x, ...) {
   jsonlite::toJSON(x, ..., auto_unbox = TRUE)
 }
@@ -60,6 +63,7 @@ to_json <- function(x, ...) {
 #'
 #' @param call Calling environment for error reporting
 #' @return None (throws error if interactive)
+#' @noRd
 check_not_interactive <- function(call = rlang::caller_env()) {
   if (rlang::is_interactive()) {
     cli::cli_abort(
@@ -83,6 +87,7 @@ check_not_interactive <- function(call = rlang::caller_env()) {
 #'
 #' @param .x List to process
 #' @return List with empty elements removed
+#' @noRd
 compact <- function(.x) {
   Filter(length, .x)
 }
@@ -97,6 +102,7 @@ compact <- function(.x) {
 #'
 #' @param x List to compact
 #' @return List with NULL values removed
+#' @noRd
 compact_list <- function(x) {
   Filter(Negate(is.null), x)
 }
@@ -110,6 +116,7 @@ compact_list <- function(x) {
 #' for enhanced user experience in different IDE contexts.
 #'
 #' @return Character string with IDE name
+#' @noRd
 infer_ide <- function() {
   first_cmd_arg <- commandArgs()[1]
   switch(first_cmd_arg,
@@ -149,6 +156,7 @@ infer_ide <- function() {
 #' @param arg Argument name for error messages
 #' @param call Calling environment for error reporting
 #' @return None (throws error if not valid function)
+#' @noRd
 check_function <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
   if (!is.function(x)) {
     cli::cli_abort("{.arg {arg}} must be a function, not {.obj_type_friendly {x}}", call = call)
@@ -168,6 +176,7 @@ check_function <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_e
 #' @param arg Argument name for error messages
 #' @param call Calling environment for error reporting
 #' @return None (throws error if not valid string)
+#' @noRd
 check_string <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
   if (allow_null && is.null(x)) {
     return()
@@ -190,6 +199,7 @@ check_string <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call
 #' @param arg Argument name for error messages
 #' @param call Calling environment for error reporting
 #' @return None (throws error if not valid boolean)
+#' @noRd
 check_bool <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
   if (allow_null && is.null(x)) {
     return()
@@ -209,6 +219,7 @@ check_bool <- function(x, allow_null = FALSE, arg = rlang::caller_arg(x), call =
 #'   If FALSE, returns diagnostic information as a list for programmatic use.
 #' @return If verbose=TRUE, returns socket number invisibly and prints messages.
 #'   If verbose=FALSE, returns list with socket_number, is_interactive, and has_session components.
+#' @noRd
 check_session_socket <- function(verbose = TRUE) {
   is_interactive_session <- interactive()
   has_mcp_session <- exists("session", envir = the) && !is.null(the$session)
@@ -244,6 +255,7 @@ check_session_socket <- function(verbose = TRUE) {
 #' Uses global state when available, otherwise falls back to platform detection.
 #'
 #' @return Character string with platform-appropriate socket URL base
+#' @noRd
 get_system_socket_url <- function() {
   # Use global state (set by .onLoad) with fallback to platform detection
   the$socket_url %||% switch(Sys.info()[["sysname"]],
@@ -263,6 +275,7 @@ get_system_socket_url <- function() {
 #' @param detailed Logical. If TRUE, includes timestamp for detailed session information.
 #'   If FALSE (default), returns basic session description for discovery pings.
 #' @return Character string with session description
+#' @noRd
 describe_session <- function(detailed = FALSE) {
   session_num <- if (exists("session", envir = the) && !is.null(the$session)) {
     the$session

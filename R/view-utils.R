@@ -8,6 +8,7 @@
 #' @param x Object to capture print output for
 #' @param max_print Maximum items to print
 #' @return Character vector of captured output lines
+#' @noRd
 capture_print <- function(x, max_print = 100) {
   # Set reproducible output options
   old_options <- list(
@@ -47,6 +48,7 @@ capture_print <- function(x, max_print = 100) {
 #' @param title Title/header for the result
 #' @param ... Additional content lines
 #' @return Formatted result string
+#' @noRd
 build_result <- function(title, ...) {
   content_lines <- list(...)
   content_lines <- content_lines[!sapply(content_lines, is.null)]
@@ -63,6 +65,7 @@ build_result <- function(title, ...) {
 #' @param item_name Name of items (singular)
 #' @param max_show Maximum to show
 #' @return Formatted count string
+#' @noRd
 format_count <- function(count, item_name, max_show = NULL) {
   if (count == 0) {
     return(paste0("No ", item_name, "s"))
@@ -84,6 +87,7 @@ format_count <- function(count, item_name, max_show = NULL) {
 #' Format file size in human readable format
 #' @param size_bytes Size in bytes
 #' @return Human readable size string
+#' @noRd
 format_file_size <- function(size_bytes) {
   if (is.na(size_bytes)) {
     return("")
@@ -104,6 +108,7 @@ format_file_size <- function(size_bytes) {
 #' @param text Text to truncate
 #' @param max_length Maximum length
 #' @return Truncated text
+#' @noRd
 truncate_text <- function(text, max_length = 100) {
   if (nchar(text) <= max_length) {
     return(text)
@@ -119,6 +124,7 @@ truncate_text <- function(text, max_length = 100) {
 #' @param fallback_message Fallback message on error
 #' @param include_error Whether to include error message
 #' @return Result or fallback message
+#' @noRd
 safe_eval <- function(expr, fallback_message = "Operation failed", include_error = TRUE) {
   tryCatch(
     {
@@ -137,6 +143,7 @@ safe_eval <- function(expr, fallback_message = "Operation failed", include_error
 #' Extract meaningful error information
 #' @param error Error object
 #' @return Formatted error description
+#' @noRd
 format_error_info <- function(error) {
   error_msg <- if (is.null(error$message)) "Unknown error" else error$message
 
@@ -153,6 +160,7 @@ format_error_info <- function(error) {
 #' @param path File path
 #' @param file_ext File extension
 #' @return TRUE if likely text file
+#' @noRd
 is_likely_text_file <- function(path, file_ext) {
   # Common text file extensions
   text_extensions <- c(
@@ -206,6 +214,7 @@ is_likely_text_file <- function(path, file_ext) {
 #' @param path File path
 #' @param max_lines Maximum lines to read
 #' @return Character vector of file lines or NULL on error
+#' @noRd
 get_file_content_preview <- function(path, max_lines = 10) {
   tryCatch(
     {

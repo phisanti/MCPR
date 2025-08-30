@@ -7,6 +7,7 @@
 #' @param file Path to the image file
 #' @param mime_type MIME type of the image (default: "image/png")
 #' @return A list with image content in base64 format
+#' @noRd
 response_image <- function(file, mime_type = "image/png") {
   if (!file.exists(file)) {
     stop("Image file does not exist: ", file)
@@ -26,6 +27,7 @@ response_image <- function(file, mime_type = "image/png") {
 #' @param width Width for the device
 #' @param height Height for the device
 #' @return Temporary file path where plot will be saved
+#' @noRd
 setup_graphics_device <- function(format = "png", width = 800, height = 600) {
   # Create temporary file
   file_ext <- switch(format,
@@ -61,6 +63,7 @@ setup_graphics_device <- function(format = "png", width = 800, height = 600) {
 #' @param width Width in pixels  
 #' @param height Height in pixels
 #' @return Image response with base64 encoded plot and token count
+#' @noRd
 get_plot_data <- function(device_info, format = "png", width = 800, height = 600) {
   
   if (device_info$type == "httpgd") {
@@ -136,6 +139,7 @@ get_plot_data <- function(device_info, format = "png", width = 800, height = 600
 #' @param target_tokens Target token limit
 #' @param current_format Current format used
 #' @return Character vector of suggestions
+#' @noRd
 generate_optimization_suggestions <- function(current_width, current_height, current_tokens, target_tokens, current_format = "png") {
   suggestions <- character()
   
