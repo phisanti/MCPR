@@ -65,7 +65,6 @@ Collate:
     'protocol.R'
     'tool-definition-validators.R'
     'tool-definition.R'
-    'tool-execution.R'
     'tool-register.R'
     'tool-registry-helpers.R'
     'type-conversion-from-json.R'
