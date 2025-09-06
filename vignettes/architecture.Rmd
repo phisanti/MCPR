@@ -1,0 +1,117 @@
+---
+title: "Overall Architecture"
+---
+
+The MCPR framework is built on a robust client-server architecture designed to bridge the gap between stateless AI agents and the stateful, interactive nature of R programming. This article delves into the technical design, communication flow, and core principles that enable this integration.
+
+At its heart, MCPR implements a client-server model with a unique session-joining paradigm, distinguishing it from typical stateless execution environments.
+
+```
+┌─────────────┐    JSON-RPC 2.0    ┌─────────────┐    Socket Comm    ┌─────────────┐
+│  AI Agent   │<──────────────────>│ MCPR Server │<─────────────────>│ R Session   │
+│  (Client)   │     via stdin/     │   (Proxy)   │   via nanonext    │ (Provider)  │
+└─────────────┘     stdout         └─────────────┘     sockets       └─────────────┘
+```
+
+This architecture consists of three primary components:
+
+1.  **The AI Agent (Client)**: This is the large language model operating within its environment (e.g., Claude Desktop, a VS Code extension). It communicates using a standardized JSON-RPC 2.0 protocol over `stdin`/`stdout`.
+2.  **The MCPR Server (Proxy)**: A transient, lightweight `Rscript` process that acts as a bridge. Its main roles are to discover active R sessions on the local machine and route messages between the AI Agent and the chosen R Session.
+3.  **The R Session (Provider)**: This is the user's interactive R session where the data analysis occurs. By running `mcpr_session()`, the user turns their R session into a service provider, listening for connections and executing tool calls within its persistent environment.
+
+## Communication Workflow
+
+The entire workflow is designed to be seamless from the user's perspective, but it involves a sophisticated sequence of events for discovery, connection, and execution.
+
+### Session Discovery and Connection
+
+Before an agent can execute code, it must first discover and connect to a running R session. This process ensures that the agent interacts with the correct R environment intended by the user.
+
+```{mermaid}
+sequenceDiagram
+    participant AI as AI Agent
+    participant Server as MCPR Server
+    participant Session as R Session
+    
+    Note over Session: User runs mcpr_session()
+    Session->>Session: Creates mcprSession instance & finds an open port
+    Session->>Session: Starts an asynchronous listener on a nanonext socket
+    
+    Note over AI: User asks agent to connect to R
+    AI->>Server: Launches MCPR Server process
+    Server->>Server: Initializes and scans local ports for active sessions
+    Server->>Session: Sends discovery ping via socket
+    Session->>Server: Responds with session metadata (ID, PID, etc.)
+    Server->>AI: Forwards available session list (result of 'manage_r_sessions("list")')
+    
+    Note over AI: User asks agent to join a specific session
+    AI->>Server: Sends 'manage_r_sessions("join", session=ID)'
+    Server->>Session: Establishes persistent connection for message routing
+    Session->>Server: Acknowledges connection
+    Server->>AI: Confirms the agent is now connected to the R session
+```
+
+### Tool Execution
+
+Once connected, the agent can use the provided tools (`execute_r_code`, `create_plot`, etc.). Each tool call follows a structured path from the agent to the R session and back, with careful handling of data types.
+
+```{mermaid}
+sequenceDiagram
+    participant AI as AI Agent
+    participant Server as MCPR Server
+    participant Session as R Session
+    participant Tool as Tool Function
+    
+    AI->>Server: JSON-RPC Request: {tool: "execute_r_code", args: {code: "..."}, ...}
+    Server->>Server: Validates tool exists
+    Server->>Session: Forwards the request via the established socket connection
+    Session->>Session: Deserializes arguments, reconstructing R objects from JSON
+    Session->>Tool: Executes the target R function (e.g., execute_r_code) with reconstructed arguments
+    Tool->>Session: Returns a standard R object (list, data.frame, etc.)
+    Session->>Session: Serializes the R result into a type-preserving JSON structure
+    Session->>Server: Sends JSON-RPC response containing the serialized result
+    Server->>AI: Forwards the final JSON response via stdout
+```
+
+## Key Design Principles
+
+The architecture is guided by several modern R development practices to ensure it is robust, maintainable, and extensible.
+
+### R6 Class-Based System
+
+MCPR heavily utilizes the R6 class system to manage state and behavior.
+
+-   **`BaseMCPR`**: A foundational class providing shared utilities like logging, state management, and resource cleanup.
+-   **`mcprServer` & `mcprClient`**: Concrete implementations for the server (proxy) and client (session) roles, inheriting common functionality from `BaseMCPR`.
+-   **`mcprSession`**: Manages the lifecycle of a single R session listener, including handling timeouts and ensuring proper resource cleanup on exit.
+
+### Layered Communication
+
+The communication stack is divided into distinct layers, each with a specific responsibility:
+
+1.  **Protocol Layer**: Handles the JSON-RPC 2.0 message structure, including requests, responses, and error notifications.
+2.  **Transport Layer**: Manages asynchronous, non-blocking communication using the `nanonext` package, which provides a robust socket-based messaging implementation.
+3.  **Execution Layer**: Dispatches requests to the appropriate local tool functions within the R session.
+4.  **Type Conversion Layer**: A critical component that handles the serialization (R to JSON) and deserialization (JSON to R) of data, preserving R's specific data types across the wire.
+
+### Advanced Type Preservation
+
+A significant challenge in cross-language communication is preserving data fidelity. A `data.frame` in R is not the same as a generic JSON array of objects. MCPR solves this by using a custom serialization system.
+
+When an R object is converted to JSON, a special `_mcp_type` marker is added to annotate the data. When the JSON is received, this marker is used to reconstruct the original R object with its correct class and attributes (e.g., `factor`, `Date`, `data.frame`). This ensures that code executed by the agent behaves exactly as if it were run directly in the R console.
+
+```{mermaid}
+sequenceDiagram
+    participant R_Side as R Environment
+    participant JSON_Transport as JSON Payload
+    participant Target_Side as Receiving Environment
+    
+    Note over R_Side: Has a data.frame object
+    R_Side->>R_Side: to_mcpr_json() serializes it
+    R_Side->>JSON_Transport: Sends JSON with {"_mcp_type": "data.frame", "value": [...] }
+    JSON_Transport->>Target_Side: Receives JSON with type metadata
+    Target_Side->>Target_Side: from_mcpr_json() uses "_mcp_type" to reconstruct the data.frame
+    Note over Target_Side: Now has a native data.frame object
+```
+
+This bidirectional, type-preserving communication is fundamental to MCPR's ability to maintain the integrity of the R workspace throughout a long and complex human-AI collaborative session.

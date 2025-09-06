@@ -1,0 +1,123 @@
+---
+title: "MCP Setup"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{MCP Setup}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# AI Agent Integration Guide
+
+This guide covers how to integrate MCPR with different AI coding assistants.
+
+## Supported Agents
+
+MCPR currently supports:
+- Claude Desktop
+- Gemini (via MCP)
+- GitHub Copilot (via MCP)
+
+## Claude Desktop Setup
+
+### Automatic Configuration
+```{r eval=FALSE}
+library(MCPR)
+install_mcpr(agent = "claude")
+```
+
+### Manual Configuration
+Edit your Claude Desktop config file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`  
+**Linux**: `~/.config/claude/claude_desktop_config.json`
+
+Add the MCP server configuration:
+
+```json
+{
+  "mcpServers": {
+    "mcpr": {
+      "command": "Rscript",
+      "args": ["-e", "MCPR::mcp_server()"],
+      "env": {
+        "R_LIBS_USER": "/path/to/your/R/library"
+      }
+    }
+  }
+}
+```
+
+## Using MCPR Tools
+
+Once configured, your AI agent will have access to these tools:
+
+### Session Management
+- `manage_r_sessions('list')` - List active R sessions
+- `manage_r_sessions('join', session=ID)` - Connect to a session
+- `manage_r_sessions('start')` - Start a new session
+
+### Code Execution  
+- `execute_r_code(code)` - Run R code in the connected session
+
+### Visualization
+- `create_plot(expr, width, height, format)` - Generate plots
+
+### Inspection
+- `view('session')` - View workspace objects
+- `view('terminal')` - View command history  
+- `view('workspace')` - View file system context
+
+## Workflow Examples
+
+### Data Analysis Workflow
+1. Start R session: `mcpr_session_start()`
+2. Agent joins session: `manage_r_sessions('join', session=1)`
+3. Load data: `execute_r_code("data <- read.csv('data.csv')")`
+4. Explore: `view('session')` to see loaded objects
+5. Visualize: `create_plot("plot(data$x, data$y)")`
+6. Iterate and refine analysis
+
+### Multi-Session Development
+- Session 1: Data preprocessing
+- Session 2: Model development  
+- Session 3: Visualization and reporting
+
+## Troubleshooting
+
+**Agent can't see tools**: Restart the agent after configuration.
+
+**Permission errors**: Check file paths and R library permissions.
+
+**Connection timeouts**: Increase timeout in MCP configuration.
+
+## Advanced Configuration
+
+### Custom Tool Paths
+```json
+{
+  "mcpServers": {
+    "mcpr": {
+      "command": "Rscript",
+      "args": ["-e", "MCPR::mcp_server()"],
+      "env": {
+        "MCPTOOLS_TOOLS_DIR": "/path/to/custom/tools",
+        "MCPTOOLS_LOG_FILE": "/path/to/logs/mcpr.log"
+      }
+    }
+  }
+}
+```
+
+### Environment Variables
+- `MCPTOOLS_LOG_FILE`: Path for debug logs
+- `MCPTOOLS_TOOLS_DIR`: Custom tools directory
+- `R_LIBS_USER`: R library path

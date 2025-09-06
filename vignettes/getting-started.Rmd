@@ -1,0 +1,194 @@
+---
+title: "Getting Started with MCPR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with MCPR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Getting Started with MCPR: Your First Session
+
+MCPR (Model Context Protocol for R) enables persistent, stateful collaboration between you and your AI assistant within live R sessions. Instead of losing context between interactions, your AI can work with variables, models, and data that persist throughout your conversation.
+
+## Installation and Setup
+
+```{r eval=FALSE}
+# Install MCPR
+if (!require("remotes")) install.packages("remotes")
+remotes::install_github("phisanti/MCPR")
+
+# Configure your AI agent (Claude, Gemini, or Copilot)
+library(MCPR)
+install_mcpr(agent = "claude")
+```
+
+## Your First MCPR Experience
+
+Let's walk through a basic session to see how MCPR works in practice.
+
+### Step 1: Start Your First R Session
+
+```{r eval=FALSE}
+# In your R console
+library(MCPR)
+mcpr_session_start()
+```
+
+You'll see output like:
+```
+✓ MCPR session started successfully
+✓ Session ID: 1
+✓ Ready for AI agent connections
+```
+
+### Step 2: Check Available Sessions
+
+Now you can ask your AI assistant:
+
+> **You:** "How many R sessions do I have running? What variables are in the workspace?"
+
+Your AI will use MCPR tools to respond:
+
+```r
+# Check available sessions
+manage_r_sessions("list")
+# Shows: Session 1 - /Users/you/projects - R framework
+
+# Check current variables
+ls()
+# Shows existing variables: x = 327, my_data (data.frame with 10 rows, 2 columns)
+```
+
+### Step 3: Create Some Variables
+
+> **You:** "Can you create some random variables in this session?"
+
+Your AI assistant executes:
+
+```r
+# Create multiple variables efficiently
+random_numbers <- runif(15, 1, 100)
+random_matrix <- matrix(rnorm(12), nrow = 3, ncol = 4)
+random_names <- sample(c("Alice", "Bob", "Charlie", "Diana", "Eve"), 8, replace = TRUE)
+random_df <- data.frame(
+  id = 1:6,
+  value = rnorm(6, mean = 50, sd = 10),
+  category = sample(letters[1:3], 6, replace = TRUE)
+)
+
+# Verify creation
+ls()
+```
+
+**Key insight:** All these variables now persist in your R session and remain available for future operations.
+
+### Step 4: Start a Second Session
+
+> **You:** "I want to start a second R session for different work"
+
+In a new R console, run:
+```{r eval=FALSE}
+mcpr_session_start()  # Creates Session 2
+```
+
+Now ask your AI:
+
+> **You:** "List all my sessions and check what variables are in each one"
+
+Your AI will:
+
+```r
+# List all sessions
+manage_r_sessions("list")
+# Shows: Session 1 and Session 2
+
+# Check Session 1 variables  
+manage_r_sessions("join", session = 1)
+ls()
+# Shows: x, my_data, random_numbers, random_matrix, random_names, random_df
+
+# Check Session 2 variables
+manage_r_sessions("join", session = 2)
+ls()
+# Shows: different variables (or empty if newly created)
+```
+
+### Step 5: Session Independence
+
+**Key discovery:** Each session maintains completely independent workspaces. Variables in Session 1 don't interfere with Session 2, allowing you to work on multiple projects simultaneously.
+
+## Core MCPR Tools
+
+### Session Management
+```{r eval=FALSE}
+# List all active sessions
+manage_r_sessions("list")
+
+# Join a specific session
+manage_r_sessions("join", session = 2)
+```
+
+### Code Execution
+```{r eval=FALSE}
+# Execute R code in the current session
+execute_r_code("
+  summary(random_df)
+  plot(random_numbers)
+")
+```
+
+### Workspace Inspection
+```{r eval=FALSE}
+# View current objects
+view("session")
+
+# View command history
+view("terminal")
+
+# View file system
+view("workspace")
+```
+
+### Plot Creation
+```{r eval=FALSE}
+# Create visualizations
+create_plot("
+  hist(random_numbers, main = 'Random Numbers Distribution')
+", width = 600, height = 400)
+```
+
+## Conclusion
+
+This little demo aims to show the capabilities of MCPR. It provides a persistent R environment that bridges the gap between traditional scripting and interactive AI agent collaboration:
+
+- **Stateful Programming**: Your AI agent maintains context across sessions, understanding your data and previous work
+- **Parallel Workflows**: Multiple independent environments let you compartmentalize different projects  
+- **Seamless Context Switching**: Move between sessions while your AI agent tracks workspace contents
+- **Interactive Analysis**: Discuss data, iterate on visualizations, and explore findings conversationally
+- **Persistent Collaboration**: Build complex analyses incrementally with your AI agent as a programming partner
+
+MCPR transforms R from isolated script execution into a collaborative workspace where your AI agent becomes an extension of your analytical thinking—whether you're exploring datasets, debugging complex models, or building reproducible research workflows.
+
+## Troubleshooting
+
+**"No sessions found"**: Start a session with `mcpr_session_start()`
+
+**"Connection failed"**: Verify MCPR installation with `install_mcpr()`
+
+**"Variables not found"**: Check you're in the correct session with `manage_r_sessions("list")`
+
+## Next Steps
+
+- **[AI Agent Integration](ai-agent-integration.html)**: Configure your specific AI agent
+- **[Tool Development](tool-development.html)**: Create custom tools for your workflow  
+- **[Architecture Overview](architecture.html)**: Understand how MCPR works internally
+
+You're now ready to use MCPR for persistent, collaborative R programming with your AI assistant!

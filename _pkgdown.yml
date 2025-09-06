@@ -1,0 +1,212 @@
+url: https://phisanti.github.io/MCPR/
+
+favicon:
+  apple_touch_icon_120x120: pkgdown/favicon/apple-touch-icon.png
+  apple_touch_icon_152x152: pkgdown/favicon/apple-touch-icon.png  
+  apple_touch_icon_180x180: pkgdown/favicon/apple-touch-icon.png
+  favicon_16x16: pkgdown/favicon/favicon-96x96.png
+  favicon_32x32: pkgdown/favicon/favicon-96x96.png
+  favicon_96x96: pkgdown/favicon/favicon-96x96.png
+  favicon_ico: pkgdown/favicon/favicon.ico
+
+home:
+  title: "MCPR: Stateful Human-AI Collaboration in R"
+  description: >
+    Transform AI-assisted R programming from stateless script execution 
+    to collaborative session participation through the Model Context Protocol.
+    
+    Experience the future of interactive data analysis with persistent AI sessions,
+    real-time workspace introspection, and seamless visual integration.
+  sidebar:
+    structure: [links, license, citation, authors, dev]
+    components:
+      citation:
+        title: "Citation"
+        text: >
+          If you use MCPR in your research, please cite:
+          
+          **Santiago Cano-Muniz** (2025). *MCPR: Model Context Protocol Implementation for R Session Integration.*
+      links:
+        title: "Essential Links"
+        text: |
+          - [GitHub Repository](https://github.com/phisanti/MCPR)
+          - [Report Issues](https://github.com/phisanti/MCPR/issues)
+          - [Model Context Protocol](https://modelcontextprotocol.io/)
+          - [Documentation](https://pkgdown.r-lib.org/)
+  strip_header: true
+  extra_file_patterns: ["!AGENT.md", "!CLAUDE.md"]
+
+template:
+  bootstrap: 5
+  bslib:
+    primary: "#0066cc"
+    base_font: 
+      google: "Inter"
+    code_font:
+      google: "JetBrains Mono"
+  includes:
+    in_header: |
+      <!-- MCPR Meta Tags -->
+      <meta name="description" content="MCPR: Transform AI-assisted R programming from stateless script execution to collaborative session participation through the Model Context Protocol.">
+      <meta name="keywords" content="R, AI, MCP, Model Context Protocol, data analysis, interactive programming, stateful sessions">
+      <meta name="author" content="Santiago Cano-Muniz">
+      <meta property="og:title" content="MCPR: Stateful Human-AI Collaboration in R">
+      <meta property="og:description" content="Experience the future of interactive data analysis with persistent AI sessions, real-time workspace introspection, and seamless visual integration.">
+      <meta property="og:type" content="website">
+      <meta property="og:url" content="https://phisanti.github.io/MCPR/">
+      <meta name="twitter:card" content="summary_large_image">
+      <meta name="twitter:title" content="MCPR: Stateful Human-AI Collaboration in R">
+      <meta name="twitter:description" content="Transform AI-assisted R programming with persistent AI sessions and interactive collaboration.">
+      
+      <!-- External Libraries -->
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+      <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+      <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css" rel="stylesheet">
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+      
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          // Initialize AOS animations
+          AOS.init({
+            duration: 800,
+            easing: 'ease-in-out-cubic',
+            once: true,
+            offset: 100
+          });
+          
+          // Mermaid configuration with MCPR theme
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            themeVariables: {
+              primaryColor: '#00d4ff',
+              primaryTextColor: '#f8f9fa',
+              primaryBorderColor: '#0099cc',
+              lineColor: '#20c997',
+              secondaryColor: '#1e2329',
+              tertiaryColor: '#2d3748',
+              background: '#0a0e14',
+              mainBkg: '#1a1e24',
+              secondBkg: '#2d3748',
+              tertiaryBkg: '#4a5568'
+            }
+          });
+          
+          // Convert pre.mermaid code blocks to div elements for rendering
+          document.querySelectorAll('pre.mermaid').forEach(function(element) {
+            var code = element.querySelector('code');
+            if (code) {
+              var div = document.createElement('div');
+              div.className = 'mermaid';
+              div.textContent = code.textContent;
+              element.parentNode.replaceChild(div, element);
+            }
+          });
+          
+          // Initialize mermaid after converting elements
+          mermaid.init();
+        });
+      </script>
+    after_body: |
+      <!-- MCPR Footer Enhancements -->
+      <script>
+        // Add subtle animations and interactions
+        document.addEventListener('DOMContentLoaded', function() {
+          // Animate elements on scroll
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('animate-on-load');
+              }
+            });
+          }, { threshold: 0.1 });
+          
+          document.querySelectorAll('.card, .highlight-box, h1, h2, h3').forEach(el => {
+            observer.observe(el);
+          });
+          
+          // Add copy button to code blocks
+          document.querySelectorAll('pre code').forEach(block => {
+            const button = document.createElement('button');
+            button.className = 'copy-code-btn';
+            button.innerHTML = '<i class="fas fa-copy"></i>';
+            button.style.cssText = 
+              'position: absolute;' +
+              'top: 10px;' +
+              'right: 10px;' +
+              'background: var(--mcpr-electric);' +
+              'color: var(--mcpr-midnight);' +
+              'border: none;' +
+              'padding: 8px 12px;' +
+              'border-radius: 6px;' +
+              'cursor: pointer;' +
+              'opacity: 0.8;' +
+              'transition: opacity 0.3s;';
+            
+            button.addEventListener('click', () => {
+              navigator.clipboard.writeText(block.textContent);
+              button.innerHTML = '<i class="fas fa-check"></i>';
+              setTimeout(() => {
+                button.innerHTML = '<i class="fas fa-copy"></i>';
+              }, 2000);
+            });
+            
+            const pre = block.parentNode;
+            if (pre.tagName === 'PRE') {
+              pre.style.position = 'relative';
+              pre.appendChild(button);
+            }
+          });
+        });
+      </script>
+
+navbar:
+  type: light
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    intro:
+      text: "Quick Start"
+      href: articles/getting-started.html
+    github:
+      icon: fab fa-github fa-lg
+      href: https://github.com/phisanti/MCPR
+      aria-label: "View source code on GitHub"
+
+# Auto-generate reference to avoid missing topics
+
+articles:
+- title: "Getting Started"
+  desc: Your journey into stateful AI-R collaboration
+  contents:
+  - getting-started
+  - mcp-setup
+  
+- title: "Architecture & Design"
+  desc: Deep dive into MCPR's technical foundation
+  contents:
+  - architecture
+  
+- title: "Advanced Usage"
+  desc: Unlock MCPR's full potential
+  contents:
+  - matches("advanced")
+  - matches("workflow")
+  - matches("integration")
+
+footer:
+  structure:
+    left: [developed_by, built_with]
+    right: [github, license]
+  components:
+    developed_by: |
+      Developed by [Santiago Cano-Muniz](https://github.com/phisanti) for the R community
+    built_with: |
+      Built with [pkgdown](https://pkgdown.r-lib.org/) and [Bootstrap 5](https://getbootstrap.com/)
+    github: |
+      [Source Code](https://github.com/phisanti/MCPR)
+    license: |
+      [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+
