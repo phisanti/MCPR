@@ -36,6 +36,9 @@ home:
   strip_header: true
   extra_file_patterns: ["!AGENT.md", "!CLAUDE.md"]
 
+# Logo disabled due to xml2 compatibility issues
+logo: false
+
 template:
   bootstrap: 5
   bslib:
@@ -64,6 +67,7 @@ template:
       <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
       <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css" rel="stylesheet">
       <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+      <script src="lightswitch.js"></script>
       
       <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -165,7 +169,7 @@ navbar:
   type: light
   structure:
     left: [intro, reference, articles, news]
-    right: [search, github]
+    right: [search, github, theme_toggle]
   components:
     intro:
       text: "Quick Start"
@@ -174,6 +178,13 @@ navbar:
       icon: fab fa-github fa-lg
       href: https://github.com/phisanti/MCPR
       aria-label: "View source code on GitHub"
+    theme_toggle:
+      text: |
+        <a href="#" class="theme-toggle" title="Toggle theme">
+          <i class="fas fa-sun"></i>
+          <i class="fas fa-moon"></i>
+        </a>
+      aria-label: Toggle theme
 
 # Auto-generate reference to avoid missing topics
 
