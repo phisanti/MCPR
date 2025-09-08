@@ -201,8 +201,7 @@ test_that("ToolRegistry integration with mcpServer provides tools", {
 
   # Should include our custom tool plus built-in tools
   expect_true("integration_function" %in% tool_names)
-  expect_true("list_r_sessions" %in% tool_names)
-  expect_true("select_r_session" %in% tool_names)
+  expect_true("manage_r_sessions" %in% tool_names)
 })
 
 

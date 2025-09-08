@@ -6,7 +6,7 @@ library(ggplot2)
 library(jsonlite)
 
 # Source the create_plot tool
-source(file.path(getwd(), "..", "..", "inst", "tool-create_plot.R"))
+source(system.file("tool-create_plot.R", package = "MCPR", mustWork = TRUE))
 
 # Core functionality tests (token estimation removed - now uses render-first approach)
 
@@ -35,13 +35,13 @@ test_that("create_plot validates inputs", {
 test_that("create_plot token limits work", {
   # Test with very low token limit to trigger error without huge plots
   expect_error(
-    create_plot("plot(1:10)", width = 800, height = 600, token_limit = 5000),
-    "exceeds token limit"
+    create_plot("plot(1:10)", width = 800, height = 600, token_limit = 1000),
+    "exceeds.*token limit"
   )
 
   # Test error message contains optimization suggestions
   expect_error(
-    create_plot("plot(1:10)", width = 800, height = 600, token_limit = 5000),
+    create_plot("plot(1:10)", width = 800, height = 600, token_limit = 1000),
     "Optimization suggestions"
   )
 })

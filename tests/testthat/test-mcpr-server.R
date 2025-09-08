@@ -17,8 +17,7 @@ test_that("mcprServer initializes with default tools", {
 
   # Should have default built-in tools
   server_tools <- server$get_tools()
-  expect_true("list_r_sessions" %in% names(server_tools))
-  expect_true("select_r_session" %in% names(server_tools))
+  expect_true("manage_r_sessions" %in% names(server_tools))
 })
 
 test_that("mcprServer initializes with ToolRegistry", {
