@@ -12,13 +12,13 @@ format_sessions_table <- function(session_data) {
   if (length(session_data) == 0) {
     return("No active R sessions found.")
   }
-  
+
   # Parse session data - expect format: "ID: directory (IDE) - timestamp" or "No session: directory (IDE) - timestamp"
   sessions <- list()
-  
+
   for (i in seq_along(session_data)) {
     line <- session_data[i]
-    
+
     # Try to parse "ID: directory (IDE) - timestamp"
     if (grepl("^\\d+:", line)) {
       parts <- regmatches(line, regexec("^(\\d+): (.+) \\((.+)\\) - (.+)$", line))[[1]]
@@ -42,39 +42,43 @@ format_sessions_table <- function(session_data) {
       }
     }
   }
-  
+
   # Remove any failed parses
   sessions <- sessions[!sapply(sessions, is.null)]
-  
+
   if (length(sessions) == 0) {
     return("No parseable session data found.")
   }
-  
+
   # Calculate column widths
   max_id <- max(nchar(c("ID", sapply(sessions, function(s) s$id))))
   max_dir <- max(nchar(c("Working Directory", sapply(sessions, function(s) s$directory))))
   max_ide <- max(nchar(c("IDE", sapply(sessions, function(s) s$ide))))
   max_time <- max(nchar(c("Timestamp", sapply(sessions, function(s) s$timestamp))))
-  
+
   # Create formatted table
   separator <- paste0(rep("-", max_id + max_dir + max_ide + max_time + 10), collapse = "")
-  
+
   # Header
-  header <- sprintf("%-*s | %-*s | %-*s | %-*s",
-                    max_id, "ID",
-                    max_dir, "Working Directory", 
-                    max_ide, "IDE",
-                    max_time, "Timestamp")
-  
+  header <- sprintf(
+    "%-*s | %-*s | %-*s | %-*s",
+    max_id, "ID",
+    max_dir, "Working Directory",
+    max_ide, "IDE",
+    max_time, "Timestamp"
+  )
+
   # Data rows
   rows <- sapply(sessions, function(s) {
-    sprintf("%-*s | %-*s | %-*s | %-*s",
-            max_id, s$id,
-            max_dir, s$directory,
-            max_ide, s$ide, 
-            max_time, s$timestamp)
+    sprintf(
+      "%-*s | %-*s | %-*s | %-*s",
+      max_id, s$id,
+      max_dir, s$directory,
+      max_ide, s$ide,
+      max_time, s$timestamp
+    )
   })
-  
+
   # Combine all parts - only separator between header and first row
   paste(c(header, separator, rows), collapse = "\n")
 }
@@ -89,19 +93,19 @@ manage_r_sessions <- function(action = "list", session = NULL) {
   if (!action %in% c("list", "join", "start")) {
     stop("action must be one of: 'list', 'join', 'start'")
   }
-  
+
   # Get platform-specific socket URL once and reuse
   socket_base <- get_system_socket_url()
-  
+
   if (action == "list") {
     # Enhanced listing with working directory and timestamp
     # Use manual socket management to avoid BaseMCPR cleanup conflicts
     sock <- nanonext::socket("poly")
     on.exit(nanonext::reap(sock), add = TRUE)
-    
+
     cv <- nanonext::cv()
     monitor <- nanonext::monitor(sock, cv)
-    
+
     for (i in seq_len(1024L)) {
       if (
         nanonext::dial(
@@ -125,11 +129,10 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       pipes,
       function(x) nanonext::send_aio(sock, character(), mode = "serial", pipe = x)
     )
-    
+
     # Collect and format session data as table
     session_data <- sort(as.character(nanonext::collect_aio_(res)))
     format_sessions_table(session_data)
-    
   } else if (action == "join") {
     # Join existing session (renamed from select)
     if (is.null(session)) {
@@ -138,13 +141,13 @@ manage_r_sessions <- function(action = "list", session = NULL) {
     if (!is.numeric(session) || length(session) != 1) {
       stop("session must be a single integer")
     }
-    
+
     server_socket <- if (exists("server_socket", envir = the) && !is.null(the$server_socket)) {
       the$server_socket
     } else {
       stop("No server socket available - server may not be running")
     }
-    
+
     nanonext::reap(server_socket[["dialer"]][[1L]])
     attr(server_socket, "dialer") <- NULL
     nanonext::dial(
@@ -152,52 +155,57 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       url = sprintf("%s%d", socket_base, session)
     )
     sprintf("Joined session %d successfully.", session)
-    
   } else if (action == "start") {
     # Start new R session using processx
-    tryCatch({
-      # Find next available session number
-      sock <- nanonext::socket("poly")
-      on.exit(nanonext::reap(sock), add = TRUE)
-      
-      next_session <- 1L
-      for (i in seq_len(1024L)) {
-        if (!nanonext::dial(
-          sock,
-          url = sprintf("%s%d", socket_base, i),
-          autostart = NA,
-          fail = "none"
-        )) {
-          next_session <- i
-          break
+    tryCatch(
+      {
+        # Find next available session number
+        sock <- nanonext::socket("poly")
+        on.exit(nanonext::reap(sock), add = TRUE)
+
+        next_session <- 1L
+        for (i in seq_len(1024L)) {
+          if (!nanonext::dial(
+            sock,
+            url = sprintf("%s%d", socket_base, i),
+            autostart = NA,
+            fail = "none"
+          )) {
+            next_session <- i
+            break
+          }
         }
+
+        # Start new R process with MCPR session
+        r_cmd <- file.path(R.home("bin"), "R")
+        args <- c(
+          "--vanilla", "-e",
+          sprintf(
+            "MCPR::mcp_session(%d); readline('Press Enter to continue...')",
+            next_session
+          )
+        )
+
+        proc <- processx::process$new(
+          command = r_cmd,
+          args = args,
+          stdout = "|",
+          stderr = "|"
+        )
+
+        # Give the process a moment to start
+        Sys.sleep(1)
+
+        if (proc$is_alive()) {
+          sprintf("Started new R session %d (PID: %d)", next_session, proc$get_pid())
+        } else {
+          stop("Failed to start new R session")
+        }
+      },
+      error = function(e) {
+        sprintf("Error starting new session: %s", e$message)
       }
-      
-      # Start new R process with MCPR session
-      r_cmd <- file.path(R.home("bin"), "R")
-      args <- c("--vanilla", "-e", 
-                sprintf("MCPR::mcp_session(%d); readline('Press Enter to continue...')", 
-                        next_session))
-      
-      proc <- processx::process$new(
-        command = r_cmd,
-        args = args,
-        stdout = "|",
-        stderr = "|"
-      )
-      
-      # Give the process a moment to start
-      Sys.sleep(1)
-      
-      if (proc$is_alive()) {
-        sprintf("Started new R session %d (PID: %d)", next_session, proc$get_pid())
-      } else {
-        stop("Failed to start new R session")
-      }
-      
-    }, error = function(e) {
-      sprintf("Error starting new session: %s", e$message)
-    })
+    )
   }
 }
 

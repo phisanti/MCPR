@@ -397,4 +397,3 @@ mcpr_tools <- function(config = NULL) {
   tools <- client$get_mcpr_tools()
   return(tools)
 }
-
