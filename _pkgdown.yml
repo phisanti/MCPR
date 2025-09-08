@@ -36,8 +36,8 @@ home:
   strip_header: true
   extra_file_patterns: ["!AGENT.md", "!CLAUDE.md"]
 
-# Logo enabled - using man/figures/logo.png
-logo: man/figures/logo.png
+# Logo disabled in pkgdown to avoid xml2 conflicts (logo shows via README HTML)
+# logo: man/figures/logo.png
 
 template:
   bootstrap: 5
