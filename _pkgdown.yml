@@ -36,8 +36,8 @@ home:
   strip_header: true
   extra_file_patterns: ["!AGENT.md", "!CLAUDE.md"]
 
-# Logo disabled due to xml2 compatibility issues
-logo: false
+# Logo enabled - using man/figures/logo.png
+logo: man/figures/logo.png
 
 template:
   bootstrap: 5
