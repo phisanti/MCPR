@@ -20,7 +20,7 @@ test_that("install_mcpr validates agent argument correctly", {
 
 test_that("install_mcpr validates other arguments correctly", {
   # Invalid scope for Claude
-  expect_error(install_mcpr("claude", scope = "invalid"), "Invalid scope for Claude")
+  expect_error(install_mcpr("claude", scope = "invalid"), "Invalid scope for claude")
 
   # Invalid server_name
   expect_error(
