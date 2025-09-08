@@ -159,6 +159,7 @@ pre {
   -webkit-font-smoothing: auto;
   -moz-osx-font-smoothing: auto;
 }
+
 /* Inline code */
 code {
   background-color: var(--mcpr-code-bg);
@@ -173,6 +174,11 @@ pre > code {
   font-size: inherit;
   color: inherit;
 }
+
+/* Syntax highlighting is now handled by pkgdown's built-in themes:
+   - github-light for light mode
+   - github-dark for dark mode
+   Custom token styling removed to use pkgdown's proper theme system */
 
 /* --- Mermaid Diagrams --- */
 .mermaid {
@@ -321,20 +327,7 @@ a:hover {
   box-shadow: 0 0 0 3px rgba(var(--mcpr-primary-rgb), 0.2) !important;
 }
 
-/* --- Theme Toggle --- */
-.theme-toggle {
-  background: none;
-  border: 1px solid var(--mcpr-border);
-  color: var(--mcpr-text-muted);
-  padding: 0.5rem;
-  border-radius: var(--mcpr-border-radius);
-  cursor: pointer;
-  transition: var(--mcpr-transition);
-}
-.theme-toggle:hover {
-  color: var(--mcpr-primary);
-  border-color: var(--mcpr-primary);
-}
+/* Theme toggle now handled by pkgdown's built-in light-switch component */
 
 /* --- Print Styles --- */
 @media print {
