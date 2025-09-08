@@ -13,7 +13,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-# MCPR: A Practical Framework for Stateful Human-AI Collaboration in R <img src="man/figures/logo.png" align="right" height="240" alt="MCPR logo: A half-brain half-circuit, symbolizing the bridge between human cognition and computational analysis in R." />
+# MCPR: A Practical Framework for Stateful Human-AI Collaboration in R <a href="https://phisanti.github.io/MCPR/" alt="MCPR"><img src="man/figures/logo.png" alt="MCPR logo" align="right" width="120" /></a>
 
 <!-- badges: start -->
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
