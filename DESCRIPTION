@@ -49,6 +49,7 @@ Suggests:
     mockery,
     knitr,
     rmarkdown
+Remotes: nx10/httpgd
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 SystemRequirements: Unix sockets (Unix), Named pipes (Windows)
