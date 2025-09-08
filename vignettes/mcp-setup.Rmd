@@ -46,11 +46,8 @@ Add the MCP server configuration:
 {
   "mcpServers": {
     "mcpr": {
-      "command": "Rscript",
-      "args": ["-e", "MCPR::mcp_server()"],
-      "env": {
-        "R_LIBS_USER": "/path/to/your/R/library"
-      }
+      "command": "R",
+      "args": ["--quiet", "--slave", "-e", "MCPR::mcpr_server()"]
     }
   }
 }
@@ -106,8 +103,8 @@ Once configured, your AI agent will have access to these tools:
 {
   "mcpServers": {
     "mcpr": {
-      "command": "Rscript",
-      "args": ["-e", "MCPR::mcp_server()"],
+      "command": "R",
+      "args": ["--quiet", "--slave", "-e", "MCPR::mcpr_server()"],
       "env": {
         "MCPTOOLS_TOOLS_DIR": "/path/to/custom/tools",
         "MCPTOOLS_LOG_FILE": "/path/to/logs/mcpr.log"

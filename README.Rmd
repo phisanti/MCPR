@@ -85,11 +85,8 @@ Then, add the following MCP server configuration:
 {
   "mcpServers": {
     "mcpr": {
-      "command": "Rscript",
-      "args": ["-e", "MCPR::mcp_server()"],
-      "env": {
-        "R_LIBS_USER": "/path/to/your/R/library"
-      }
+      "command": "R",
+      "args": ["--quiet", "--slave", "-e", "MCPR::mcpr_server()"]
     }
   }
 }
