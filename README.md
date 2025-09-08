@@ -1,8 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# MCPR: A Practical Framework for Stateful Human-AI Collaboration in R 
-
+# MCPR: A Practical Framework for Stateful Human-AI Collaboration in R <a href="https://phisanti.github.io/MCPR/" alt="MCPR"><img src="man/figures/logo.png" alt="MCPR logo" align="right" width="120" /></a>
 
 <!-- badges: start -->
 
@@ -114,11 +113,8 @@ Then, add the following MCP server configuration:
 {
   "mcpServers": {
     "mcpr": {
-      "command": "Rscript",
-      "args": ["-e", "MCPR::mcp_server()"],
-      "env": {
-        "R_LIBS_USER": "/path/to/your/R/library"
-      }
+      "command": "R",
+      "args": ["--quiet", "--slave", "-e", "MCPR::mcpr_server()"]
     }
   }
 }
