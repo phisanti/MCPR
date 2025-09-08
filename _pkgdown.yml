@@ -183,23 +183,11 @@ navbar:
 # Auto-generate reference to avoid missing topics
 
 articles:
-- title: "Getting Started"
-  desc: Your journey into stateful AI-R collaboration
+- title: "Articles"
   contents:
   - getting-started
   - mcp-setup
-  
-- title: "Architecture & Design"
-  desc: Deep dive into MCPR's technical foundation
-  contents:
   - architecture
-  
-- title: "Advanced Usage"
-  desc: Unlock MCPR's full potential
-  contents:
-  - matches("advanced")
-  - matches("workflow")
-  - matches("integration")
 
 footer:
   structure:
