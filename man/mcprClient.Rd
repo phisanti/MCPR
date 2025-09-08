@@ -15,7 +15,7 @@ Persistent interface for managing Model Context Protocol servers within R sessio
 • \strong{Configuration support}: Uses JSON config files for server specifications
 }
 \section{Super class}{
-\code{\link[MCPR:BaseMCPR]{MCPR::BaseMCPR}} -> \code{mcprClient}
+\code{MCPR::BaseMCPR} -> \code{mcprClient}
 }
 \section{Methods}{
 \subsection{Public methods}{

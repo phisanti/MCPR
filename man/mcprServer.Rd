@@ -43,7 +43,7 @@ mcpr_server(registry = registry)
 }
 }
 \section{Super class}{
-\code{\link[MCPR:BaseMCPR]{MCPR::BaseMCPR}} -> \code{mcprServer}
+\code{MCPR::BaseMCPR} -> \code{mcprServer}
 }
 \section{Methods}{
 \subsection{Public methods}{

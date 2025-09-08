@@ -21,7 +21,7 @@ Handles session lifecycle:
 }
 }
 \section{Super class}{
-\code{\link[MCPR:BaseMCPR]{MCPR::BaseMCPR}} -> \code{mcprSession}
+\code{MCPR::BaseMCPR} -> \code{mcprSession}
 }
 \section{Methods}{
 \subsection{Public methods}{
