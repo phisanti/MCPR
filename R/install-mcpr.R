@@ -342,12 +342,21 @@ install_mcpr_unified <- function(agent_name, config_path, config_metadata, agent
                                  server_name, force, scope = NULL) {
   # Get scope-specific server configuration
   if (is.list(agent_spec$server_config) && !is.null(scope) && scope %in% names(agent_spec$server_config)) {
+    # Scope-based configuration (e.g., gemini with global/project/ide)
     mcpr_config <- agent_spec$server_config[[scope]]
+  } else if (is.list(agent_spec$server_config) && "command" %in% names(agent_spec$server_config)) {
+    # Direct configuration structure (e.g., claude with command + args)
+    mcpr_config <- agent_spec$server_config
   } else if (!is.list(agent_spec$server_config)) {
+    # Non-list configuration (shouldn't happen with current implementation)
     mcpr_config <- agent_spec$server_config
   } else {
-    # Fallback to first available configuration
-    mcpr_config <- agent_spec$server_config[[1]]
+    # Fallback: try to get a reasonable configuration
+    if (length(agent_spec$server_config) > 0) {
+      mcpr_config <- agent_spec$server_config[[1]]
+    } else {
+      stop("No valid server configuration found for agent: ", agent_name)
+    }
   }
 
   server_section <- agent_spec$server_section

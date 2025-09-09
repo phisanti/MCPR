@@ -2,6 +2,9 @@
 # Tests for install_mcpr() function and related configuration management.
 # Validates input validation, path resolution, and configuration file handling.
 
+# Load the package for testing
+library(MCPR)
+
 test_that("install_mcpr validates agent argument correctly", {
   # No agent (NULL) should error with helpful message
   expect_error(install_mcpr(), "No agent specified")
@@ -49,16 +52,36 @@ test_that("install_mcpr validates other arguments correctly", {
 
 test_that("install_mcpr handles different agents appropriately", {
   # Test that install_mcpr can be called with different agents without error
-  # Note: Using force=TRUE and temporary files to avoid modifying system configs
+  # Using mocking to avoid modifying real system configs
 
-  # We can't easily test actual installation without modifying system files,
-  # but we can test that the function processes different agents without errors
-  # in the validation phase
-
-  # Test valid agents are accepted
-  expect_error(install_mcpr("claude", force = TRUE), NA, class = "simpleError")
-  expect_error(install_mcpr("gemini", force = TRUE), NA, class = "simpleError")
-  expect_error(install_mcpr("copilot", force = TRUE), NA, class = "simpleError")
+  # Create a temporary directory for testing
+  temp_dir <- tempdir()
+  temp_config <- file.path(temp_dir, "test_config.json")
+  
+  # Create a mock function that returns our temp path instead of system paths
+  mock_get_agent_config_path <- function(agent, scope = NULL) {
+    list(
+      path = temp_config,
+      type = "test"
+    )
+  }
+  
+  # Mock the get_agent_config_path function
+  with_mocked_bindings(
+    get_agent_config_path = mock_get_agent_config_path,
+    .package = "MCPR",
+    {
+      # Test valid agents are accepted (they should complete without error)
+      expect_no_error(install_mcpr("claude", force = TRUE))
+      expect_no_error(install_mcpr("gemini", force = TRUE))  
+      expect_no_error(install_mcpr("copilot", force = TRUE))
+    }
+  )
+  
+  # Clean up
+  if (file.exists(temp_config)) {
+    unlink(temp_config)
+  }
 })
 
 test_that("install_mcpr works with temp files", {
@@ -115,4 +138,56 @@ test_that("install_mcpr provides appropriate error messages", {
 
   # Test with empty agent vector (should be caught in validation)
   expect_error(install_mcpr(character(0)), "No agent specified")
+})
+
+test_that("install_mcpr creates correct JSON structure", {
+  # Test that install_mcpr creates the correct configuration structure
+  # This test uses a temporary file to verify the actual output
+  
+  temp_config <- tempfile(fileext = ".json")
+  
+  # Mock the get_agent_config_path function to use our temp file
+  mock_get_agent_config_path <- function(agent, scope = NULL) {
+    list(path = temp_config, type = "test")
+  }
+  
+  # Test with mocked path
+  with_mocked_bindings(
+    get_agent_config_path = mock_get_agent_config_path,
+    .package = "MCPR",
+    {
+      # Install to temp file
+      result <- install_mcpr("claude", force = TRUE)
+      
+      # Verify installation succeeded
+      expect_true(result$success)
+      expect_equal(result$config_path, temp_config)
+      
+      # Verify the file was created and has correct structure
+      expect_true(file.exists(temp_config))
+      
+      # Read and verify JSON structure
+      config <- jsonlite::fromJSON(temp_config, simplifyVector = TRUE, 
+                                   simplifyDataFrame = FALSE, simplifyMatrix = FALSE)
+      
+      # Check top-level structure
+      expect_true("mcpServers" %in% names(config))
+      expect_true("mcpr" %in% names(config$mcpServers))
+      
+      # Check MCPR server structure
+      mcpr_config <- config$mcpServers$mcpr
+      expect_true(is.list(mcpr_config))
+      expect_true("command" %in% names(mcpr_config))
+      expect_true("args" %in% names(mcpr_config))
+      
+      # Check specific values
+      expect_equal(mcpr_config$command, "R")
+      expect_true(is.character(mcpr_config$args))
+      expect_true(length(mcpr_config$args) > 0)
+      expect_true("MCPR::mcpr_server()" %in% mcpr_config$args)
+    }
+  )
+  
+  # Clean up
+  unlink(temp_config)
 })
