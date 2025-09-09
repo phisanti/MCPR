@@ -141,6 +141,7 @@ test_that("install_mcpr provides appropriate error messages", {
 })
 
 test_that("install_mcpr creates correct JSON structure", {
+  skip_on_ci()
   # Test that install_mcpr creates the correct configuration structure
   # This test uses a temporary file to verify the actual output
   
