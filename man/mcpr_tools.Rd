@@ -14,7 +14,7 @@ List of ToolDef objects
 }
 \description{
 Creates MCP tools using the modern ToolDef system.
-• \strong{Client management}: Creates client instance and connects to servers
-• \strong{Tool discovery}: Automatically discovers and registers available tools
-• \strong{ToolDef objects}: Returns modern ToolDef objects instead of legacy formats
+\strong{Client management}: Creates client instance and connects to servers
+\strong{Tool discovery}: Automatically discovers and registers available tools
+\strong{ToolDef objects}: Returns modern ToolDef objects instead of legacy formats
 }

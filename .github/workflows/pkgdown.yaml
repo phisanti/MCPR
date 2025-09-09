@@ -19,6 +19,8 @@ jobs:
       group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
     permissions:
       contents: read
       pages: write
@@ -32,24 +34,14 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: Clear R package cache
-        run: |
-          rm -rf ~/.cache/R
-          rm -rf /tmp/R*
-        continue-on-error: true
-
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           extra-packages: any::pkgdown, any::quarto, local::., nx10/httpgd
           needs: website
-          cache-version: ${{ github.run_number }}
 
       - name: Build site
         run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
         shell: Rscript {0}
-        env:
-          R_GC_MEM_GROW: 2
-          R_MAX_VSIZE: 4Gb
 
       - name: Upload to GitHub pages
         if: github.event_name != 'pull_request'

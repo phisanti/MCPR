@@ -8,11 +8,11 @@ New mcprClient instance
 }
 \description{
 Persistent interface for managing Model Context Protocol servers within R sessions.
-• \strong{Server connections}: Establishes and maintains connections to MCP servers
-• \strong{Tool discovery}: Automatically discovers and registers available tools
-• \strong{Protocol communication}: Handles JSON-RPC messaging with servers
-• \strong{State management}: Maintains server status and tool metadata
-• \strong{Configuration support}: Uses JSON config files for server specifications
+\strong{Server connections}: Establishes and maintains connections to MCP servers
+\strong{Tool discovery}: Automatically discovers and registers available tools
+\strong{Protocol communication}: Handles JSON-RPC messaging with servers
+\strong{State management}: Maintains server status and tool metadata
+\strong{Configuration support}: Uses JSON config files for server specifications
 }
 \section{Super class}{
 \code{MCPR::BaseMCPR} -> \code{mcprClient}
