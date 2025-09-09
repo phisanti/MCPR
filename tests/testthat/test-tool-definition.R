@@ -3,7 +3,7 @@ test_that("tool() creates valid ToolDef objects", {
   simple_tool <- tool(
     fun = function(x) x + 1,
     description = "Add 1 to a number",
-    arguments = list(x = type_number(description = "Input number"))
+    arguments = list(x = "number")
   )
 
   expect_true(inherits(simple_tool, "ToolDef"))
@@ -19,7 +19,7 @@ test_that("tool() handles name parameter correctly", {
     fun = function(x) x * 2,
     name = "double",
     description = "Double a number",
-    arguments = list(x = type_number())
+    arguments = list(x = "number")
   )
 
   expect_equal(named_tool$name, "double")

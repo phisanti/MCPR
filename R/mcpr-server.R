@@ -21,12 +21,12 @@
 #' server <- mcprServer$new()
 #' server$start() # Blocking call
 #'
-#' # Server with custom tools
-#' my_tool <- list(
+#' # Server with custom tools  
+#' my_tool <- tool(
+#'   function(x) mean(x),
 #'   name = "mean",
 #'   description = "Calculate arithmetic mean",
-#'   fun = mean,
-#'   arguments = list(x = "numeric")
+#'   arguments = list(x = "number")
 #' )
 #' registry <- ToolRegistry$new()
 #' registry$add_tool(my_tool)

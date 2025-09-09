@@ -41,6 +41,6 @@ Define Tool for MCP Framework
 my_tool <- tool(
   function(x) x + 1,
   description = "Add 1 to a number",
-  arguments = list(x = list(type = "number", description = "Input number"))
+  arguments = list(x = "number")
 )
 }
