@@ -26,14 +26,19 @@ jobs:
 
       - name: Test coverage
         run: |
-          # Use the same approach as local development
-          # Load package in dev mode instead of installing
-          pkgload::load_all(".", helpers = FALSE, quiet = TRUE)
+          # Get absolute path for coverage 
+          pkg_path <- normalizePath(".", winslash = "/")
           
-          # Run coverage on source code directly  
-          cov <- covr::code_coverage(
-            source_files = list.files("R", pattern = "\\.R$", full.names = TRUE),
-            test_files = list.files("tests/testthat", pattern = "^test.*\\.R$", full.names = TRUE)
+          # Temporarily modify testthat.R to use absolute path
+          testthat_content <- readLines("tests/testthat.R")
+          testthat_content[1] <- paste0('pkgload::load_all("', pkg_path, '", helpers = FALSE, quiet = TRUE)')
+          writeLines(testthat_content, "tests/testthat.R")
+          
+          # Run coverage
+          cov <- covr::package_coverage(
+            path = ".",
+            type = "tests", 
+            quiet = FALSE
           )
           
           print(cov)
