@@ -40,6 +40,9 @@ jobs:
       - name: Build site
         run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
         shell: Rscript {0}
+        env:
+          R_GC_MEM_GROW: 2
+          R_MAX_VSIZE: 4Gb
 
       - name: Upload to GitHub pages
         if: github.event_name != 'pull_request'
