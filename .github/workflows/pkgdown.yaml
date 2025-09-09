@@ -32,10 +32,17 @@ jobs:
         with:
           use-public-rspm: true
 
+      - name: Clear R package cache
+        run: |
+          rm -rf ~/.cache/R
+          rm -rf /tmp/R*
+        continue-on-error: true
+
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           extra-packages: any::pkgdown, any::quarto, local::., nx10/httpgd
           needs: website
+          cache-version: ${{ github.run_number }}
 
       - name: Build site
         run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
