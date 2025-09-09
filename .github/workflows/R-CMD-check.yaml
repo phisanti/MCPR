@@ -39,28 +39,9 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck, any::covr, nx10/httpgd
+          extra-packages: any::rcmdcheck, nx10/httpgd
           needs: check
 
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true
-
-      - name: Test coverage
-        if: runner.os == 'Linux' && matrix.config.r == 'release'
-        run: |
-          covr::codecov(
-            quiet = FALSE,
-            clean = FALSE,
-            install_path = file.path(normalizePath(Sys.getenv("RUNNER_TEMP"), winslash = "/"), "package")
-          )
-        shell: Rscript {0}
-
-      - name: Upload coverage reports to Codecov
-        if: runner.os == 'Linux' && matrix.config.r == 'release'
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.TOKEN_CODECOV }}
-          fail_ci_if_error: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.TOKEN_CODECOV }}
