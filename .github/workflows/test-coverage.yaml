@@ -37,7 +37,9 @@ jobs:
         if: always()
         run: |
           ## --------------------------------------------------------------------
-          find ${{ runner.temp }}/package -name 'testthat.Rout*' -exec cat '{}' \; || true
+          echo "Looking for testthat output files..."
+          find /tmp -name 'testthat.Rout*' -exec echo "Found: {}" \; -exec cat '{}' \; 2>/dev/null || true
+          find ${{ runner.temp }} -name 'testthat.Rout*' -exec echo "Found: {}" \; -exec cat '{}' \; 2>/dev/null || true
         shell: bash
 
       - name: Upload coverage reports to Codecov
