@@ -215,7 +215,15 @@ test_that("socket utilities work correctly", {
   # Test with default socket URL when not set
   base_obj$state_clear("socket_url")
   url_default <- base_obj$socket_url(1)
-  expect_equal(url_default, "ipc:///tmp/MCPR-socket1")
+  
+  # Get expected URL based on platform (same logic as get_system_socket_url)
+  expected_base <- switch(Sys.info()[["sysname"]],
+    Linux = "abstract://MCPR-socket",
+    Windows = "ipc://MCPR-socket",
+    "ipc:///tmp/MCPR-socket"
+  )
+  expected_url <- paste0(expected_base, "1")
+  expect_equal(url_default, expected_url)
 })
 
 test_that("socket creation works with cleanup", {
