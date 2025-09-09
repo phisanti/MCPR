@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      LANG: C.UTF-8
 
     steps:
       - uses: actions/checkout@v4
@@ -26,48 +27,36 @@ jobs:
 
       - name: Test coverage
         run: |
-          # Working solution: Use pkgload with file_coverage to access all functions
-          
-          # Ensure testthat.R uses pkgload (keeps internal functions accessible)
-          cat('pkgload::load_all(".", helpers = FALSE, quiet = TRUE)\n\nlibrary(testthat)\ntest_dir("testthat")\n', file = "tests/testthat.R")
-          
-          # Load package in development mode
           pkgload::load_all(".", helpers = FALSE, quiet = TRUE)
-          
-          # Load required packages
           library(testthat)
           library(covr)
-          
-          # Get source and test files
+
           r_files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
           test_files <- list.files("tests/testthat", pattern = "^test.*\\.R$", full.names = TRUE)
-          
-          # Use file_coverage which works with pkgload
-          cat("Running coverage calculation...\n")
+
           cov <- covr::file_coverage(
             source_files = r_files,
             test_files = test_files
           )
-          
-          cat("Coverage entries:", length(cov), "\n")
-          if (length(cov) > 0) {
-            cat("Coverage percentage:", round(covr::percent_coverage(cov), 2), "%\n")
-          } else {
-            cat("No coverage data generated\n")
-          }
-          
-          # Generate cobertura XML
-          covr::to_cobertura(cov)
+
+          covr::to_cobertura(cov, filename = "cobertura.xml")
         shell: Rscript {0}
 
       - name: Show testthat output
-        if: always()
+        if: failure()
         run: |
-          ## --------------------------------------------------------------------
           echo "Looking for testthat output files..."
           find /tmp -name 'testthat.Rout*' -exec echo "Found: {}" \; -exec cat '{}' \; 2>/dev/null || true
           find ${{ runner.temp }} -name 'testthat.Rout*' -exec echo "Found: {}" \; -exec cat '{}' \; 2>/dev/null || true
         shell: bash
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: cobertura.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.TOKEN_CODECOV }}
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5

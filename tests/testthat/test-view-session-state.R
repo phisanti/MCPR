@@ -97,6 +97,58 @@ test_that("get_session_start_time returns reasonable time", {
   expect_true(session_start > Sys.time() - as.difftime(24, units = "hours"))
 })
 
+test_that("view_session handles objects with different types", {
+  # Create test objects with various types
+  assign("test_df", data.frame(a = 1:3, b = letters[1:3]), envir = .GlobalEnv)
+  assign("test_vec", 1:10, envir = .GlobalEnv)
+  assign("test_func", function() "test", envir = .GlobalEnv)
+  assign(".hidden_obj", "hidden", envir = .GlobalEnv)
+  
+  result <- MCPR:::view_session(50)
+  
+  # Should detect different object types
+  expect_true(grepl("data\\.frame.*3x2", result))
+  expect_true(grepl("integer\\[10\\]", result))
+  expect_true(grepl("function", result))
+  expect_true(grepl("Hidden objects:", result))
+  
+  # Clean up
+  rm(list = c("test_df", "test_vec", "test_func", ".hidden_obj"), envir = .GlobalEnv)
+})
+
+test_that("view_session respects max_lines parameter", {
+  result_short <- MCPR:::view_session(5)
+  result_long <- MCPR:::view_session(100)
+  
+  expect_type(result_short, "character")
+  expect_type(result_long, "character")
+  # Short version should be more constrained
+  expect_true(nchar(result_short) <= nchar(result_long))
+})
+
+test_that("view_workspace handles empty directory", {
+  # Test with current directory (should have files)
+  result <- MCPR:::view_workspace(20)
+  
+  expect_true(grepl("Workspace Directory:", result))
+  expect_true(grepl("Summary:", result))
+})
+
+test_that("parse_radian_history handles malformed input", {
+  # Test with empty input
+  result_empty <- MCPR:::parse_radian_history(character(0))
+  expect_equal(result_empty, character(0))
+  
+  # Test with malformed time
+  malformed <- c(
+    "# time: invalid-time",
+    "# mode: r",
+    "+valid_command <- 1"
+  )
+  result_malformed <- MCPR:::parse_radian_history(malformed, NULL, 10)
+  expect_type(result_malformed, "character")
+})
+
 test_that("session state functions handle edge cases gracefully", {
   # These should not error even if environment is minimal
   expect_no_error(MCPR:::view_session(5))

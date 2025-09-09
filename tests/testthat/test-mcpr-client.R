@@ -154,6 +154,44 @@ test_that("mcprClient finalize handles multiple processes", {
   expect_false(dead_kill_called, "Dead process should not be killed")
 })
 
+test_that("mcprClient initialize handles config file", {
+  # Test with no config file
+  client1 <- mcprClient$new()
+  expect_s3_class(client1, "mcprClient")
+  
+  # Test with custom config path
+  temp_config <- tempfile(fileext = ".json")
+  writeLines('{"mcpServers": {}}', temp_config)
+  
+  client2 <- mcprClient$new(config = temp_config)
+  expect_s3_class(client2, "mcprClient")
+  
+  unlink(temp_config)
+})
+
+test_that("mcprClient connect_servers handles empty config", {
+  client <- mcprClient$new()
+  
+  # Should handle empty config gracefully
+  expect_no_error(client$connect_servers())
+})
+
+test_that("mcprClient handles server operations", {
+  client <- mcprClient$new()
+  
+  # Test getting servers (should be empty initially)
+  expect_no_error(client$get_servers)
+})
+
+test_that("mcprClient initialization sets up private fields", {
+  client <- mcprClient$new()
+  
+  # Check that private fields are initialized
+  expect_true(exists(".servers", client$.__enclos_env__$private))
+  expect_true(exists(".server_processes", client$.__enclos_env__$private))
+  expect_true(exists(".config_path", client$.__enclos_env__$private))
+})
+
 # Additional edge case tests for mcprClient
 
 test_that("mcprClient handles malformed JSON config", {
