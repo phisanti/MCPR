@@ -21,15 +21,22 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::covr, any::xml2, nx10/httpgd
+          extra-packages: any::covr, any::xml2, any::devtools, nx10/httpgd
           needs: coverage
 
       - name: Test coverage
         run: |
+          # Install package first to avoid coverage issues
+          devtools::install(quiet = TRUE)
+          
+          # Now run coverage on installed package
           cov <- covr::package_coverage(
+            path = ".",
             quiet = FALSE,
             clean = FALSE
           )
+          
+          # Generate cobertura format
           covr::to_cobertura(cov)
         shell: Rscript {0}
 
