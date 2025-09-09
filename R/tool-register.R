@@ -101,7 +101,7 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
             file_tools <- private$parse_file(tool_file)
             private$.tools <- c(private$.tools, file_tools)
             if (private$.verbose && length(file_tools) > 0) {
-              cli::cli_inform("✓ Loaded {length(file_tools)} tool{?s} from {.file {basename(tool_file)}}")
+              cli::cli_inform("Loaded {length(file_tools)} tool{?s} from {.file {basename(tool_file)}}")
             }
           },
           error = function(e) {

@@ -50,7 +50,7 @@ view_session <- function(max_lines = 100) {
               if (is.function(obj)) {
                 paste0(obj_name, " (function)")
               } else if (is.data.frame(obj)) {
-                paste0(obj_name, " (data.frame: ", nrow(obj), "×", ncol(obj), ")")
+                paste0(obj_name, " (data.frame: ", nrow(obj), "x", ncol(obj), ")")
               } else if (is.vector(obj) && length(obj) > 1) {
                 paste0(obj_name, " (", obj_type, "[", length(obj), "])")
               } else {
