@@ -1,8 +1,8 @@
 on:
   push:
-    branches: [main, master]
+    branches: [main, gha-testing]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 name: test-coverage
 
@@ -21,15 +21,28 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::covr, any::xml2, nx10/httpgd
+          extra-packages: any::covr, any::xml2, any::devtools, nx10/httpgd
           needs: coverage
 
       - name: Test coverage
         run: |
+          # Get absolute path for coverage 
+          pkg_path <- normalizePath(".", winslash = "/")
+          
+          # Temporarily modify testthat.R to use absolute path
+          # This is necessary for the pkgload::load_all to work correctly
+          testthat_content <- readLines("tests/testthat.R")
+          testthat_content[1] <- paste0('pkgload::load_all("', pkg_path, '", helpers = FALSE, quiet = TRUE)')
+          writeLines(testthat_content, "tests/testthat.R")
+          
+          # Run coverage
           cov <- covr::package_coverage(
-            quiet = FALSE,
-            clean = FALSE
+            path = ".",
+            type = "tests", 
+            quiet = FALSE
           )
+          
+          print(cov)
           covr::to_cobertura(cov)
         shell: Rscript {0}
 
