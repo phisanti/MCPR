@@ -117,9 +117,12 @@
   if (!is.complex(x)) {
     return(NULL)
   }
+  real_part <- Re(x)
+  imaginary_part <- Im(x)
+  
   list(
-    real = Re(x),
-    imaginary = Im(x),
+    real = if (length(real_part) == 1) jsonlite::unbox(real_part) else real_part,
+    imaginary = if (length(imaginary_part) == 1) jsonlite::unbox(imaginary_part) else imaginary_part,
     `_mcp_type` = "complex"
   )
 }
