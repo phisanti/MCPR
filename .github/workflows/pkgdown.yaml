@@ -2,9 +2,9 @@
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   release:
     types: [published]
   workflow_dispatch:
@@ -19,6 +19,8 @@ jobs:
       group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
     permissions:
       contents: read
       pages: write
@@ -37,9 +39,14 @@ jobs:
           extra-packages: any::pkgdown, any::quarto, local::., nx10/httpgd
           needs: website
 
+      - name: Install package
+        run: R CMD INSTALL --no-multiarch --with-keep.source .
+        
       - name: Build site
-        run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
-        shell: Rscript {0}
+        run: |
+          export LC_ALL=en_US.UTF-8
+          export LANG=en_US.UTF-8
+          Rscript -e "pkgdown::build_site_github_pages(new_process = TRUE, install = FALSE)"
 
       - name: Upload to GitHub pages
         if: github.event_name != 'pull_request'
