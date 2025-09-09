@@ -26,17 +26,12 @@ jobs:
 
       - name: Test coverage
         run: |
-          # Install package first to avoid coverage issues
-          devtools::install(quiet = TRUE)
-          
-          # Now run coverage on installed package
           cov <- covr::package_coverage(
-            path = ".",
             quiet = FALSE,
-            clean = FALSE
+            clean = FALSE,
+            install_path = file.path(normalizePath(Sys.getenv("RUNNER_TEMP"), winslash = "/"), "package")
           )
-          
-          # Generate cobertura format
+          print(cov)
           covr::to_cobertura(cov)
         shell: Rscript {0}
 
