@@ -13,7 +13,7 @@ test_that("view accepts valid what arguments", {
   for (option in valid_options) {
     result <- view(option, max_lines = 10)
     expect_type(result, "character")
-    expect_true(grepl("✓ View completed:", result))
+    expect_true(grepl("View completed:", result))
   }
 })
 
@@ -36,12 +36,12 @@ test_that("view handles max_lines edge cases", {
   # Very small max_lines
   result1 <- view("session", max_lines = 1)
   expect_type(result1, "character")
-  expect_true(grepl("✓ View completed:", result1))
+  expect_true(grepl("View completed:", result1))
 
   # Large max_lines
   result2 <- view("session", max_lines = 1000)
   expect_type(result2, "character")
-  expect_true(grepl("✓ View completed:", result2))
+  expect_true(grepl("View completed:", result2))
 })
 
 test_that("view tool works in realistic workflow", {
@@ -58,9 +58,9 @@ test_that("view tool works in realistic workflow", {
   workspace_result <- view("workspace", max_lines = 20)
   packages_result <- view("installed_packages", max_lines = 15)
 
-  expect_true(grepl("✓ View completed: session", session_result))
-  expect_true(grepl("✓ View completed: workspace", workspace_result))
-  expect_true(grepl("✓ View completed: installed_packages", packages_result))
+  expect_true(grepl("View completed: session", session_result))
+  expect_true(grepl("View completed: workspace", workspace_result))
+  expect_true(grepl("View completed: installed_packages", packages_result))
 
   # Clean up test objects
   rm(test_var, test_df)
