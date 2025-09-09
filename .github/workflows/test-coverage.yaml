@@ -1,6 +1,6 @@
 on:
   push:
-    branches: [main, gha-testing]
+    branches: [main]
   pull_request:
     branches: [main]
 
