@@ -30,7 +30,7 @@ jobs:
           pkgload::load_all(".", helpers = FALSE, quiet = TRUE)
           library(testthat)
           library(covr)
-
+          # Source files manually to ensure internal functions are available
           r_files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
           test_files <- list.files("tests/testthat", pattern = "^test.*\\.R$", full.names = TRUE)
 
