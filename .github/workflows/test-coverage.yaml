@@ -26,11 +26,16 @@ jobs:
 
       - name: Test coverage
         run: |
-          cov <- covr::package_coverage(
-            quiet = FALSE,
-            clean = FALSE,
-            install_path = file.path(normalizePath(Sys.getenv("RUNNER_TEMP"), winslash = "/"), "package")
+          # Use the same approach as local development
+          # Load package in dev mode instead of installing
+          pkgload::load_all(".", helpers = FALSE, quiet = TRUE)
+          
+          # Run coverage on source code directly  
+          cov <- covr::code_coverage(
+            source_files = list.files("R", pattern = "\\.R$", full.names = TRUE),
+            test_files = list.files("tests/testthat", pattern = "^test.*\\.R$", full.names = TRUE)
           )
+          
           print(cov)
           covr::to_cobertura(cov)
         shell: Rscript {0}
