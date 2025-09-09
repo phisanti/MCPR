@@ -26,22 +26,37 @@ jobs:
 
       - name: Test coverage
         run: |
-          # Get absolute path for coverage 
-          pkg_path <- normalizePath(".", winslash = "/")
+          # Working solution: Use pkgload with file_coverage to access all functions
           
-          # Temporarily modify testthat.R to use absolute path
-          testthat_content <- readLines("tests/testthat.R")
-          testthat_content[1] <- paste0('pkgload::load_all("', pkg_path, '", helpers = FALSE, quiet = TRUE)')
-          writeLines(testthat_content, "tests/testthat.R")
+          # Ensure testthat.R uses pkgload (keeps internal functions accessible)
+          cat('pkgload::load_all(".", helpers = FALSE, quiet = TRUE)\n\nlibrary(testthat)\ntest_dir("testthat")\n', file = "tests/testthat.R")
           
-          # Run coverage
-          cov <- covr::package_coverage(
-            path = ".",
-            type = "tests", 
-            quiet = FALSE
+          # Load package in development mode
+          pkgload::load_all(".", helpers = FALSE, quiet = TRUE)
+          
+          # Load required packages
+          library(testthat)
+          library(covr)
+          
+          # Get source and test files
+          r_files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
+          test_files <- list.files("tests/testthat", pattern = "^test.*\\.R$", full.names = TRUE)
+          
+          # Use file_coverage which works with pkgload
+          cat("Running coverage calculation...\n")
+          cov <- covr::file_coverage(
+            source_files = r_files,
+            test_files = test_files
           )
           
-          print(cov)
+          cat("Coverage entries:", length(cov), "\n")
+          if (length(cov) > 0) {
+            cat("Coverage percentage:", round(covr::percent_coverage(cov), 2), "%\n")
+          } else {
+            cat("No coverage data generated\n")
+          }
+          
+          # Generate cobertura XML
           covr::to_cobertura(cov)
         shell: Rscript {0}
 
