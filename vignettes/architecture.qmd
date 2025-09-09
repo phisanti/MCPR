@@ -1,5 +1,6 @@
 ---
 title: "Overall Architecture"
+format: html
 ---
 
 The MCPR framework is built on a robust client-server architecture designed to bridge the gap between stateless AI agents and the stateful, interactive nature of R programming. This article delves into the technical design, communication flow, and core principles that enable this integration.
