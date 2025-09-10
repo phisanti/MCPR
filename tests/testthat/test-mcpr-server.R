@@ -11,6 +11,24 @@ get_test_tools_dir <- function() {
 }
 
 tools_dir <- get_test_tools_dir()
+
+# Skip tests that require interactive mode or complex socket operations
+skip_if_interactive_required <- function() {
+  skip("Test requires non-interactive mode or complex socket setup")
+}
+
+# Helper function to create valid JSON-RPC requests
+create_jsonrpc_request <- function(method, id = 1, params = NULL) {
+  request <- list(
+    jsonrpc = "2.0",
+    id = id,
+    method = method
+  )
+  if (!is.null(params)) {
+    request$params <- params
+  }
+  jsonlite::toJSON(request, auto_unbox = TRUE)
+}
 test_that("mcprServer initializes with default tools", {
   server <- mcprServer$new(.tools_dir = tools_dir)
   expect_true(inherits(server, "mcprServer"))
@@ -104,4 +122,380 @@ test_that("mcpr_server convenience function creates and returns a server instanc
   server_instance_empty <- mcpr_server(registry = empty_registry)
   expect_s3_class(server_instance_empty, "mcprServer")
   expect_true(server_instance_empty$is_running(), "Server with empty registry should be running")
+})
+
+test_that("mcprServer get_tools returns tools in list format", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  tools <- server$get_tools(format = "list")
+  expect_type(tools, "list")
+  
+  # Each tool should be a ToolDef object
+  if (length(tools) > 0) {
+    expect_s3_class(tools[[1]], "ToolDef")
+  }
+})
+
+test_that("mcprServer get_tools returns tools in json format", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  tools <- server$get_tools(format = "json")
+  expect_type(tools, "list")
+  
+  # Each tool should be a list suitable for JSON serialization
+  if (length(tools) > 0) {
+    expect_type(tools[[1]], "list")
+    expect_true("name" %in% names(tools[[1]]))
+  }
+})
+
+test_that("mcprServer get_capabilities returns correct structure", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  capabilities <- server$get_capabilities()
+  expect_type(capabilities, "list")
+  expect_equal(capabilities$protocolVersion, "2024-11-05")
+  expect_true("capabilities" %in% names(capabilities))
+  expect_true("serverInfo" %in% names(capabilities))
+  expect_equal(capabilities$serverInfo$name, "R MCPR server")
+  expect_equal(capabilities$serverInfo$version, "1.0.0")
+})
+
+test_that("mcprServer is_running returns correct status", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Initially not running
+  expect_false(server$is_running())
+  
+  # Set running state manually for testing
+  server$.__enclos_env__$private$.running <- TRUE
+  expect_true(server$is_running())
+  
+  # Reset
+  server$.__enclos_env__$private$.running <- FALSE
+  expect_false(server$is_running())
+})
+
+test_that("mcprServer stop handles already stopped server", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Server not running, stop should return gracefully
+  expect_no_error(server$stop())
+  expect_false(server$is_running())
+})
+
+test_that("mcprServer private method handle_message_from_client handles invalid JSON", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test with empty message
+  expect_no_error(server$.__enclos_env__$private$handle_message_from_client(""))
+  
+  # Test with invalid JSON
+  expect_no_error(server$.__enclos_env__$private$handle_message_from_client("invalid json"))
+})
+
+test_that("mcprServer private method handle_message_from_session handles non-character data", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test with non-character data
+  expect_no_error(server$.__enclos_env__$private$handle_message_from_session(123))
+  expect_no_error(server$.__enclos_env__$private$handle_message_from_session(list()))
+})
+
+test_that("mcprServer private method route_message handles unknown methods", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Create mock data with unknown method
+  data <- list(id = 1, method = "unknown_method")
+  handlers <- list()
+  
+  response <- server$.__enclos_env__$private$route_message(data, handlers)
+  expect_type(response, "list")
+  expect_equal(response$error$code, -32601)
+  expect_equal(response$error$message, "Method not found")
+})
+
+test_that("mcprServer private method route_message calls correct handler", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Create mock data and handlers
+  data <- list(id = 1, method = "test_method")
+  handler_called <- FALSE
+  handlers <- list(
+    "test_method" = function(data) {
+      handler_called <<- TRUE
+      list(result = "success")
+    }
+  )
+  
+  response <- server$.__enclos_env__$private$route_message(data, handlers)
+  expect_true(handler_called)
+  expect_equal(response$result, "success")
+})
+
+test_that("mcprServer private method append_tool_fn validates tool existence", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test with non-tool-call method
+  data <- list(method = "other_method")
+  result <- server$.__enclos_env__$private$append_tool_fn(data)
+  expect_equal(result, data)
+  
+  # Test with non-existent tool
+  data <- list(
+    id = 1,
+    method = "tools/call",
+    params = list(name = "non_existent_tool")
+  )
+  result <- server$.__enclos_env__$private$append_tool_fn(data)
+  expect_true("error" %in% names(result))
+  expect_equal(result$error$code, -32601)
+})
+
+test_that("mcprServer handles invalid request structure", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Capture output to avoid cluttering test output
+  capture.output({
+    # Test with request missing method
+    invalid_data <- '{"id": 1}'
+    server$.__enclos_env__$private$handle_message_from_client(invalid_data)
+    
+    # Test with completely invalid structure
+    invalid_data2 <- '{"not_a_request": true}'
+    server$.__enclos_env__$private$handle_message_from_client(invalid_data2)
+  })
+  
+  # If we get here without errors, the test passes
+  expect_true(TRUE)
+})
+
+# Comprehensive JSON-RPC Protocol Tests
+test_that("mcprServer handles JSON-RPC initialize request correctly", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test initialize request - focus on testing that it doesn't error
+  init_request <- '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}'
+  
+  # Should handle without errors
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(init_request)
+  })
+  
+  # Test the underlying method directly
+  capabilities <- server$get_capabilities()
+  expect_equal(capabilities$protocolVersion, "2024-11-05")
+  expect_true("serverInfo" %in% names(capabilities))
+  expect_equal(capabilities$serverInfo$name, "R MCPR server")
+})
+
+test_that("mcprServer handles JSON-RPC tools/list request correctly", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test tools/list request
+  tools_request <- '{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}'
+  
+  # Should handle without errors
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(tools_request)
+  })
+  
+  # Test the underlying method directly
+  tools <- server$get_tools("json")
+  expect_type(tools, "list")
+  # Each tool should have required properties
+  if (length(tools) > 0) {
+    expect_true("name" %in% names(tools[[1]]))
+    expect_true("description" %in% names(tools[[1]]))
+  }
+})
+
+test_that("mcprServer handles JSON-RPC resources/list request correctly", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test resources/list request
+  resources_request <- '{"jsonrpc": "2.0", "id": 3, "method": "resources/list"}'
+  
+  # Should handle without errors
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(resources_request)
+  })
+})
+
+test_that("mcprServer handles JSON-RPC prompts/list request correctly", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test prompts/list request
+  prompts_request <- '{"jsonrpc": "2.0", "id": 4, "method": "prompts/list"}'
+  
+  # Should handle without errors
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(prompts_request)
+  })
+})
+
+test_that("mcprServer handles JSON-RPC notifications/initialized correctly", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test notification (no response expected)
+  notification <- '{"jsonrpc": "2.0", "method": "notifications/initialized"}'
+  
+  # Capture any output (should be none for notifications)
+  output <- capture.output({
+    server$.__enclos_env__$private$handle_message_from_client(notification)
+  })
+  
+  # Should produce no output for notifications
+  expect_length(output, 0)
+})
+
+test_that("mcprServer handles unknown JSON-RPC methods with error response", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test unknown method
+  unknown_request <- '{"jsonrpc": "2.0", "id": 5, "method": "unknown/method"}'
+  
+  # Should handle without errors (error response is still valid handling)
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(unknown_request)
+  })
+  
+  # Test the route_message method directly
+  data <- list(id = 5, method = "unknown/method")
+  handlers <- list()
+  response <- server$.__enclos_env__$private$route_message(data, handlers)
+  expect_true("error" %in% names(response))
+  expect_equal(response$error$code, -32601)
+  expect_equal(response$error$message, "Method not found")
+})
+
+test_that("mcprServer handles malformed JSON with graceful error handling", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test completely malformed JSON
+  malformed_json <- 'this is not json at all'
+  
+  # Should handle gracefully without throwing errors
+  expect_no_error({
+    capture.output({
+      server$.__enclos_env__$private$handle_message_from_client(malformed_json)
+    })
+  })
+  
+  # Test partial JSON
+  partial_json <- '{"jsonrpc": "2.0", "method"'
+  expect_no_error({
+    capture.output({
+      server$.__enclos_env__$private$handle_message_from_client(partial_json)
+    })
+  })
+})
+
+test_that("mcprServer handles tools/call validation correctly", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test append_tool_fn method with existing tool
+  data_valid <- list(
+    id = 6,
+    method = "tools/call",
+    params = list(name = "view")
+  )
+  
+  result_valid <- server$.__enclos_env__$private$append_tool_fn(data_valid)
+  # Should add tool function to valid requests
+  expect_true("tool" %in% names(result_valid))
+  expect_true(is.function(result_valid$tool))
+})
+
+test_that("mcprServer handles tools/call for non-existent tool", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test append_tool_fn method directly for non-existent tool
+  data <- list(
+    id = 7,
+    method = "tools/call",
+    params = list(name = "non_existent_tool")
+  )
+  result <- server$.__enclos_env__$private$append_tool_fn(data)
+  expect_true("error" %in% names(result))
+  expect_equal(result$error$code, -32601)
+  expect_equal(result$error$message, "Method not found")
+})
+
+test_that("mcprServer handles empty messages gracefully", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test empty string
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client("")
+  })
+  
+  # Test empty character vector
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(character(0))
+  })
+})
+
+test_that("mcprServer handles session messages correctly", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Test valid character data
+  test_data <- "test message from session"
+  expect_no_error({
+    capture.output({
+      server$.__enclos_env__$private$handle_message_from_session(test_data)
+    })
+  })
+  
+  # Test non-character data (should return gracefully)
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_session(123)
+  })
+  
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_session(list())
+  })
+})
+
+test_that("mcprServer complete protocol flow simulation", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  
+  # Simulate complete client interaction without capturing output
+  # Focus on testing that all methods work without errors
+  
+  # 1. Initialize
+  init_request <- '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}'
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(init_request)
+  })
+  
+  # 2. Send notification
+  notification <- '{"jsonrpc": "2.0", "method": "notifications/initialized"}'
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(notification)
+  })
+  
+  # 3. List tools
+  tools_request <- '{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}'
+  expect_no_error({
+    server$.__enclos_env__$private$handle_message_from_client(tools_request)
+  })
+  
+  # 4. Test tool validation (don't execute due to socket issues)
+  data_tool <- list(
+    id = 3,
+    method = "tools/call",
+    params = list(name = "view")
+  )
+  result_tool <- server$.__enclos_env__$private$append_tool_fn(data_tool)
+  expect_true("tool" %in% names(result_tool))
+  
+  # Test that server public methods work correctly
+  capabilities <- server$get_capabilities()
+  expect_equal(capabilities$protocolVersion, "2024-11-05")
+  
+  tools <- server$get_tools("json")
+  expect_type(tools, "list")
+  
+  expect_false(server$is_running()) # Should not be running in test mode
 })

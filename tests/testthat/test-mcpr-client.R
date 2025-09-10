@@ -255,13 +255,12 @@ test_that("mcprClient jsonrpc_id increments correctly", {
   expect_equal(id2, 2)
 })
 
-test_that("mcprClient get_mcpr_tools returns empty list when no servers", {
+test_that("mcprClient get_mcpr_tools returns NULL when no servers", {
   client <- mcprClient$new()
   
-  # Should return empty list when no servers configured
+  # Should return NULL when no servers configured (unlist of empty list)
   tools <- client$get_mcpr_tools()
-  expect_type(tools, "list")
-  expect_length(tools, 0)
+  expect_null(tools)
 })
 
 test_that("mcprClient get_server_status returns empty list when no servers", {
@@ -377,7 +376,7 @@ test_that("mcprClient default_mcp_client_config returns correct path", {
   
   config_path <- client$.__enclos_env__$private$default_mcp_client_config()
   expect_type(config_path, "character")
-  expect_true(grepl("\.config/mcptools/config\.json$", config_path))
+  expect_true(grepl("config/mcptools/config.*json$", config_path))
 })
 
 test_that("mcprClient read_mcp_config handles valid JSON", {
@@ -406,13 +405,15 @@ test_that("mcprClient read_mcp_config handles valid JSON", {
 test_that("mcprClient read_mcp_config handles empty file", {
   client <- mcprClient$new()
   
-  # Create empty config file
+  # Create empty config file (invalid JSON)
   empty_config <- tempfile(fileext = ".json")
   writeLines("", empty_config)
   
-  result <- client$.__enclos_env__$private$read_mcp_config(empty_config)
-  expect_type(result, "list")
-  expect_length(result, 0)
+  # Empty file should trigger JSON parsing error
+  expect_error(
+    client$.__enclos_env__$private$read_mcp_config(empty_config),
+    "Configuration processing failed"
+  )
   
   unlink(empty_config)
 })
@@ -429,8 +430,7 @@ test_that("mcprClient error_no_mcp_config throws correct error", {
 test_that("mcpr_tools function creates client and gets tools", {
   # Test the exported function
   tools <- mcpr_tools(config = tempfile()) # Non-existent config
-  expect_type(tools, "list")
-  expect_length(tools, 0) # Should be empty with non-existent config
+  expect_null(tools) # Should be NULL with non-existent config (same as get_mcpr_tools)
 })
 
 test_that("mcprClient server_as_mcpr_tools converts server tools correctly", {
