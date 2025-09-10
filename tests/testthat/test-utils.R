@@ -111,6 +111,56 @@ test_that("convert_json_types handles basic conversions", {
   expect_equal(result2$outer$inner$text, "nested")
 })
 
+test_that("check_not_interactive handles interactive sessions", {
+  # Test that the function exists and can be called
+  expect_no_error(MCPR:::check_not_interactive())
+})
+
+test_that("compact removes empty elements from list", {
+  # Test with mixed empty and non-empty elements
+  test_list <- list(a = c(1, 2), b = character(0), c = "hello", d = numeric(0), e = list(x = 1))
+  result <- MCPR:::compact(test_list)
+  
+  expect_equal(length(result), 3)
+  expect_true("a" %in% names(result))
+  expect_true("c" %in% names(result))
+  expect_true("e" %in% names(result))
+  expect_false("b" %in% names(result))
+  expect_false("d" %in% names(result))
+})
+
+test_that("infer_ide detects IDE from command args", {
+  # Mock commandArgs for different IDEs
+  with_mocked_bindings(
+    `commandArgs` = function() c("ark", "other", "args"),
+    expect_equal(MCPR:::infer_ide(), "Positron")
+  )
+  
+  with_mocked_bindings(
+    `commandArgs` = function() c("RStudio", "other", "args"),
+    expect_equal(MCPR:::infer_ide(), "RStudio")
+  )
+  
+  with_mocked_bindings(
+    `commandArgs` = function() c("some_other_ide", "args"),
+    expect_equal(MCPR:::infer_ide(), "some_other_ide")
+  )
+})
+
+test_that("null coalescing operator works correctly", {
+  # Test with NULL left side
+  expect_equal(NULL %||% "default", "default")
+  expect_equal(NULL %||% 42, 42)
+  
+  # Test with non-NULL left side
+  expect_equal("value" %||% "default", "value")
+  expect_equal(123 %||% 456, 123)
+  expect_equal(FALSE %||% TRUE, FALSE)
+  
+  # Test with both NULL
+  expect_equal(NULL %||% NULL, NULL)
+})
+
 test_that("infer_ide detects IDE correctly", {
   # This test may be environment-dependent
   ide_result <- infer_ide()

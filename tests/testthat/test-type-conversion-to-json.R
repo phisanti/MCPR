@@ -350,3 +350,131 @@ test_that("Large object handling works correctly", {
   expect_equal(result$preview$ncol, 3)
   expect_equal(length(result$preview$head[[1]]), 5) # Should have 5 rows in preview
 })
+
+test_that("special numeric values are converted correctly", {
+  # Test Inf, -Inf, NaN
+  special_vals <- c(1, Inf, -Inf, NaN, NA)
+  result <- to_mcpr_json(special_vals)
+  
+  expect_type(result, "list")
+  expect_equal(result$`_mcp_type`, "numeric_vector_special")
+  expect_true("special_indices" %in% names(result))
+  
+  # Single Inf value
+  single_inf <- Inf
+  single_result <- to_mcpr_json(single_inf)
+  expect_equal(single_result$`_mcp_type`, "special_numeric")
+  expect_equal(as.character(single_result$value), "Inf")
+})
+
+test_that("date objects are converted correctly", {
+  # Test Date conversion
+  test_date <- as.Date("2024-01-15")
+  result <- to_mcpr_json(test_date)
+  
+  expect_equal(result$`_mcp_type`, "Date")
+  expect_equal(result$values, "2024-01-15")
+  
+  # Test multiple dates
+  date_vec <- as.Date(c("2024-01-15", "2024-02-20"))
+  vec_result <- to_mcpr_json(date_vec)
+  expect_equal(vec_result$`_mcp_type`, "Date")
+  expect_equal(length(vec_result$values), 2)
+})
+
+test_that("POSIXt datetime objects are converted correctly", {
+  # Test POSIXct conversion
+  test_datetime <- as.POSIXct("2024-01-15 14:30:00", tz = "UTC")
+  result <- to_mcpr_json(test_datetime)
+  
+  expect_equal(result$`_mcp_type`, "POSIXct")
+  expect_true("values" %in% names(result))
+  # Note: timezone might not be preserved in all conversions
+})
+
+test_that("complex numbers are converted correctly", {
+  # Test complex number conversion
+  complex_val <- 3 + 4i
+  result <- to_mcpr_json(complex_val)
+  
+  expect_equal(result$`_mcp_type`, "complex")
+  expect_true("real" %in% names(result))
+  expect_true("imaginary" %in% names(result))
+  expect_equal(result$real, 3)
+  expect_equal(result$imaginary, 4)
+  
+  # Test complex vector
+  complex_vec <- c(1+2i, 3+4i)
+  vec_result <- to_mcpr_json(complex_vec)
+  expect_equal(vec_result$`_mcp_type`, "complex")
+  expect_equal(length(vec_result$real), 2)
+})
+
+test_that("raw bytes are converted correctly", {
+  # Test raw conversion
+  raw_data <- as.raw(c(65, 66, 67))  # ABC
+  result <- to_mcpr_json(raw_data)
+  
+  expect_equal(result$`_mcp_type`, "raw")
+  # Raw data conversion format may vary
+  expect_true(is.list(result))
+})
+
+test_that("formula objects are converted correctly", {
+  # Test formula conversion
+  test_formula <- y ~ x + z
+  result <- to_mcpr_json(test_formula)
+  
+  expect_true(is.character(result) || is.list(result))
+  # Formula is converted - exact format may vary
+})
+
+test_that("factor objects are converted correctly", {
+  # Test factor conversion
+  test_factor <- factor(c("A", "B", "C", "A"), levels = c("A", "B", "C", "D"))
+  result <- to_mcpr_json(test_factor)
+  
+  expect_equal(result$`_mcp_type`, "factor")
+  expect_true("values" %in% names(result))
+  expect_true("levels" %in% names(result))
+  expect_equal(result$levels, c("A", "B", "C", "D"))
+  # Factor values may be converted as indices
+  expect_true(is.vector(result$values))
+})
+
+test_that("environment objects are handled", {
+  # Test environment conversion
+  test_env <- new.env()
+  test_env$a <- 1
+  test_env$b <- "hello"
+  
+  result <- to_mcpr_json(test_env)
+  # Environment conversion produces some representation
+  expect_true(is.character(result) || is.list(result))
+})
+
+test_that("custom serializers are used when provided", {
+  # Create a custom class
+  custom_obj <- structure(list(value = 42), class = "custom_class")
+  
+  # Define custom serializer
+  custom_serializers <- list(
+    custom_class = function(x) {
+      list(custom_value = x$value * 2, `_mcp_type` = "custom")
+    }
+  )
+  
+  result <- to_mcpr_json(custom_obj, custom_serializers = custom_serializers)
+  
+  expect_equal(result$`_mcp_type`, "custom")
+  expect_equal(result$custom_value, 84)
+})
+
+test_that("language objects are converted", {
+  # Test expression/call conversion
+  test_expr <- quote(mean(x))
+  result <- to_mcpr_json(test_expr)
+  
+  # Language objects are converted to some representation
+  expect_true(is.character(result) || is.list(result))
+})
