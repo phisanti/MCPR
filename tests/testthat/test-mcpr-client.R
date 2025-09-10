@@ -254,3 +254,208 @@ test_that("mcprClient jsonrpc_id increments correctly", {
   expect_equal(id1, 1)
   expect_equal(id2, 2)
 })
+
+test_that("mcprClient get_mcpr_tools returns empty list when no servers", {
+  client <- mcprClient$new()
+  
+  # Should return empty list when no servers configured
+  tools <- client$get_mcpr_tools()
+  expect_type(tools, "list")
+  expect_length(tools, 0)
+})
+
+test_that("mcprClient get_server_status returns empty list when no servers", {
+  client <- mcprClient$new()
+  
+  status <- client$get_server_status()
+  expect_type(status, "list")
+  expect_length(status, 0)
+})
+
+test_that("mcprClient get_server_status returns correct format with mock server", {
+  client <- mcprClient$new()
+  
+  # Add mock server
+  mock_process <- list(
+    is_alive = function() TRUE
+  )
+  
+  client$.__enclos_env__$private$.servers[["test_server"]] <- list(
+    name = "test_server",
+    process = mock_process,
+    tools = list(tools = list(tool1 = list(), tool2 = list())),
+    id = 5
+  )
+  
+  status <- client$get_server_status()
+  
+  expect_type(status, "list")
+  expect_length(status, 1)
+  expect_equal(status[[1]]$name, "test_server")
+  expect_true(status[[1]]$connected)
+  expect_equal(status[[1]]$tools_count, 2)
+  expect_equal(status[[1]]$last_id, 5)
+})
+
+test_that("mcprClient as_mcpr_types handles empty tool schema", {
+  client <- mcprClient$new()
+  
+  # Test with NULL inputSchema
+  tool_null <- list(inputSchema = NULL)
+  result <- client$as_mcpr_types(tool_null)
+  expect_type(result, "list")
+  expect_length(result, 0)
+  
+  # Test with NULL properties
+  tool_no_props <- list(inputSchema = list(properties = NULL))
+  result2 <- client$as_mcpr_types(tool_no_props)
+  expect_type(result2, "list")
+  expect_length(result2, 0)
+})
+
+test_that("mcprClient as_mcpr_types converts tool schema properties", {
+  client <- mcprClient$new()
+  
+  tool_with_props <- list(
+    inputSchema = list(
+      properties = list(
+        param1 = list(type = "string", description = "A string parameter"),
+        param2 = list(type = "number", description = "A number parameter")
+      )
+    )
+  )
+  
+  result <- client$as_mcpr_types(tool_with_props)
+  expect_type(result, "list")
+  expect_length(result, 2)
+  expect_true("param1" %in% names(result))
+  expect_true("param2" %in% names(result))
+})
+
+test_that("mcprClient private methods create correct JSON-RPC messages", {
+  client <- mcprClient$new()
+  
+  # Test mcp_request_initialize
+  init_msg <- client$.__enclos_env__$private$mcp_request_initialize()
+  expect_equal(init_msg$jsonrpc, "2.0")
+  expect_equal(init_msg$id, 1)
+  expect_equal(init_msg$method, "initialize")
+  expect_equal(init_msg$params$protocolVersion, "2024-11-05")
+  expect_equal(init_msg$params$clientInfo$name, "MCPR Client")
+  
+  # Test mcp_request_tools_list
+  tools_msg <- client$.__enclos_env__$private$mcp_request_tools_list()
+  expect_equal(tools_msg$jsonrpc, "2.0")
+  expect_equal(tools_msg$id, 2)
+  expect_equal(tools_msg$method, "tools/list")
+  
+  # Test mcp_request_tool_call with arguments
+  call_msg <- client$.__enclos_env__$private$mcp_request_tool_call(
+    id = 3,
+    tool = "test_tool",
+    arguments = list(param1 = "value1", param2 = 42)
+  )
+  expect_equal(call_msg$jsonrpc, "2.0")
+  expect_equal(call_msg$id, 3)
+  expect_equal(call_msg$method, "tools/call")
+  expect_equal(call_msg$params$name, "test_tool")
+  expect_equal(call_msg$params$arguments$param1, "value1")
+  expect_equal(call_msg$params$arguments$param2, 42)
+  
+  # Test mcp_request_tool_call without arguments
+  call_msg_no_args <- client$.__enclos_env__$private$mcp_request_tool_call(
+    id = 4,
+    tool = "simple_tool",
+    arguments = list()
+  )
+  expect_equal(call_msg_no_args$params$name, "simple_tool")
+  expect_false("arguments" %in% names(call_msg_no_args$params))
+})
+
+test_that("mcprClient default_mcp_client_config returns correct path", {
+  client <- mcprClient$new()
+  
+  config_path <- client$.__enclos_env__$private$default_mcp_client_config()
+  expect_type(config_path, "character")
+  expect_true(grepl("\.config/mcptools/config\.json$", config_path))
+})
+
+test_that("mcprClient read_mcp_config handles valid JSON", {
+  client <- mcprClient$new()
+  
+  # Create valid config file
+  valid_config <- tempfile(fileext = ".json")
+  config_content <- '{
+    "mcpServers": {
+      "server1": {
+        "command": "node",
+        "args": ["server.js"]
+      }
+    }
+  }'
+  writeLines(config_content, valid_config)
+  
+  result <- client$.__enclos_env__$private$read_mcp_config(valid_config)
+  expect_type(result, "list")
+  expect_true("server1" %in% names(result))
+  expect_equal(result$server1$command, "node")
+  
+  unlink(valid_config)
+})
+
+test_that("mcprClient read_mcp_config handles empty file", {
+  client <- mcprClient$new()
+  
+  # Create empty config file
+  empty_config <- tempfile(fileext = ".json")
+  writeLines("", empty_config)
+  
+  result <- client$.__enclos_env__$private$read_mcp_config(empty_config)
+  expect_type(result, "list")
+  expect_length(result, 0)
+  
+  unlink(empty_config)
+})
+
+test_that("mcprClient error_no_mcp_config throws correct error", {
+  client <- mcprClient$new()
+  
+  expect_error(
+    client$.__enclos_env__$private$error_no_mcp_config(),
+    "The mcptools MCP client configuration file does not exist"
+  )
+})
+
+test_that("mcpr_tools function creates client and gets tools", {
+  # Test the exported function
+  tools <- mcpr_tools(config = tempfile()) # Non-existent config
+  expect_type(tools, "list")
+  expect_length(tools, 0) # Should be empty with non-existent config
+})
+
+test_that("mcprClient server_as_mcpr_tools converts server tools correctly", {
+  client <- mcprClient$new()
+  
+  # Create mock server with tools
+  mock_server <- list(
+    name = "test_server",
+    tools = list(
+      tools = list(
+        list(
+          name = "test_tool",
+          description = "A test tool",
+          inputSchema = list(
+            properties = list(
+              param1 = list(type = "string")
+            )
+          )
+        )
+      )
+    )
+  )
+  
+  result <- client$.__enclos_env__$private$server_as_mcpr_tools(mock_server)
+  expect_type(result, "list")
+  expect_length(result, 1)
+  expect_s3_class(result[[1]], "ToolDef")
+})

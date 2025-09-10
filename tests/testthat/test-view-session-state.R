@@ -2,7 +2,7 @@
 # Tests individual helper functions in view-session-state.R
 
 test_that("view_session returns formatted session info", {
-  result <- MCPR:::view_session(20)
+  result <- view_session(20)
 
   expect_type(result, "character")
   expect_true(grepl("R Session Information", result))
@@ -12,7 +12,7 @@ test_that("view_session returns formatted session info", {
 })
 
 test_that("view_workspace returns directory structure", {
-  result <- MCPR:::view_workspace(15)
+  result <- view_workspace(15)
 
   expect_type(result, "character")
   expect_true(grepl("Workspace Directory:", result))
@@ -20,7 +20,7 @@ test_that("view_workspace returns directory structure", {
 })
 
 test_that("view_last_error returns error info", {
-  result <- MCPR:::view_last_error(10)
+  result <- view_last_error(10)
 
   expect_type(result, "character")
   expect_true(grepl("Last Error Information", result))
@@ -29,7 +29,7 @@ test_that("view_last_error returns error info", {
 })
 
 test_that("view_warnings returns warning info", {
-  result <- MCPR:::view_warnings(10)
+  result <- view_warnings(10)
 
   expect_type(result, "character")
   expect_true(grepl("Recent Warnings Summary", result))
@@ -38,7 +38,7 @@ test_that("view_warnings returns warning info", {
 })
 
 test_that("view_terminal returns terminal info", {
-  result <- MCPR:::view_terminal(10)
+  result <- view_terminal(10)
 
   expect_type(result, "character")
   expect_true(grepl("Terminal Output Summary", result))
@@ -48,7 +48,7 @@ test_that("view_terminal returns terminal info", {
 
 test_that("get_command_history helper function works", {
   # Test the multi-strategy history retrieval
-  result <- MCPR:::get_command_history(5)
+  result <- get_command_history(5)
 
   # Result should be NULL or character vector
   expect_true(is.null(result) || is.character(result))
@@ -79,7 +79,7 @@ test_that("parse_radian_history filters correctly", {
   # Set session start to filter out old commands
   session_start <- as.POSIXct("2025-08-20 09:30:00", tz = "UTC")
 
-  result <- MCPR:::parse_radian_history(sample_history, session_start, 10)
+  result <- parse_radian_history(sample_history, session_start, 10)
 
   expect_type(result, "character")
   expect_true("library(MCPR)" %in% result)
@@ -89,7 +89,7 @@ test_that("parse_radian_history filters correctly", {
 })
 
 test_that("get_session_start_time returns reasonable time", {
-  session_start <- MCPR:::get_session_start_time()
+  session_start <- get_session_start_time()
 
   expect_s3_class(session_start, "POSIXct")
   # Should be sometime in the past but not too far
@@ -104,7 +104,7 @@ test_that("view_session handles objects with different types", {
   assign("test_func", function() "test", envir = .GlobalEnv)
   assign(".hidden_obj", "hidden", envir = .GlobalEnv)
   
-  result <- MCPR:::view_session(50)
+  result <- view_session(50)
   
   # Should detect different object types
   expect_true(grepl("data\\.frame.*3x2", result))
@@ -117,8 +117,8 @@ test_that("view_session handles objects with different types", {
 })
 
 test_that("view_session respects max_lines parameter", {
-  result_short <- MCPR:::view_session(5)
-  result_long <- MCPR:::view_session(100)
+  result_short <- view_session(5)
+  result_long <- view_session(100)
   
   expect_type(result_short, "character")
   expect_type(result_long, "character")
@@ -128,7 +128,7 @@ test_that("view_session respects max_lines parameter", {
 
 test_that("view_workspace handles empty directory", {
   # Test with current directory (should have files)
-  result <- MCPR:::view_workspace(20)
+  result <- view_workspace(20)
   
   expect_true(grepl("Workspace Directory:", result))
   expect_true(grepl("Summary:", result))
@@ -136,7 +136,7 @@ test_that("view_workspace handles empty directory", {
 
 test_that("parse_radian_history handles malformed input", {
   # Test with empty input
-  result_empty <- MCPR:::parse_radian_history(character(0))
+  result_empty <- parse_radian_history(character(0))
   expect_equal(result_empty, character(0))
   
   # Test with malformed time
@@ -145,15 +145,15 @@ test_that("parse_radian_history handles malformed input", {
     "# mode: r",
     "+valid_command <- 1"
   )
-  result_malformed <- MCPR:::parse_radian_history(malformed, NULL, 10)
+  result_malformed <- parse_radian_history(malformed, NULL, 10)
   expect_type(result_malformed, "character")
 })
 
 test_that("session state functions handle edge cases gracefully", {
   # These should not error even if environment is minimal
-  expect_no_error(MCPR:::view_session(5))
-  expect_no_error(MCPR:::view_workspace(5))
-  expect_no_error(MCPR:::view_last_error(5))
-  expect_no_error(MCPR:::view_warnings(5))
-  expect_no_error(MCPR:::view_terminal(5))
+  expect_no_error(view_session(5))
+  expect_no_error(view_workspace(5))
+  expect_no_error(view_last_error(5))
+  expect_no_error(view_warnings(5))
+  expect_no_error(view_terminal(5))
 })

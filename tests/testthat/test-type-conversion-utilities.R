@@ -357,7 +357,7 @@ test_that("stream_dataframe processes data in chunks", {
   }
   
   # Stream with chunk size 25
-  MCPR:::stream_dataframe(test_df, chunk_size = 25, chunk_callback)
+  stream_dataframe(test_df, chunk_size = 25, chunk_callback)
   
   expect_equal(length(chunks), 4)
   
@@ -378,7 +378,7 @@ test_that("stream_dataframe handles edge cases", {
   small_df <- data.frame(x = 1:5, y = letters[1:5])
   chunks <- list()
   
-  MCPR:::stream_dataframe(small_df, chunk_size = 10, function(chunk) {
+  stream_dataframe(small_df, chunk_size = 10, function(chunk) {
     chunks <<- append(chunks, list(chunk))
   })
   
@@ -390,7 +390,7 @@ test_that("stream_dataframe handles edge cases", {
   single_df <- data.frame(x = 1, y = "a")
   single_chunks <- list()
   
-  MCPR:::stream_dataframe(single_df, chunk_size = 100, function(chunk) {
+  stream_dataframe(single_df, chunk_size = 100, function(chunk) {
     single_chunks <<- append(single_chunks, list(chunk))
   })
   
@@ -400,19 +400,19 @@ test_that("stream_dataframe handles edge cases", {
 
 test_that("type constructor functions work correctly", {
   # Test type_boolean
-  bool_type <- MCPR:::type_boolean("Boolean flag", required = FALSE)
+  bool_type <- type_boolean("Boolean flag", required = FALSE)
   expect_equal(bool_type$type, "boolean")
   expect_equal(bool_type$description, "Boolean flag")
   expect_equal(bool_type$required, FALSE)
   
   # Test type_integer  
-  int_type <- MCPR:::type_integer("Integer value")
+  int_type <- type_integer("Integer value")
   expect_equal(int_type$type, "integer")
   expect_equal(int_type$description, "Integer value")
   expect_equal(int_type$required, TRUE)
   
   # Test type_number
-  num_type <- MCPR:::type_number()
+  num_type <- type_number()
   expect_equal(num_type$type, "number")
   expect_equal(num_type$required, TRUE)
   expect_true(is.null(num_type$description))
@@ -422,8 +422,8 @@ test_that("mcpr_serialize handles different parameters", {
   test_obj <- list(a = 1, b = "test", c = TRUE)
   
   # Test pretty formatting
-  json_pretty <- MCPR:::mcpr_serialize(test_obj, pretty = TRUE)
-  json_compact <- MCPR:::mcpr_serialize(test_obj, pretty = FALSE)
+  json_pretty <- mcpr_serialize(test_obj, pretty = TRUE)
+  json_compact <- mcpr_serialize(test_obj, pretty = FALSE)
   
   expect_type(json_pretty, "character")
   expect_type(json_compact, "character")
@@ -431,8 +431,8 @@ test_that("mcpr_serialize handles different parameters", {
   
   # Test auto_unbox parameter
   single_val <- list(value = 42)
-  json_unbox <- MCPR:::mcpr_serialize(single_val, auto_unbox = TRUE)
-  json_no_unbox <- MCPR:::mcpr_serialize(single_val, auto_unbox = FALSE)
+  json_unbox <- mcpr_serialize(single_val, auto_unbox = TRUE)
+  json_no_unbox <- mcpr_serialize(single_val, auto_unbox = FALSE)
   
   expect_type(json_unbox, "character")
   expect_type(json_no_unbox, "character")
@@ -443,7 +443,7 @@ test_that("mcpr_serialize handles size limits", {
   large_obj <- list(data = matrix(runif(1000), nrow = 100))
   
   # Test with very small size limit
-  json_limited <- MCPR:::mcpr_serialize(large_obj, size_limit = 100)
+  json_limited <- mcpr_serialize(large_obj, size_limit = 100)
   expect_type(json_limited, "character")
   
   # Should still produce valid JSON

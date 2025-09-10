@@ -173,7 +173,7 @@ test_that("tool_as_json converts ToolDef to MCP format", {
     arguments = list(x = "number")
   )
   
-  json_result <- MCPR:::tool_as_json(test_tool)
+  json_result <- tool_as_json(test_tool)
   
   expect_type(json_result, "list")
   expect_equal(json_result$name, "double_value")
@@ -193,7 +193,7 @@ test_that("tool_as_json handles complex argument types", {
     )
   )
   
-  json_result <- MCPR:::tool_as_json(complex_tool)
+  json_result <- tool_as_json(complex_tool)
   
   expect_type(json_result, "list")
   expect_true("inputSchema" %in% names(json_result))

@@ -2,7 +2,7 @@
 # Tests functions in view-system-info.R for packages and search path info
 
 test_that("view_installed_packages returns package info", {
-  result <- MCPR:::view_installed_packages(20)
+  result <- view_installed_packages(20)
 
   expect_type(result, "character")
   expect_true(grepl("Installed Packages Summary", result))
@@ -11,7 +11,7 @@ test_that("view_installed_packages returns package info", {
 })
 
 test_that("view_search_path returns search path info", {
-  result <- MCPR:::view_search_path(15)
+  result <- view_search_path(15)
 
   expect_type(result, "character")
   expect_true(grepl("Package Search Path", result))
@@ -21,18 +21,18 @@ test_that("view_search_path returns search path info", {
 
 test_that("system info functions handle different max_lines values", {
   # Test with very small max_lines
-  small_result <- MCPR:::view_installed_packages(5)
+  small_result <- view_installed_packages(5)
   expect_type(small_result, "character")
   expect_true(grepl("Installed Packages Summary", small_result))
 
   # Test with large max_lines
-  large_result <- MCPR:::view_search_path(100)
+  large_result <- view_search_path(100)
   expect_type(large_result, "character")
   expect_true(grepl("Package Search Path", large_result))
 })
 
 test_that("view_installed_packages shows package categories", {
-  result <- MCPR:::view_installed_packages(100)
+  result <- view_installed_packages(100)
   
   # Should show base or priority packages
   expect_true(grepl("Base R packages|packages", result))
@@ -45,7 +45,7 @@ test_that("view_installed_packages shows package categories", {
 })
 
 test_that("view_search_path shows detailed search info", {
-  result <- MCPR:::view_search_path(100)
+  result <- view_search_path(100)
   
   # Should identify GlobalEnv specifically
   expect_true(grepl(".GlobalEnv.*user workspace", result))
@@ -60,7 +60,7 @@ test_that("view_search_path shows detailed search info", {
 })
 
 test_that("view_search_path handles conflicts", {
-  result <- MCPR:::view_search_path(50)
+  result <- view_search_path(50)
   
   # Should attempt to detect conflicts
   expect_true(grepl("conflict", result, ignore.case = TRUE))
@@ -68,6 +68,6 @@ test_that("view_search_path handles conflicts", {
 
 test_that("system info functions handle edge cases gracefully", {
   # These should not error even with minimal inputs
-  expect_no_error(MCPR:::view_installed_packages(1))
-  expect_no_error(MCPR:::view_search_path(1))
+  expect_no_error(view_installed_packages(1))
+  expect_no_error(view_search_path(1))
 })
