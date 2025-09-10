@@ -57,10 +57,3 @@ jobs:
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.TOKEN_CODECOV }}
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.TOKEN_CODECOV }}
