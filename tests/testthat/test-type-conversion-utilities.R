@@ -349,24 +349,24 @@ test_that("stream_dataframe processes data in chunks", {
     value = runif(100),
     category = sample(letters[1:5], 100, replace = TRUE)
   )
-  
+
   # Collect chunks
   chunks <- list()
   chunk_callback <- function(chunk_info) {
     chunks <<- append(chunks, list(chunk_info))
   }
-  
+
   # Stream with chunk size 25
   stream_dataframe(test_df, chunk_size = 25, chunk_callback)
-  
+
   expect_equal(length(chunks), 4)
-  
+
   # Check first chunk
   expect_equal(chunks[[1]]$chunk, 1)
   expect_equal(chunks[[1]]$total_chunks, 4)
   expect_equal(chunks[[1]]$start_row, 1)
   expect_equal(chunks[[1]]$end_row, 25)
-  
+
   # Check last chunk
   expect_equal(chunks[[4]]$chunk, 4)
   expect_equal(chunks[[4]]$start_row, 76)
@@ -377,23 +377,23 @@ test_that("stream_dataframe handles edge cases", {
   # Test with small dataframe (less than chunk size)
   small_df <- data.frame(x = 1:5, y = letters[1:5])
   chunks <- list()
-  
+
   stream_dataframe(small_df, chunk_size = 10, function(chunk) {
     chunks <<- append(chunks, list(chunk))
   })
-  
+
   expect_equal(length(chunks), 1)
   expect_equal(chunks[[1]]$start_row, 1)
   expect_equal(chunks[[1]]$end_row, 5)
-  
+
   # Test with single row
   single_df <- data.frame(x = 1, y = "a")
   single_chunks <- list()
-  
+
   stream_dataframe(single_df, chunk_size = 100, function(chunk) {
     single_chunks <<- append(single_chunks, list(chunk))
   })
-  
+
   expect_equal(length(single_chunks), 1)
   expect_equal(single_chunks[[1]]$total_chunks, 1)
 })
@@ -404,13 +404,13 @@ test_that("type constructor functions work correctly", {
   expect_equal(bool_type$type, "boolean")
   expect_equal(bool_type$description, "Boolean flag")
   expect_equal(bool_type$required, FALSE)
-  
-  # Test type_integer  
+
+  # Test type_integer
   int_type <- type_integer("Integer value")
   expect_equal(int_type$type, "integer")
   expect_equal(int_type$description, "Integer value")
   expect_equal(int_type$required, TRUE)
-  
+
   # Test type_number
   num_type <- type_number()
   expect_equal(num_type$type, "number")
@@ -420,20 +420,20 @@ test_that("type constructor functions work correctly", {
 
 test_that("mcpr_serialize handles different parameters", {
   test_obj <- list(a = 1, b = "test", c = TRUE)
-  
+
   # Test pretty formatting
   json_pretty <- mcpr_serialize(test_obj, pretty = TRUE)
   json_compact <- mcpr_serialize(test_obj, pretty = FALSE)
-  
+
   expect_type(json_pretty, "character")
   expect_type(json_compact, "character")
   expect_true(nchar(json_pretty) >= nchar(json_compact))
-  
+
   # Test auto_unbox parameter
   single_val <- list(value = 42)
   json_unbox <- mcpr_serialize(single_val, auto_unbox = TRUE)
   json_no_unbox <- mcpr_serialize(single_val, auto_unbox = FALSE)
-  
+
   expect_type(json_unbox, "character")
   expect_type(json_no_unbox, "character")
 })
@@ -441,11 +441,11 @@ test_that("mcpr_serialize handles different parameters", {
 test_that("mcpr_serialize handles size limits", {
   # Create a large object
   large_obj <- list(data = matrix(runif(1000), nrow = 100))
-  
+
   # Test with very small size limit
   json_limited <- mcpr_serialize(large_obj, size_limit = 100)
   expect_type(json_limited, "character")
-  
+
   # Should still produce valid JSON
   expect_no_error(jsonlite::fromJSON(json_limited))
 })

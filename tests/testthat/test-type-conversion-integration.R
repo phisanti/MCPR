@@ -105,7 +105,7 @@ test_that("tool execution handles arrays correctly", {
 
   # Define test data
   numbers_data <- c(1, 2, 3, 4, 5)
-  
+
   # This mimics how JSON arrays come in
   array_data <- list(
     id = 5,

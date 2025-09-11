@@ -169,20 +169,20 @@ test_that("validate_mcpr_type_structure validates mcpr_type objects", {
   expect_silent(validate_mcpr_type_structure(type_number(description = "test")))
   expect_silent(validate_mcpr_type_structure(type_boolean(description = "test")))
   expect_silent(validate_mcpr_type_structure(type_integer(description = "test")))
-  
+
   # Test non-mcpr_type objects
   expect_error(
     validate_mcpr_type_structure(list(type = "string")),
     "must be an mcpr_type object created with type_"
   )
-  
+
   expect_error(
     validate_mcpr_type_structure("not_mcpr_type"),
     "must be an mcpr_type object"
   )
 })
 
-# Test validate_mcpr_type_object function directly  
+# Test validate_mcpr_type_object function directly
 test_that("validate_mcpr_type_object validates type field requirements", {
   # Test object without type field
   bad_obj <- structure(list(description = "test"), class = "mcpr_type")
@@ -190,7 +190,7 @@ test_that("validate_mcpr_type_object validates type field requirements", {
     validate_mcpr_type_object(bad_obj),
     "must have a 'type' field"
   )
-  
+
   # Test object with invalid type
   bad_type_obj <- structure(list(type = "invalid_type"), class = "mcpr_type")
   expect_error(
@@ -203,14 +203,14 @@ test_that("validate_mcpr_type_object validates enum types", {
   # Test valid enum
   valid_enum <- structure(list(type = "enum", values = c("a", "b", "c")), class = "mcpr_type")
   expect_silent(validate_mcpr_type_object(valid_enum))
-  
+
   # Test enum without values
   enum_no_values <- structure(list(type = "enum"), class = "mcpr_type")
   expect_error(
     validate_mcpr_type_object(enum_no_values),
     "enum type must have 'values' field"
   )
-  
+
   # Test enum with non-character values
   enum_bad_values <- structure(list(type = "enum", values = c(1, 2, 3)), class = "mcpr_type")
   expect_error(
@@ -222,22 +222,22 @@ test_that("validate_mcpr_type_object validates enum types", {
 test_that("validate_mcpr_type_object validates array types", {
   # Test valid array
   valid_array <- structure(list(
-    type = "array", 
+    type = "array",
     items = structure(list(type = "string"), class = "mcpr_type")
   ), class = "mcpr_type")
   expect_silent(validate_mcpr_type_object(valid_array))
-  
+
   # Test array without items
   array_no_items <- structure(list(type = "array"), class = "mcpr_type")
   expect_error(
     validate_mcpr_type_object(array_no_items),
     "array type must have 'items' field"
   )
-  
+
   # Test recursive validation of array items
   array_bad_items <- structure(list(
     type = "array",
-    items = list(type = "string")  # Not an mcpr_type object
+    items = list(type = "string") # Not an mcpr_type object
   ), class = "mcpr_type")
   expect_error(
     validate_mcpr_type_object(array_bad_items),
@@ -255,23 +255,23 @@ test_that("validate_mcpr_type_object validates object types", {
     )
   ), class = "mcpr_type")
   expect_silent(validate_mcpr_type_object(valid_object))
-  
+
   # Test object with NULL properties (should pass)
   object_null_props <- structure(list(type = "object", properties = NULL), class = "mcpr_type")
   expect_silent(validate_mcpr_type_object(object_null_props))
-  
+
   # Test object with non-list properties
   object_bad_props <- structure(list(type = "object", properties = "not_a_list"), class = "mcpr_type")
   expect_error(
     validate_mcpr_type_object(object_bad_props),
     "object type 'properties' must be a list"
   )
-  
+
   # Test object with invalid property types
   object_invalid_prop <- structure(list(
     type = "object",
     properties = list(
-      bad_prop = list(type = "string")  # Not an mcpr_type object
+      bad_prop = list(type = "string") # Not an mcpr_type object
     )
   ), class = "mcpr_type")
   expect_error(
@@ -283,7 +283,7 @@ test_that("validate_mcpr_type_object validates object types", {
 test_that("validate_mcpr_type_object validates all basic types", {
   # Test all valid basic types
   basic_types <- c("boolean", "integer", "number", "string")
-  
+
   for (type in basic_types) {
     basic_obj <- structure(list(type = type), class = "mcpr_type")
     expect_silent(validate_mcpr_type_object(basic_obj))
@@ -305,13 +305,13 @@ test_that("validate_tool_name handles edge cases", {
     validate_tool_name(c("name1", "name2")),
     "must be a single string"
   )
-  
+
   # Test NA value
   expect_error(
     validate_tool_name(NA_character_),
     "must not be missing"
   )
-  
+
   # Test character(0)
   expect_error(
     validate_tool_name(character(0)),
@@ -325,19 +325,19 @@ test_that("validate_tool_description handles edge cases", {
     validate_tool_description(c("desc1", "desc2")),
     "must be a single string"
   )
-  
+
   # Test NA value
   expect_error(
     validate_tool_description(NA_character_),
     "must not be missing"
   )
-  
+
   # Test character(0)
   expect_error(
     validate_tool_description(character(0)),
     "must be a single string"
   )
-  
+
   # Test list
   expect_error(
     validate_tool_description(list("description")),
@@ -358,7 +358,7 @@ test_that("complex nested structures validate correctly", {
     ), class = "mcpr_type")
   ), class = "mcpr_type")
   expect_silent(validate_mcpr_type_object(array_of_objects))
-  
+
   # Test object with array property
   object_with_array <- structure(list(
     type = "object",
@@ -370,7 +370,7 @@ test_that("complex nested structures validate correctly", {
     )
   ), class = "mcpr_type")
   expect_silent(validate_mcpr_type_object(object_with_array))
-  
+
   # Test nested object failure
   nested_bad_object <- structure(list(
     type = "object",

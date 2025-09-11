@@ -112,7 +112,7 @@ test_that("to_json converts R objects to JSON", {
 test_that("check_not_interactive handles interactive sessions", {
   # Test that the function exists and can be called in non-interactive mode
   expect_no_error(check_not_interactive())
-  
+
   # Test interactive mode with mocking
   with_mocked_bindings(
     `is_interactive` = function() TRUE, .package = "rlang",
@@ -124,7 +124,7 @@ test_that("compact removes empty elements from list", {
   # Test with mixed empty and non-empty elements
   test_list <- list(a = c(1, 2), b = character(0), c = "hello", d = numeric(0), e = list(x = 1))
   result <- compact(test_list)
-  
+
   expect_equal(length(result), 3)
   expect_true("a" %in% names(result))
   expect_true("c" %in% names(result))
@@ -139,12 +139,12 @@ test_that("infer_ide detects IDE from command args", {
     `commandArgs` = function() c("ark", "other", "args"),
     expect_equal(infer_ide(), "Positron")
   )
-  
+
   with_mocked_bindings(
     `commandArgs` = function() c("RStudio", "other", "args"),
     expect_equal(infer_ide(), "RStudio")
   )
-  
+
   with_mocked_bindings(
     `commandArgs` = function() c("some_other_ide", "args"),
     expect_equal(infer_ide(), "some_other_ide")
@@ -155,12 +155,12 @@ test_that("null coalescing operator works correctly", {
   # Test with NULL left side
   expect_equal(NULL %||% "default", "default")
   expect_equal(NULL %||% 42, 42)
-  
+
   # Test with non-NULL left side
   expect_equal("value" %||% "default", "value")
   expect_equal(123 %||% 456, 123)
   expect_equal(FALSE %||% TRUE, FALSE)
-  
+
   # Test with both NULL
   expect_equal(NULL %||% NULL, NULL)
 })
@@ -182,7 +182,7 @@ test_that("check functions work correctly", {
   expect_silent(check_string("valid_string"))
   expect_error(check_string(123), "must be a single string")
   expect_error(check_string(NULL), "must be a single string")
-  
+
   # Test check_string with allow_null = TRUE
   expect_silent(check_string(NULL, allow_null = TRUE))
   expect_silent(check_string("valid", allow_null = TRUE))
@@ -193,7 +193,7 @@ test_that("check functions work correctly", {
   expect_silent(check_bool(FALSE))
   expect_error(check_bool("not_boolean"), "must be a single logical value")
   expect_error(check_bool(1), "must be a single logical value")
-  
+
   # Test check_bool with allow_null = TRUE
   expect_silent(check_bool(NULL, allow_null = TRUE))
   expect_silent(check_bool(TRUE, allow_null = TRUE))
@@ -211,7 +211,7 @@ test_that("get_system_socket_url returns platform-appropriate URL", {
   expect_true(is.character(result))
   expect_true(length(result) == 1)
   expect_true(nchar(result) > 0)
-  
+
   # Should contain socket-related text
   expect_true(grepl("socket", result, ignore.case = TRUE))
 })
@@ -220,7 +220,7 @@ test_that("check_session_socket works correctly", {
   # Test verbose mode (default)
   result_verbose <- check_session_socket(verbose = TRUE)
   expect_true(is.null(result_verbose) || is.numeric(result_verbose))
-  
+
   # Test non-verbose mode
   result_list <- check_session_socket(verbose = FALSE)
   expect_true(is.list(result_list))
@@ -237,16 +237,16 @@ test_that("describe_session creates session descriptions", {
   expect_true(is.character(result_basic))
   expect_true(length(result_basic) == 1)
   expect_true(nchar(result_basic) > 0)
-  
+
   # Test detailed session description
   result_detailed <- describe_session(detailed = TRUE)
   expect_true(is.character(result_detailed))
   expect_true(length(result_detailed) == 1)
   expect_true(nchar(result_detailed) > 0)
-  
+
   # Detailed should be longer than basic
   expect_true(nchar(result_detailed) > nchar(result_basic))
-  
+
   # Should contain timestamp in detailed mode
   expect_true(grepl("\\d{4}-\\d{2}-\\d{2}", result_detailed))
 })

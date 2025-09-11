@@ -126,7 +126,7 @@ test_that("logging methods work correctly", {
   # Logger should be properly configured
   # logger <- base_obj$get_logger()
   # expect_s3_class(logger, "MCPRLogger")
-  
+
   # Just test that initialization works
   expect_true(base_obj$is_initialized())
 })
@@ -215,7 +215,7 @@ test_that("socket utilities work correctly", {
   # Test with default socket URL when not set
   base_obj$state_clear("socket_url")
   url_default <- base_obj$socket_url(1)
-  
+
   # Get expected URL based on platform (same logic as get_system_socket_url)
   expected_base <- switch(Sys.info()[["sysname"]],
     Linux = "abstract://MCPR-socket",

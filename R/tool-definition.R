@@ -48,7 +48,7 @@ tool <- function(
 
   # Convert arguments to mcpr_type objects if needed
   converted_arguments <- convert_argument_types(arguments)
-  
+
   check_arguments(converted_arguments, formals(fun))
 
   ToolDef$new(
@@ -76,36 +76,36 @@ convert_argument_types <- function(arguments) {
   if (!is.list(arguments) || length(arguments) == 0) {
     return(arguments)
   }
-  
+
   converted_args <- list()
-  
+
   for (arg_name in names(arguments)) {
     arg_spec <- arguments[[arg_name]]
-    
+
     # Check if already an mcpr_type object
     if (inherits(arg_spec, "mcpr_type")) {
       converted_args[[arg_name]] <- arg_spec
       next
     }
-    
+
     # Handle string-based type definitions
     if (is.character(arg_spec) && length(arg_spec) == 1) {
       converted_args[[arg_name]] <- map_type_schema(arg_spec, input_type = "definition")
       next
     }
-    
+
     # Handle raw list format (backward compatibility)
     if (is.list(arg_spec) && !is.null(arg_spec$type)) {
       description <- arg_spec$description %||% ""
       converted_args[[arg_name]] <- map_type_schema(arg_spec$type, description = description, input_type = "definition")
       next
     }
-    
+
     # Default fallback - treat as string
     cli::cli_warn("Unknown argument type specification for '{arg_name}', defaulting to string")
     converted_args[[arg_name]] <- map_type_schema("string", input_type = "definition")
   }
-  
+
   converted_args
 }
 

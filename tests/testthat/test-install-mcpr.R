@@ -9,7 +9,7 @@ test_that("install_mcpr validates agent argument correctly", {
   # No agent (NULL) should error with helpful message
   expect_error(install_mcpr(), "No agent specified")
   expect_error(install_mcpr(NULL), "No agent specified")
-  
+
   # Multiple agents should error
   expect_error(install_mcpr(c("claude", "gemini")), "Multiple agents specified")
   expect_error(install_mcpr(c("claude", "gemini", "copilot")), "Multiple agents specified")
@@ -57,7 +57,7 @@ test_that("install_mcpr handles different agents appropriately", {
   # Create a temporary directory for testing
   temp_dir <- tempdir()
   temp_config <- file.path(temp_dir, "test_config.json")
-  
+
   # Create a mock function that returns our temp path instead of system paths
   mock_get_agent_config_path <- function(agent, scope = NULL) {
     list(
@@ -65,7 +65,7 @@ test_that("install_mcpr handles different agents appropriately", {
       type = "test"
     )
   }
-  
+
   # Mock the get_agent_config_path function
   with_mocked_bindings(
     get_agent_config_path = mock_get_agent_config_path,
@@ -73,11 +73,11 @@ test_that("install_mcpr handles different agents appropriately", {
     {
       # Test valid agents are accepted (they should complete without error)
       expect_no_error(install_mcpr("claude", force = TRUE))
-      expect_no_error(install_mcpr("gemini", force = TRUE))  
+      expect_no_error(install_mcpr("gemini", force = TRUE))
       expect_no_error(install_mcpr("copilot", force = TRUE))
     }
   )
-  
+
   # Clean up
   if (file.exists(temp_config)) {
     unlink(temp_config)
@@ -144,14 +144,14 @@ test_that("install_mcpr provides appropriate error messages", {
 #   skip_on_ci()
 #   # Test that install_mcpr creates the correct configuration structure
 #   # This test uses a temporary file to verify the actual output
-#   
+#
 #   temp_config <- tempfile(fileext = ".json")
-#   
+#
 #   # Mock the get_agent_config_path function to use our temp file
 #   mock_get_agent_config_path <- function(agent, scope = NULL) {
 #     list(path = temp_config, type = "test")
 #   }
-#   
+#
 #   # Test with mocked path
 #   with_mocked_bindings(
 #     get_agent_config_path = mock_get_agent_config_path,
@@ -159,28 +159,28 @@ test_that("install_mcpr provides appropriate error messages", {
 #     {
 #       # Install to temp file
 #       result <- install_mcpr("claude", force = TRUE)
-#       
+#
 #       # Verify installation succeeded
 #       expect_true(result$success)
 #       expect_equal(result$config_path, temp_config)
-#       
+#
 #       # Verify the file was created and has correct structure
 #       expect_true(file.exists(temp_config))
-#       
+#
 #       # Read and verify JSON structure
-#       config <- jsonlite::fromJSON(temp_config, simplifyVector = TRUE, 
+#       config <- jsonlite::fromJSON(temp_config, simplifyVector = TRUE,
 #                                    simplifyDataFrame = FALSE, simplifyMatrix = FALSE)
-#       
+#
 #       # Check top-level structure
 #       expect_true("mcpServers" %in% names(config))
 #       expect_true("mcpr" %in% names(config$mcpServers))
-#       
+#
 #       # Check MCPR server structure
 #       mcpr_config <- config$mcpServers$mcpr
 #       expect_true(is.list(mcpr_config))
 #       expect_true("command" %in% names(mcpr_config))
 #       expect_true("args" %in% names(mcpr_config))
-#       
+#
 #       # Check specific values
 #       expect_equal(mcpr_config$command, "R")
 #       expect_true(is.character(mcpr_config$args))
@@ -188,8 +188,8 @@ test_that("install_mcpr provides appropriate error messages", {
 #       expect_true("MCPR::mcpr_server()" %in% mcpr_config$args)
 #     }
 #   )
-#   
+#
 #   # Clean up
 #   unlink(temp_config)
 # })
-# 
+#

@@ -21,7 +21,7 @@
 #' server <- mcprServer$new()
 #' server$start() # Blocking call
 #'
-#' # Server with custom tools  
+#' # Server with custom tools
 #' my_tool <- tool(
 #'   function(x) mean(x),
 #'   name = "mean",
