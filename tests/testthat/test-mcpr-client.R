@@ -459,3 +459,193 @@ test_that("mcprClient server_as_mcpr_tools converts server tools correctly", {
   expect_length(result, 1)
   expect_s3_class(result[[1]], "ToolDef")
 })
+
+# Test process communication edge cases
+test_that("mcprClient send_and_receive handles timeout scenarios", {
+  client <- mcprClient$new()
+  
+  # Mock process that never returns output
+  mock_process <- list(
+    write_input = function(input) TRUE,
+    read_output_lines = function() character(0) # Always returns empty
+  )
+  
+  # Mock the message
+  test_message <- list(jsonrpc = "2.0", id = 1, method = "test")
+  
+  result <- client$.__enclos_env__$private$send_and_receive(mock_process, test_message)
+  expect_null(result)
+})
+
+
+
+
+test_that("mcprClient finalize handles signal errors gracefully", {
+  # Test finalize with process that throws error on signal
+  signal_error_process <- list(
+    is_alive = function() TRUE,
+    signal = function(sig) {
+      stop("Signal failed")
+    },
+    kill = function() TRUE
+  )
+  
+  client <- mcprClient$new()
+  client$.__enclos_env__$private$.server_processes <- list(error_process = signal_error_process)
+  
+  # Should handle signal errors gracefully
+  expect_no_error(client$.__enclos_env__$private$finalize())
+})
+
+
+
+
+test_that("mcprClient tool_ref handles empty arguments correctly", {
+  client <- mcprClient$new()
+  
+  # Test with no arguments
+  tool_func <- client$.__enclos_env__$private$tool_ref(
+    server = "test_server",
+    tool = "no_args_tool",
+    arguments = character(0)
+  )
+  
+  expect_type(tool_func, "closure")
+  expect_length(formals(tool_func), 0)
+})
+
+test_that("mcprClient tool_ref handles special character arguments", {
+  client <- mcprClient$new()
+  
+  # Test with arguments containing special characters
+  tool_func <- client$.__enclos_env__$private$tool_ref(
+    server = "test_server",
+    tool = "special_tool",
+    arguments = c("arg-with-dash", "arg_with_underscore", "arg.with.dots")
+  )
+  
+  expect_type(tool_func, "closure")
+  expect_length(formals(tool_func), 3)
+})
+
+test_that("mcprClient as_mcpr_types handles complex nested schemas", {
+  client <- mcprClient$new()
+  
+  # Test with nested object schema
+  complex_tool <- list(
+    inputSchema = list(
+      properties = list(
+        simple_param = list(type = "string", description = "Simple parameter"),
+        complex_param = list(
+          type = "object",
+          properties = list(
+            nested_string = list(type = "string"),
+            nested_number = list(type = "number")
+          )
+        ),
+        array_param = list(
+          type = "array",
+          items = list(type = "string")
+        )
+      )
+    )
+  )
+  
+  result <- client$as_mcpr_types(complex_tool)
+  expect_type(result, "list")
+  expect_length(result, 3)
+  expect_true("simple_param" %in% names(result))
+  expect_true("complex_param" %in% names(result))
+  expect_true("array_param" %in% names(result))
+})
+
+test_that("mcprClient jsonrpc_id handles missing server gracefully", {
+  client <- mcprClient$new()
+  
+  # Test with non-existent server - actually it returns NULL without error
+  result <- client$.__enclos_env__$private$jsonrpc_id("nonexistent_server")
+  expect_null(result)
+})
+
+test_that("mcprClient get_server_status handles server with NULL tools", {
+  client <- mcprClient$new()
+  
+  mock_process <- list(
+    is_alive = function() TRUE
+  )
+  
+  # Add server with NULL tools
+  client$.__enclos_env__$private$.servers[["null_tools_server"]] <- list(
+    name = "null_tools_server",
+    process = mock_process,
+    tools = NULL,
+    id = 1
+  )
+  
+  status <- client$get_server_status()
+  expect_type(status, "list")
+  expect_length(status, 1)
+  expect_equal(status[[1]]$tools_count, 0)
+})
+
+test_that("mcprClient get_server_status handles server with empty tools list", {
+  client <- mcprClient$new()
+  
+  mock_process <- list(
+    is_alive = function() FALSE  # Test with disconnected server
+  )
+  
+  # Add server with empty tools
+  client$.__enclos_env__$private$.servers[["empty_tools_server"]] <- list(
+    name = "empty_tools_server", 
+    process = mock_process,
+    tools = list(tools = list()),
+    id = 10
+  )
+  
+  status <- client$get_server_status()
+  expect_type(status, "list")
+  expect_length(status, 1)
+  expect_false(status[[1]]$connected)
+  expect_equal(status[[1]]$tools_count, 0)
+})
+
+test_that("mcprClient server_as_mcpr_tools handles server with no tools", {
+  client <- mcprClient$new()
+  
+  # Test with server that has no tools
+  empty_server <- list(
+    name = "empty_server",
+    tools = list(tools = list())
+  )
+  
+  result <- client$.__enclos_env__$private$server_as_mcpr_tools(empty_server)
+  expect_type(result, "list")
+  expect_length(result, 0)
+})
+
+test_that("mcprClient server_as_mcpr_tools handles tools without input schema", {
+  client <- mcprClient$new()
+  
+  # Test with tools that have no input schema
+  server_no_schema <- list(
+    name = "no_schema_server",
+    tools = list(
+      tools = list(
+        list(
+          name = "simple_tool",
+          description = "A simple tool with no parameters"
+          # No inputSchema
+        )
+      )
+    )
+  )
+  
+  result <- client$.__enclos_env__$private$server_as_mcpr_tools(server_no_schema)
+  expect_type(result, "list")
+  expect_length(result, 1)
+  expect_s3_class(result[[1]], "ToolDef")
+})
+
+
+

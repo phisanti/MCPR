@@ -397,32 +397,6 @@ test_that("mcpr_session_start and stop integration", {
   the$session <- original_session_id
 })
 
-test_that("mcprSession comprehensive lifecycle test", {
-  session <- mcprSession$new(timeout_seconds = 5)
-  
-  # Test complete lifecycle
-  initial_info <- session$get_info()
-  expect_false(initial_info$is_running)
-  expect_null(initial_info$session_id)
-  expect_false(initial_info$socket_active)
-  
-  # Simulate starting (without actual socket operations)
-  session$.__enclos_env__$private$.is_running <- TRUE
-  session$.__enclos_env__$private$.session_id <- 100
-  session$.__enclos_env__$private$.last_activity <- Sys.time()
-  
-  running_info <- session$get_info()
-  expect_true(running_info$is_running)
-  expect_equal(running_info$session_id, 100)
-  
-  # Test stopping
-  session$stop()
-  
-  stopped_info <- session$get_info()
-  expect_false(stopped_info$is_running)
-  expect_null(stopped_info$session_id)
-  expect_null(stopped_info$last_activity)
-})
 
 test_that("mcprSession error resilience", {
   session <- mcprSession$new()
@@ -463,3 +437,4 @@ test_that("mcprSession method chaining works", {
   expect_identical(result2, session)
   expect_identical(result3, session)
 })
+

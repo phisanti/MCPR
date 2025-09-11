@@ -110,8 +110,14 @@ test_that("to_json converts R objects to JSON", {
 })
 
 test_that("check_not_interactive handles interactive sessions", {
-  # Test that the function exists and can be called
+  # Test that the function exists and can be called in non-interactive mode
   expect_no_error(check_not_interactive())
+  
+  # Test interactive mode with mocking
+  with_mocked_bindings(
+    `is_interactive` = function() TRUE, .package = "rlang",
+    expect_error(check_not_interactive(), "This function is not intended for interactive use")
+  )
 })
 
 test_that("compact removes empty elements from list", {
@@ -176,12 +182,22 @@ test_that("check functions work correctly", {
   expect_silent(check_string("valid_string"))
   expect_error(check_string(123), "must be a single string")
   expect_error(check_string(NULL), "must be a single string")
+  
+  # Test check_string with allow_null = TRUE
+  expect_silent(check_string(NULL, allow_null = TRUE))
+  expect_silent(check_string("valid", allow_null = TRUE))
+  expect_error(check_string(123, allow_null = TRUE), "must be a single string")
 
   # Test check_bool
   expect_silent(check_bool(TRUE))
   expect_silent(check_bool(FALSE))
   expect_error(check_bool("not_boolean"), "must be a single logical value")
   expect_error(check_bool(1), "must be a single logical value")
+  
+  # Test check_bool with allow_null = TRUE
+  expect_silent(check_bool(NULL, allow_null = TRUE))
+  expect_silent(check_bool(TRUE, allow_null = TRUE))
+  expect_error(check_bool("not_boolean", allow_null = TRUE), "must be a single logical value")
 
   # Test check_function
   expect_silent(check_function(function(x) x))
