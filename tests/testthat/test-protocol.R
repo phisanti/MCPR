@@ -69,6 +69,85 @@ test_that("jsonrpc_response creates valid error responses", {
   expect_equal(response$error, error_info)
 })
 
+test_that("create_capabilities returns MCP capabilities", {
+  caps <- create_capabilities()
+  
+  expect_true(is.list(caps))
+  expect_equal(caps$protocolVersion, "2024-11-05")
+  expect_true("capabilities" %in% names(caps))
+  expect_true("serverInfo" %in% names(caps))
+  expect_true("instructions" %in% names(caps))
+  
+  # Should be similar to capabilities() function
+  expect_equal(caps$serverInfo$name, "R mcptools server")
+  expect_equal(caps$serverInfo$version, "0.0.1")
+})
+
+test_that("jsonrpc_response validates mutual exclusivity", {
+  # Should warn if both result and error provided
+  expect_warning(
+    jsonrpc_response(id = 1, result = "success", error = list(code = -1)),
+    "Either.*result.*or.*error.*must be provided"
+  )
+  
+  # Should warn if neither provided (both NULL)
+  expect_warning(
+    jsonrpc_response(id = 1, result = NULL, error = NULL),
+    "Either.*result.*or.*error.*must be provided"
+  )
+})
+
+test_that("convert_json_types handles complex structures", {
+  # Test with nested structure
+  complex_args <- list(
+    simple = "text",
+    nested = list(inner = 123),
+    array = c(1, 2, 3)
+  )
+  
+  result <- convert_json_types(complex_args)
+  expect_equal(result$simple, "text")
+  expect_equal(result$nested$inner, 123)
+  expect_equal(result$array, c(1, 2, 3))
+})
+
+test_that("create_initialize_request creates proper initialization", {
+  # Test with default parameters
+  init_req1 <- create_initialize_request()
+  
+  expect_equal(init_req1$jsonrpc, "2.0")
+  expect_equal(init_req1$id, 1)
+  expect_equal(init_req1$method, "initialize")
+  expect_equal(init_req1$params$protocolVersion, "2024-11-05")
+  expect_equal(init_req1$params$clientInfo$name, "MCP Test Client")
+  expect_equal(init_req1$params$clientInfo$version, "0.1.0")
+  
+  # Test with custom parameters
+  init_req2 <- create_initialize_request("Custom Client", "2.0.0")
+  expect_equal(init_req2$params$clientInfo$name, "Custom Client")
+  expect_equal(init_req2$params$clientInfo$version, "2.0.0")
+})
+
+test_that("create_tools_list_request creates tool discovery request", {
+  # Test with default ID
+  tools_req1 <- create_tools_list_request()
+  
+  expect_equal(tools_req1$jsonrpc, "2.0")
+  expect_equal(tools_req1$id, 2)
+  expect_equal(tools_req1$method, "tools/list")
+  expect_true(is.null(tools_req1$params))
+  
+  # Test with custom ID
+  tools_req2 <- create_tools_list_request(id = 99)
+  expect_equal(tools_req2$id, 99)
+})
+
+test_that("cat_json outputs JSON to stdout", {
+  # Test that cat_json doesn't error
+  test_obj <- list(message = "test", code = 200)
+  expect_no_error(cat_json(test_obj))
+})
+
 test_that("jsonrpc_response handles NULL id", {
   # Test with NULL id (notification responses)
   response <- jsonrpc_response(id = NULL, result = "OK")

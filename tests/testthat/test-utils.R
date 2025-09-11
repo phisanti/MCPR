@@ -84,31 +84,85 @@ test_that("NULL coalescing operator %||% works correctly", {
   expect_equal(result5, list(x = 1))
 })
 
-test_that("convert_json_types handles basic conversions", {
+test_that("to_json converts R objects to JSON", {
   # Test with simple types
   simple_data <- list(
     number = 42,
     string = "test",
-    boolean = TRUE,
-    null_val = NULL
+    boolean = TRUE
   )
 
-  result <- convert_json_types(simple_data)
-  expect_equal(result, simple_data)
+  result <- to_json(simple_data)
+  expect_true(is.character(result))
+  expect_true(jsonlite::validate(result))
 
-  # Test with nested structures
-  nested_data <- list(
-    outer = list(
-      inner = list(
-        value = 123,
-        text = "nested"
-      )
-    )
+  # Test with vector that should be unboxed
+  single_value <- "test"
+  result2 <- to_json(single_value)
+  expect_equal(jsonlite::fromJSON(result2), "test")
+
+  # Test with list
+  list_data <- list(a = 1, b = 2)
+  result3 <- to_json(list_data)
+  parsed <- jsonlite::fromJSON(result3)
+  expect_equal(parsed$a, 1)
+  expect_equal(parsed$b, 2)
+})
+
+test_that("check_not_interactive handles interactive sessions", {
+  # Test that the function exists and can be called in non-interactive mode
+  expect_no_error(check_not_interactive())
+  
+  # Test interactive mode with mocking
+  with_mocked_bindings(
+    `is_interactive` = function() TRUE, .package = "rlang",
+    expect_error(check_not_interactive(), "This function is not intended for interactive use")
   )
+})
 
-  result2 <- convert_json_types(nested_data)
-  expect_equal(result2$outer$inner$value, 123)
-  expect_equal(result2$outer$inner$text, "nested")
+test_that("compact removes empty elements from list", {
+  # Test with mixed empty and non-empty elements
+  test_list <- list(a = c(1, 2), b = character(0), c = "hello", d = numeric(0), e = list(x = 1))
+  result <- compact(test_list)
+  
+  expect_equal(length(result), 3)
+  expect_true("a" %in% names(result))
+  expect_true("c" %in% names(result))
+  expect_true("e" %in% names(result))
+  expect_false("b" %in% names(result))
+  expect_false("d" %in% names(result))
+})
+
+test_that("infer_ide detects IDE from command args", {
+  # Mock commandArgs for different IDEs
+  with_mocked_bindings(
+    `commandArgs` = function() c("ark", "other", "args"),
+    expect_equal(infer_ide(), "Positron")
+  )
+  
+  with_mocked_bindings(
+    `commandArgs` = function() c("RStudio", "other", "args"),
+    expect_equal(infer_ide(), "RStudio")
+  )
+  
+  with_mocked_bindings(
+    `commandArgs` = function() c("some_other_ide", "args"),
+    expect_equal(infer_ide(), "some_other_ide")
+  )
+})
+
+test_that("null coalescing operator works correctly", {
+  # Test with NULL left side
+  expect_equal(NULL %||% "default", "default")
+  expect_equal(NULL %||% 42, 42)
+  
+  # Test with non-NULL left side
+  expect_equal("value" %||% "default", "value")
+  expect_equal(123 %||% 456, 123)
+  expect_equal(FALSE %||% TRUE, FALSE)
+  
+  # Test with both NULL
+  expect_equal(NULL %||% NULL, NULL)
 })
 
 test_that("infer_ide detects IDE correctly", {
@@ -128,12 +182,22 @@ test_that("check functions work correctly", {
   expect_silent(check_string("valid_string"))
   expect_error(check_string(123), "must be a single string")
   expect_error(check_string(NULL), "must be a single string")
+  
+  # Test check_string with allow_null = TRUE
+  expect_silent(check_string(NULL, allow_null = TRUE))
+  expect_silent(check_string("valid", allow_null = TRUE))
+  expect_error(check_string(123, allow_null = TRUE), "must be a single string")
 
   # Test check_bool
   expect_silent(check_bool(TRUE))
   expect_silent(check_bool(FALSE))
   expect_error(check_bool("not_boolean"), "must be a single logical value")
   expect_error(check_bool(1), "must be a single logical value")
+  
+  # Test check_bool with allow_null = TRUE
+  expect_silent(check_bool(NULL, allow_null = TRUE))
+  expect_silent(check_bool(TRUE, allow_null = TRUE))
+  expect_error(check_bool("not_boolean", allow_null = TRUE), "must be a single logical value")
 
   # Test check_function
   expect_silent(check_function(function(x) x))
@@ -142,21 +206,47 @@ test_that("check functions work correctly", {
   expect_error(check_function(123), "must be a function")
 })
 
-test_that("can_serialize determines serialization capability", {
-  # Test objects that can be serialized
-  expect_true(can_serialize(1:10))
-  expect_true(can_serialize("test string"))
-  expect_true(can_serialize(list(a = 1, b = 2)))
-  expect_true(can_serialize(data.frame(x = 1:3, y = letters[1:3])))
+test_that("get_system_socket_url returns platform-appropriate URL", {
+  result <- get_system_socket_url()
+  expect_true(is.character(result))
+  expect_true(length(result) == 1)
+  expect_true(nchar(result) > 0)
+  
+  # Should contain socket-related text
+  expect_true(grepl("socket", result, ignore.case = TRUE))
+})
 
-  # Test objects that typically cannot be serialized
-  # Environment
-  test_env <- new.env()
-  result_env <- can_serialize(test_env)
-  expect_true(is.logical(result_env)) # Should return logical
+test_that("check_session_socket works correctly", {
+  # Test verbose mode (default)
+  result_verbose <- check_session_socket(verbose = TRUE)
+  expect_true(is.null(result_verbose) || is.numeric(result_verbose))
+  
+  # Test non-verbose mode
+  result_list <- check_session_socket(verbose = FALSE)
+  expect_true(is.list(result_list))
+  expect_true("socket_number" %in% names(result_list))
+  expect_true("is_interactive" %in% names(result_list))
+  expect_true("has_session" %in% names(result_list))
+  expect_true(is.logical(result_list$is_interactive))
+  expect_true(is.logical(result_list$has_session))
+})
 
-  # Function
-  test_function <- function(x) x
-  result_func <- can_serialize(test_function)
-  expect_true(is.logical(result_func)) # Should return logical
+test_that("describe_session creates session descriptions", {
+  # Test basic session description
+  result_basic <- describe_session(detailed = FALSE)
+  expect_true(is.character(result_basic))
+  expect_true(length(result_basic) == 1)
+  expect_true(nchar(result_basic) > 0)
+  
+  # Test detailed session description
+  result_detailed <- describe_session(detailed = TRUE)
+  expect_true(is.character(result_detailed))
+  expect_true(length(result_detailed) == 1)
+  expect_true(nchar(result_detailed) > 0)
+  
+  # Detailed should be longer than basic
+  expect_true(nchar(result_detailed) > nchar(result_basic))
+  
+  # Should contain timestamp in detailed mode
+  expect_true(grepl("\\d{4}-\\d{2}-\\d{2}", result_detailed))
 })
