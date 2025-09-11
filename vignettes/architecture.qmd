@@ -18,7 +18,7 @@ This architecture consists of three primary components:
 
 1.  **The AI Agent (Client)**: This is the large language model operating within its environment (e.g., Claude Desktop, a VS Code extension). It communicates using a standardized JSON-RPC 2.0 protocol over `stdin`/`stdout`.
 2.  **The MCPR Server (Proxy)**: A transient, lightweight `Rscript` process that acts as a bridge. Its main roles are to discover active R sessions on the local machine and route messages between the AI Agent and the chosen R Session.
-3.  **The R Session (Provider)**: This is the user's interactive R session where the data analysis occurs. By running `mcpr_session()`, the user turns their R session into a service provider, listening for connections and executing tool calls within its persistent environment.
+3.  **The R Session (Provider)**: This is the user's interactive R session where the data analysis occurs. By running `mcpr_session_start()`, the user turns their R session into a service provider, listening for connections and executing tool calls within its persistent environment.
 
 ## Communication Workflow
 
@@ -34,7 +34,7 @@ sequenceDiagram
     participant Server as MCPR Server
     participant Session as R Session
     
-    Note over Session: User runs mcpr_session()
+    Note over Session: User runs mcpr_session_start()
     Session->>Session: Creates mcprSession instance & finds an open port
     Session->>Session: Starts an asynchronous listener on a nanonext socket
     

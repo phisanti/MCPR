@@ -34,7 +34,7 @@ remotes::install_github("phisanti/MCPR")
 
 # 2. Start an R session and make it discoverable
 library(MCPR)
-mcpr_session()
+mcpr_session_start()
 
 # 3. In your AI agent (Claude, etc.), connect to the session
 # The agent will use: manage_r_sessions("list") then manage_r_sessions("join", session_id)
@@ -51,7 +51,7 @@ MCPR's design is guided by principles of modularity, robustness, and practicalit
 
 - **Communication Protocol:** MCPR uses JSON-RPC 2.0 over `nanonext` sockets, providing a lightweight, asynchronous, and reliable messaging layer. This choice ensures cross-platform compatibility and non-blocking communication suitable for an interactive environment.
 - **Tool-Based Design:** Functionality is exposed to the AI agent as a discrete set of tools (create_plot, execute_r_code, etc.). This modular approach simplifies the agent's interaction logic and provides clear, well-defined endpoints for R operations.
-- **Session Management:** A central `mcpr_session()` function acts as a listener, making an R session discoverable on the local machine. The `manage_r_sessions` tool provides the service discovery mechanism for agents to find and connect to these listeners.
+- **Session Management:** A central `mcpr_session_start()` function acts as a listener, making an R session discoverable on the local machine. The `manage_r_sessions` tool provides the service discovery mechanism for agents to find and connect to these listeners.
 - **Graphics Subsystem:** Plot generation leverages `httpgd` when available for high-performance, off-screen rendering. A fallback to standard R graphics devices (grDevices) ensures broad compatibility. The system includes intelligent token management to prevent oversized image payloads.
 
 ## Installation
@@ -94,7 +94,7 @@ Then, add the following MCP server configuration:
 ## Usage Pattern
 The intended workflow is simple and user-centric.
 
-1. The user starts an R session and invokes `mcpr_session()` to enable connections.
+1. The user starts an R session and invokes `mcpr_session_start()` to enable connections.
 2. The user instructs their AI agent to connect.
 3. The agent uses `manage_r_sessions('list')` to find the session ID and `manage_r_sessions('join', session=ID)` to connect.
 4. The user can now interact with the agent, making requests regarding their R session. The agent can now use `execute_r_code`, `create_plot`, and `view` to collaboratively assist the user with their analysis, maintaining full context throughout the interaction.
@@ -153,7 +153,7 @@ manage_r_sessions("start")       # Create new session
 - `'installed_packages'`: Available libraries
 
 ## Common errors
-- **Connection Failed:** Ensure `mcpr_session()` is running in R. Set the `MCPTOOLS_LOG_FILE` environment variable to a valid path and inspect logs for detailed error messages.
+- **Connection Failed:** Ensure `mcpr_session_start()` is running in R. Set the `MCPTOOLS_LOG_FILE` environment variable to a valid path and inspect logs for detailed error messages.
 - **Tools Not Found:** Confirm the path in `user_mcp.json` is correct and that the agent has been restarted. Manually install the MCP server to verify the setup.
 - **Plotting Errors:** Ensure the plotting expression is valid and that all necessary libraries are loaded, and install `httpgd`.
 

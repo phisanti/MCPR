@@ -202,7 +202,7 @@ install_mcpr <- function(agent = NULL,
     cli::cli_alert_info("Next steps:")
     cli::cli_bullets(c(
       "*" = "Start an R session where you want to collaborate with AI",
-      "*" = "Run {.code mcpr_session()} to make the session discoverable",
+      "*" = "Run {.code mcpr_session_start()} to make the session discoverable",
       "*" = "Your AI agent can now execute R code and access your workspace!"
     ))
   }
