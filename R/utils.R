@@ -138,6 +138,7 @@ infer_ide <- function() {
 #' @param x Left-hand side value to check
 #' @param y Right-hand side value (used if x is NULL)
 #' @return x if not NULL, otherwise y
+#' @noRd
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
 }
