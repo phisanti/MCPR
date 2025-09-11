@@ -103,8 +103,8 @@ The intended workflow is simple and user-centric.
 The philosophy in the development of the MCPR package is to provide the agent with few, well-defined tools that can be composed to perform complex tasks. The goal was to give the agent the ability to manage multiple R sessions (`manage_r_sessions`), to run R code in the session (`execute_r_code`), see the graphical data (`create_plot`), and inspect the session (`view`). We believe these are flexible enough to accomplish any task in R. See the details below.
 
 ### `execute_r_code(code)`
-**Purpose**: Execute arbitrary R code within session context
-**Input**: Character string containing R expressions
+**Purpose**: Execute arbitrary R code within session context  
+**Input**: Character string containing R expressions  
 **Output**: Structured response with results, output, warnings, and errors
   
 ```r
@@ -118,8 +118,8 @@ execute_r_code("
 ```
 
 ### `create_plot(expr, width, height, format)`
-**Purpose**: Generate visualizations with AI-optimized output
-**Input**: R plotting expression, dimensions, format specification
+**Purpose**: Generate visualizations with AI-optimized output  
+**Input**: R plotting expression, dimensions, format specification  
 **Output**: Base64-encoded image with metadata and token usage information
 
 ```r
@@ -132,7 +132,7 @@ create_plot("
 ```
 
 ### `manage_r_sessions(action, session)`
-**Purpose**: Session discovery and management
+**Purpose**: Session discovery and management  
 **Actions**: 
 - `"list"`: Enumerate active sessions with metadata
 - `"join"`: Connect to specific session by ID
@@ -145,7 +145,7 @@ manage_r_sessions("start")       # Create new session
 ```
 
 ### `view(what, max_lines)`
-**Purpose**: Environment introspection and debugging
+**Purpose**: Environment introspection and debugging  
 **what**:
 - `'session'`: Object summaries with statistical metadata
 - `'terminal'`: Command history for workflow reproducibility
