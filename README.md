@@ -27,6 +27,11 @@ tackle this issue by enabling AI agents to establish persistent,
 interactive sessions within a live R environment, thereby preserving
 workspace state and enabling complex, multi-step analytical workflows.
 
+<figure>
+<img src="man/figures/mcpr_demo.gif" alt="MCPR Demo" />
+<figcaption aria-hidden="true">MCPR Demo</figcaption>
+</figure>
+
 ## Quick Start
 
 Get up and running with MCPR in under 2 minutes:
@@ -180,9 +185,11 @@ create_plot("
 ### `manage_r_sessions(action, session)`
 
 **Purpose**: Session discovery and management  
-**Actions**: - `"list"`: Enumerate active sessions with metadata -
-`"join"`: Connect to specific session by ID - `"start"`: Launch new R
-session process
+**Actions**:
+
+- `"list"`: Enumerate active sessions with metadata  
+- `"join"`: Connect to specific session by ID  
+- `"start"`: Launch new R session process
 
 ``` r
 manage_r_sessions("list")        # Show available sessions
@@ -193,10 +200,12 @@ manage_r_sessions("start")       # Create new session
 ### `view(what, max_lines)`
 
 **Purpose**: Environment introspection and debugging  
-**what**: - `'session'`: Object summaries with statistical metadata -
-`'terminal'`: Command history for workflow reproducibility -
-`'workspace'`: File system context - `'installed_packages'`: Available
-libraries
+**what**:
+
+- `'session'`: Object summaries with statistical metadata  
+- `'terminal'`: Command history for workflow reproducibility  
+- `'workspace'`: File system context  
+- `'installed_packages'`: Available libraries
 
 ## Common errors
 

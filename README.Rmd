@@ -24,6 +24,8 @@ knitr::opts_chunk$set(
 
 The MCPR (Model Context Protocol Tools for R) package addresses a fundamental limitation in the current paradigm of AI-assisted R programming. Existing AI agents operate in a stateless execution model, invoking `Rscript` for each command, which is antithetical to the iterative, state-dependent nature of serious data analysis. An analytical workflow is a cumulative process of exploration, modelling, and validation that can span hours or days. Moreover, intermediate steps can involve heavy computation, and small changes in downstream code such as plot aesthetics require running the entire script again. MCPR aims to tackle this issue by enabling AI agents to establish persistent, interactive sessions within a live R environment, thereby preserving workspace state and enabling complex, multi-step analytical workflows.
 
+![MCPR Demo](man/figures/mcpr_demo.gif)
+
 ## Quick Start
 
 Get up and running with MCPR in under 2 minutes:
@@ -133,9 +135,10 @@ create_plot("
 
 ### `manage_r_sessions(action, session)`
 **Purpose**: Session discovery and management  
-**Actions**: 
-- `"list"`: Enumerate active sessions with metadata
-- `"join"`: Connect to specific session by ID
+**Actions**:  
+
+- `"list"`: Enumerate active sessions with metadata  
+- `"join"`: Connect to specific session by ID  
 - `"start"`: Launch new R session process
 
 ```r
@@ -146,10 +149,11 @@ manage_r_sessions("start")       # Create new session
 
 ### `view(what, max_lines)`
 **Purpose**: Environment introspection and debugging  
-**what**:
-- `'session'`: Object summaries with statistical metadata
-- `'terminal'`: Command history for workflow reproducibility
-- `'workspace'`: File system context
+**what**:  
+
+- `'session'`: Object summaries with statistical metadata  
+- `'terminal'`: Command history for workflow reproducibility  
+- `'workspace'`: File system context  
 - `'installed_packages'`: Available libraries
 
 ## Common errors
