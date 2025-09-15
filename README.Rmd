@@ -163,6 +163,10 @@ manage_r_sessions("start")       # Create new session
 
 If these issues persist, please open an issue on the GitHub repository with relevant logs and context.
 
+## Acknowledgments
+
+We thank [Simon P. Couch](https://github.com/simonpcouch) ([mcptools](https://github.com/posit-dev/mcptools)) for the inspiration to use nanonext and [Aleksander Dietrichson](https://github.com/dietrichson) ([mcpr](https://github.com/chi2labs/mcpr)) for the idea of using roxygen2 for parsing tools.
+
 ---
 
 This project is licensed under the Creative Commons Attribution 4.0 International License.
