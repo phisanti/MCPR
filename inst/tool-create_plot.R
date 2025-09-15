@@ -178,9 +178,8 @@ generate_optimization_suggestions <- function(current_width, current_height, cur
 
 #' Create plots for agent analysis and inspection
 #'
-#' IMPORTANT: This tool is designed for AI agents to analyze plot contents,
+#' @description IMPORTANT: This tool is designed for AI agents to analyze plot contents,
 #' NOT for displaying plots to users.
-#'
 #' USE THIS TOOL WHEN:
 #' - You need to see and analyze plot data visually
 #' - Debugging plot generation issues
