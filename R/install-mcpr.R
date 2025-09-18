@@ -87,7 +87,7 @@ install_mcpr <- function(agent = NULL,
     valid_scopes <- switch(agent,
       "claude" = c("local", "project", "user"),
       "copilot" = c("workspace", "user", "remote"),
-      "gemini" = c("global", "project", "ide"),
+      "gemini" = c("global", "project", "ide", "local"),
       stop("Internal error: unknown agent in scope validation")
     )
 
@@ -108,6 +108,7 @@ install_mcpr <- function(agent = NULL,
         "gemini" = c(
           "i" = "For Gemini, scope determines configuration location:",
           "*" = "{.strong global} (default) - Global settings (~/.gemini/settings.json)",
+          "*" = "{.strong local} - Local project settings (./.gemini/settings.json)",
           "*" = "{.strong project} - Project extension (~/.gemini/extensions/mcpr/)",
           "*" = "{.strong ide} - IDE-specific config (IntelliJ mcp.json)"
         )
@@ -145,6 +146,7 @@ install_mcpr <- function(agent = NULL,
     "copilot_remote" = "remote development configuration",
     # Gemini scopes
     "gemini_global" = "global settings configuration (~/.gemini/settings.json)",
+    "gemini_local" = "local project settings configuration (./.gemini/settings.json)",
     "gemini_project" = "project extension configuration",
     "gemini_ide" = "IDE-specific configuration",
     # Fallback
@@ -252,25 +254,18 @@ get_agent_specification <- function(agent) {
     gemini = list(
       server_section = "mcpServers",
       server_config = list(
-        global = list(
-          command = "R --quiet --slave -e \"MCPR::mcpr_server()\"",
-          type = "stdio"
-        ),
-        project = list(
-          command = "R --quiet --slave -e \"MCPR::mcpr_server()\""
-        ),
-        ide = list(
-          command = "R --quiet --slave -e \"MCPR::mcpr_server()\"",
-          type = "stdio"
-        )
+        command = "Rscript",
+        args = c("-e", "MCPR::mcpr_server()"),
+        description = "R statistical computing and data analysis server"
       ),
       paths = list(
         global = c(Sys.getenv("HOME"), ".gemini", "settings.json"),
+        local = c(".", ".gemini", "settings.json"),
         project = c(Sys.getenv("HOME"), ".gemini", "extensions", "mcpr", "gemini-extension.json"),
         ide = c(Sys.getenv("HOME"), ".config", "JetBrains", "mcp.json")
       ),
-      test_commands = list(global = "gemini --help", project = "gemini --help", ide = NULL),
-      restart_required = list(global = FALSE, project = FALSE, ide = TRUE),
+      test_commands = list(global = "gemini --help", local = "gemini --help", project = "gemini --help", ide = NULL),
+      restart_required = list(global = FALSE, local = FALSE, project = FALSE, ide = TRUE),
       extension_metadata = list(
         name = "mcpr",
         version = "1.0.0"
@@ -340,13 +335,13 @@ get_cross_platform_path <- function(path_spec) {
 #' @noRd
 install_mcpr_unified <- function(agent_name, config_path, config_metadata, agent_spec,
                                  server_name, force, scope = NULL) {
-  # Get scope-specific server configuration
-  if (is.list(agent_spec$server_config) && !is.null(scope) && scope %in% names(agent_spec$server_config)) {
-    # Scope-based configuration (e.g., gemini with global/project/ide)
-    mcpr_config <- agent_spec$server_config[[scope]]
-  } else if (is.list(agent_spec$server_config) && "command" %in% names(agent_spec$server_config)) {
-    # Direct configuration structure (e.g., claude with command + args)
+  # Get server configuration
+  if (is.list(agent_spec$server_config) && "command" %in% names(agent_spec$server_config)) {
+    # Direct configuration structure (e.g., claude, gemini with command + args)
     mcpr_config <- agent_spec$server_config
+  } else if (is.list(agent_spec$server_config) && !is.null(scope) && scope %in% names(agent_spec$server_config)) {
+    # Scope-based configuration (e.g., copilot with workspace/user/remote)
+    mcpr_config <- agent_spec$server_config[[scope]]
   } else if (!is.list(agent_spec$server_config)) {
     # Non-list configuration (shouldn't happen with current implementation)
     mcpr_config <- agent_spec$server_config
@@ -552,6 +547,7 @@ get_agent_config_path <- function(agent, scope = NULL) {
   } else if (agent == "gemini") {
     config_path <- switch(scope,
       "global" = get_cross_platform_path(paths$global),
+      "local" = get_cross_platform_path(paths$local),
       "project" = get_cross_platform_path(paths$project),
       "ide" = get_cross_platform_path(paths$ide),
       stop("Invalid Gemini scope: ", scope)
