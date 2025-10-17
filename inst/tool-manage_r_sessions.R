@@ -50,37 +50,17 @@ format_sessions_table <- function(session_data) {
     return("No parseable session data found.")
   }
 
-  # Calculate column widths
-  max_id <- max(nchar(c("ID", sapply(sessions, function(s) s$id))))
-  max_dir <- max(nchar(c("Working Directory", sapply(sessions, function(s) s$directory))))
-  max_ide <- max(nchar(c("IDE", sapply(sessions, function(s) s$ide))))
-  max_time <- max(nchar(c("Timestamp", sapply(sessions, function(s) s$timestamp))))
-
-  # Create formatted table
-  separator <- paste0(rep("-", max_id + max_dir + max_ide + max_time + 10), collapse = "")
-
-  # Header
-  header <- sprintf(
-    "%-*s | %-*s | %-*s | %-*s",
-    max_id, "ID",
-    max_dir, "Working Directory",
-    max_ide, "IDE",
-    max_time, "Timestamp"
+  # Convert parsed sessions to data frame for generic table formatting
+  sessions_df <- data.frame(
+    ID = sapply(sessions, function(s) s$id),
+    `Working Directory` = sapply(sessions, function(s) s$directory),
+    IDE = sapply(sessions, function(s) s$ide),
+    Timestamp = sapply(sessions, function(s) s$timestamp),
+    stringsAsFactors = FALSE
   )
-
-  # Data rows
-  rows <- sapply(sessions, function(s) {
-    sprintf(
-      "%-*s | %-*s | %-*s | %-*s",
-      max_id, s$id,
-      max_dir, s$directory,
-      max_ide, s$ide,
-      max_time, s$timestamp
-    )
-  })
-
-  # Combine all parts - only separator between header and first row
-  paste(c(header, separator, rows), collapse = "\n")
+  
+  # Use generic table formatting function
+  format_table_for_agent(sessions_df, "No parseable session data found.")
 }
 
 #* @mcp_tool
