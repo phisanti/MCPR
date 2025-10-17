@@ -5,7 +5,7 @@
 #* @mcp_tool
 #' Read User-Provided Instruction Files
 #'
-#' @description Read user-provided instruction files for domain-specific R analysis guidance. Enables custom workflows without modifying MCPR code. Call without parameters to list available instructions.
+#' @description Read user-provided instruction files for domain-specific R analysis guidance. Enables custom workflows without modifying MCPR code. Two-call pattern: (1) Call without parameters to list available instruction files with their keywords and descriptions. (2) Call with instruction_type to retrieve the full content of a specific instruction file.
 #' @param instruction_type character Type of instruction to read (optional - if empty, lists all available)
 #' @keywords mcpr_tool
 #' @return Character string with instruction content or formatted table of available instructions

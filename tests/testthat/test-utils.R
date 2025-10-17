@@ -250,3 +250,96 @@ test_that("describe_session creates session descriptions", {
   # Should contain timestamp in detailed mode
   expect_true(grepl("\\d{4}-\\d{2}-\\d{2}", result_detailed))
 })
+
+# Test format_table_for_agent function for consistent agent/LLM table formatting
+test_that("format_table_for_agent handles basic data frames correctly", {
+  test_df <- data.frame(
+    Name = c("Alice", "Bob", "Charlie"),
+    Age = c(25, 30, 35),
+    City = c("New York", "London", "Tokyo"),
+    stringsAsFactors = FALSE
+  )
+  
+  result <- format_table_for_agent(test_df)
+  
+  # Check that result contains expected elements
+  expect_type(result, "character")
+  expect_true(grepl("Name", result))
+  expect_true(grepl("Age", result))
+  expect_true(grepl("City", result))
+  expect_true(grepl("Alice", result))
+  expect_true(grepl("Bob", result))
+  expect_true(grepl("Charlie", result))
+  
+  # Check that it has proper table structure (header + separator + data)
+  lines <- strsplit(result, "\n")[[1]]
+  expect_gte(length(lines), 5) # header + separator + 3 data rows
+  expect_true(grepl("^-+$", lines[2])) # separator line should be all dashes
+})
+
+test_that("format_table_for_agent handles empty data frames", {
+  empty_df <- data.frame(Name = character(), Age = numeric(), City = character())
+  
+  result <- format_table_for_agent(empty_df, "No data available.")
+  expect_equal(result, "No data available.")
+  
+  # Test default empty message
+  result_default <- format_table_for_agent(empty_df)
+  expect_equal(result_default, "No data found.")
+})
+
+test_that("format_table_for_agent handles single row data frames", {
+  single_df <- data.frame(Tool = "read_instructions", Status = "active")
+  
+  result <- format_table_for_agent(single_df)
+  
+  expect_type(result, "character")
+  expect_true(grepl("Tool", result))
+  expect_true(grepl("Status", result))
+  expect_true(grepl("read_instructions", result))
+  expect_true(grepl("active", result))
+  
+  lines <- strsplit(result, "\n")[[1]]
+  expect_equal(length(lines), 3) # header + separator + 1 data row
+})
+
+test_that("format_table_for_agent handles varying column widths correctly", {
+  wide_df <- data.frame(
+    Short = c("A", "B"),
+    `Very Long Column Name` = c("Short text", "This is much longer content"),
+    Num = c(1, 1000),
+    stringsAsFactors = FALSE
+  )
+  
+  result <- format_table_for_agent(wide_df)
+  
+  # Check that columns are properly aligned
+  lines <- strsplit(result, "\n")[[1]]
+  header_line <- lines[1]
+  data_lines <- lines[3:length(lines)]
+  
+  # All lines should have same structure with | separators
+  expect_true(grepl("\\|", header_line))
+  for (line in data_lines) {
+    expect_true(grepl("\\|", line))
+  }
+})
+
+test_that("format_table_for_agent produces consistent output format", {
+  # This test ensures the output format matches expectations for agent consumption
+  instructions_df <- data.frame(
+    Path = c("financial_analysis.md", "risk_modeling.md"),
+    Keyword = c("financial_analysis", "risk_modeling"),  
+    Description = c("Instructions for financial analysis", "Instructions for risk modeling"),
+    stringsAsFactors = FALSE
+  )
+  
+  result <- format_table_for_agent(instructions_df)
+  lines <- strsplit(result, "\n")[[1]]
+  
+  # Check structure: header, separator, data rows
+  expect_true(grepl("^Path.*\\|.*Keyword.*\\|.*Description", lines[1]))
+  expect_true(grepl("^-+$", lines[2]))
+  expect_true(grepl("^financial_analysis.md.*\\|.*financial_analysis.*\\|.*Instructions for financial analysis", lines[3]))
+  expect_true(grepl("^risk_modeling.md.*\\|.*risk_modeling.*\\|.*Instructions for risk modeling", lines[4]))
+})

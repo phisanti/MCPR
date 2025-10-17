@@ -313,6 +313,45 @@ describe_session <- function(detailed = FALSE) {
   }
 }
 
+#' Format Data Frame as Aligned Table for Agent Consumption
+#'
+#' @title Format Data Frame as Aligned Table for Agent Consumption
+#' @description Converts data frame to formatted table string with aligned columns and separators.
+#' Provides consistent table formatting across MCPR tools for agent/LLM readable output.
+#' Dynamically calculates column widths and creates properly aligned text table with
+#' headers, separator line, and data rows.
+#'
+#' @param df Data frame to format as table
+#' @param empty_message Message to return when data frame is empty (default: "No data found.")
+#' @return Character string with formatted table or empty message
+#' @noRd
+format_table_for_agent <- function(df, empty_message = "No data found.") {
+  if (nrow(df) == 0) {
+    return(empty_message)
+  }
+  
+  # Calculate column widths dynamically
+  col_widths <- sapply(names(df), function(col) {
+    max(nchar(c(col, as.character(df[[col]]))))
+  })
+  
+  # Create separator line
+  separator <- paste0(rep("-", sum(col_widths) + 3 * (ncol(df) - 1)), collapse = "")
+  
+  # Format header
+  header_format <- paste(paste0("%-", col_widths, "s"), collapse = " | ")
+  header <- do.call(sprintf, c(list(header_format), as.list(names(df))))
+  
+  # Format data rows
+  row_format <- paste(paste0("%-", col_widths, "s"), collapse = " | ")
+  rows <- apply(df, 1, function(row) {
+    do.call(sprintf, c(list(row_format), as.list(as.character(row))))
+  })
+  
+  # Combine header, separator, and rows
+  paste(c(header, separator, rows), collapse = "\n")
+}
+
 # Mocking for testing
 interactive <- NULL
 basename <- NULL

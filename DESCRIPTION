@@ -54,7 +54,7 @@ Remotes: nx10/httpgd
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 SystemRequirements: Unix sockets (Unix), Named pipes (Windows)
-Collate: 
+Collate:
     'aaa.R'
     'logger.R'
     'mcpr-base.R'
@@ -74,7 +74,9 @@ Collate:
     'type-conversion-to-json.R'
     'type-conversion-utilities.R'
     'utils.R'
+    'instruction-files.R'
     'view-utils.R'
     'view-session-state.R'
     'view-system-info.R'
     'install-mcpr.R'
+    'create_instruction.R'
