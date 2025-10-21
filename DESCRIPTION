@@ -74,7 +74,6 @@ Collate:
     'type-conversion-to-json.R'
     'type-conversion-utilities.R'
     'utils.R'
-    'instruction-files.R'
     'view-utils.R'
     'view-session-state.R'
     'view-system-info.R'

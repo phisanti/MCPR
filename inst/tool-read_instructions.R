@@ -5,7 +5,7 @@
 #* @mcp_tool
 #' Read User-Provided Instruction Files
 #'
-#' @description Read user-provided instruction files for domain-specific R analysis guidance. Enables custom workflows without modifying MCPR code. Two-call pattern: (1) Call without parameters to list available instruction files with their keywords and descriptions. (2) Call with instruction_type to retrieve the full content of a specific instruction file.
+#' @description Read user-provided instruction files for domain-specific R analysis guidance. Two-call pattern: (1) Call without parameters to list available instruction files with their keywords and descriptions. (2) Call with instruction_type to retrieve the full content of a specific instruction file. Searches relative to the current R session's working directory (.mcpr_instructions/). For multi-session environments, use manage_r_sessions() to view and switch between sessions.
 #' @param instruction_type character Type of instruction to read (optional - if empty, lists all available)
 #' @keywords mcpr_tool
 #' @return Character string with instruction content or formatted table of available instructions
@@ -48,7 +48,27 @@ read_instructions <- function(instruction_type = NULL) {
 # Helper function to format available instructions as table
 list_available_instructions <- function() {
   if (!dir.exists(".mcpr_instructions")) {
-    return("No .mcpr_instructions directory found. Create it with .md files to enable custom instructions.")
+    current_dir <- getwd()
+
+    # Try to detect if multiple sessions exist
+    session_count <- tryCatch({
+      length(the$server_processes)
+    }, error = function(e) NULL)
+
+    session_hint <- if (!is.null(session_count) && session_count > 1) {
+      paste0("\n  ", cli::symbol$pointer, " Multiple sessions detected. Use manage_r_sessions() to view all session directories")
+    } else {
+      ""
+    }
+
+    msg <- cli::format_message(c(
+      "x" = "No {.path .mcpr_instructions/} directory found in current session",
+      "i" = "Current working directory: {.path {current_dir}}",
+      "i" = "Create {.path .mcpr_instructions/} with {.file .md} instruction files",
+      "i" = "To switch sessions: {.code manage_r_sessions(action = \"join\", session = N)}{session_hint}"
+    ))
+
+    return(msg)
   }
   
   files <- list.files(".mcpr_instructions", pattern = "\\.md$", full.names = FALSE)
@@ -70,7 +90,35 @@ list_available_instructions <- function() {
   }
   
   if (length(instructions) == 0) {
-    return("No valid instruction files found. Check YAML headers contain 'keyword' and 'definition' fields.")
+    # Build detailed quality diagnostics
+    quality_issues <- character()
+
+    for (file in files) {
+      yaml_header <- extract_yaml_header(file.path(".mcpr_instructions", file))
+      if (is.null(yaml_header)) {
+        quality_issues <- c(quality_issues, cli::format_inline("x {.file {file}}: Missing or malformed YAML header"))
+      } else {
+        if (is.null(yaml_header$keyword)) {
+          quality_issues <- c(quality_issues, cli::format_inline("x {.file {file}}: Missing {.field keyword} field"))
+        }
+        if (is.null(yaml_header$definition)) {
+          quality_issues <- c(quality_issues, cli::format_inline("x {.file {file}}: Missing {.field definition} field"))
+        }
+      }
+    }
+
+    msg_parts <- c(
+      cli::format_inline("x No valid instruction files in {.path .mcpr_instructions/}"),
+      cli::format_inline("! {length(files)} file(s) found but none have valid YAML headers"),
+      quality_issues,
+      cli::format_inline("i Required YAML format:"),
+      "  ---",
+      cli::format_inline("  keyword: {.field your_keyword}"),
+      cli::format_inline("  definition: {.field Brief description}"),
+      "  ---"
+    )
+
+    return(paste(msg_parts, collapse = "\n"))
   }
   
   # Convert to data frame and use existing formatting utility
