@@ -36,10 +36,12 @@ mcprSession <- R6::R6Class("mcprSession",
       reg.finalizer(self, function(x) x$stop(), onexit = TRUE)
     },
 
-    #' @description Start the MCP session in interactive contexts
+    #' @description Start the MCP session and bind to a socket
+    #' @param session_id Optional integer socket ID to bind. Auto-selects when NULL.
+    #' @param force Logical. If TRUE, allows starting in non-interactive sessions.
     #' @return Self (invisibly) for method chaining
-    start = function() {
-      if (!rlang::is_interactive()) {
+    start = function(session_id = NULL, force = FALSE) {
+      if (!rlang::is_interactive() && !isTRUE(force)) {
         return(invisible(self))
       }
 
@@ -54,8 +56,8 @@ mcprSession <- R6::R6Class("mcprSession",
       session_socket <- self$create_socket("poly", "session_communication")
       self$state_set("session_socket", session_socket)
 
-      # Find and bind to available port
-      private$.session_id <- private$find_available_port()
+      # Find and bind to available port (explicit session_id when provided)
+      private$.session_id <- private$find_available_port(session_id)
       self$state_set("session", private$.session_id) # CRITICAL: Global state for server compatibility
 
       private$.is_running <- TRUE
@@ -130,9 +132,25 @@ mcprSession <- R6::R6Class("mcprSession",
     .is_running = FALSE,
 
     # Find available port using global socket
-    find_available_port = function() {
-      i <- 1L
+    find_available_port = function(requested_id = NULL) {
       session_socket <- self$state_get("session_socket")
+
+      if (!is.null(requested_id)) {
+        if (!is.numeric(requested_id) || length(requested_id) != 1 || is.na(requested_id) || requested_id < 1) {
+          cli::cli_abort("{.arg session_id} must be a positive integer when provided.")
+        }
+        requested_id <- as.integer(requested_id)
+        if (nanonext::listen(
+          session_socket,
+          url = self$socket_url(requested_id),
+          fail = "none"
+        )) {
+          cli::cli_abort("Requested session ID {.val {requested_id}} is already in use.")
+        }
+        return(requested_id)
+      }
+
+      i <- 1L
       while (i < 1024L) {
         if (nanonext::listen(
           session_socket,
@@ -291,4 +309,45 @@ mcpr_session_stop <- function() {
     the$session <- NULL
   }
   invisible()
+}
+
+#' Launch Headless MCP Session
+#'
+#' @title Launch MCP Session
+#' @description Starts an MCP session in the current process, optionally binding to a
+#'   specific session ID and working directory. Designed for non-interactive contexts
+#'   where the agent needs to provision an R session on demand.
+#'
+#' @param session_id Optional integer session/socket identifier to bind.
+#' @param timeout_seconds Session timeout before auto-cleanup (default: 900 seconds).
+#' @param working_dir Optional path to set as the working directory before launch.
+#' @param daemon Logical. If TRUE, return immediately after starting session (for processx spawning).
+#'   If FALSE, block in event loop until session stops (for interactive use). Default FALSE.
+#'
+#' @return The mcprSession instance (invisibly).
+#' @export
+mcp_session <- function(session_id = NULL, timeout_seconds = 900, working_dir = NULL, daemon = FALSE) {
+  if (!is.null(working_dir)) {
+    old_dir <- getwd()
+    on.exit(setwd(old_dir), add = TRUE)
+    setwd(working_dir)
+  }
+
+  the$mcpr_session <- mcprSession$new(timeout_seconds = timeout_seconds)
+  on.exit(mcpr_session_stop(), add = TRUE)
+  the$mcpr_session$start(session_id = session_id, force = TRUE)
+
+  # Daemon mode: Keep process alive with event loop
+  # Non-daemon mode: Legacy blocking loop for manual invocation
+  if (daemon || !rlang::is_interactive()) {
+    repeat {
+      later::run_now(timeout = 0.5)
+      info <- the$mcpr_session$get_info()
+      if (!isTRUE(info$is_running)) {
+        break
+      }
+    }
+  }
+
+  invisible(the$mcpr_session)
 }

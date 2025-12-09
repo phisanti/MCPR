@@ -60,7 +60,7 @@ format_sessions_table <- function(session_data) {
   )
   
   # Use generic table formatting function
-  format_table_for_agent(sessions_df, "No parseable session data found.")
+  MCPR:::format_table_for_agent(sessions_df, "No parseable session data found.")
 }
 
 #* @mcp_tool
@@ -75,7 +75,7 @@ manage_r_sessions <- function(action = "list", session = NULL) {
   }
 
   # Get platform-specific socket URL once and reuse
-  socket_base <- get_system_socket_url()
+  socket_base <- MCPR:::get_system_socket_url()
 
   if (action == "list") {
     # Enhanced listing with working directory and timestamp
@@ -156,14 +156,17 @@ manage_r_sessions <- function(action = "list", session = NULL) {
           }
         }
 
-        # Start new R process with MCPR session
+        # Start new R process with MCPR session in daemon mode
+        working_dir <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
         r_cmd <- file.path(R.home("bin"), "R")
+        r_expr <- sprintf(
+          "MCPR::mcp_session(session_id = %d, working_dir = %s, daemon = TRUE)",
+          next_session,
+          encodeString(working_dir, quote = "\"")
+        )
         args <- c(
           "--vanilla", "-e",
-          sprintf(
-            "MCPR::mcp_session(%d); readline('Press Enter to continue...')",
-            next_session
-          )
+          r_expr
         )
 
         proc <- processx::process$new(

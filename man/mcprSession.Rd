@@ -76,11 +76,20 @@ A new mcprSession instance
 \if{html}{\out{<a id="method-mcprSession-start"></a>}}
 \if{latex}{\out{\hypertarget{method-mcprSession-start}{}}}
 \subsection{Method \code{start()}}{
-Start the MCP session in interactive contexts
+Start the MCP session and bind to a socket
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{mcprSession$start()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{mcprSession$start(session_id = NULL, force = FALSE)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{session_id}}{Optional integer socket ID to bind. Auto-selects when NULL.}
+
+\item{\code{force}}{Logical. If TRUE, allows starting in non-interactive sessions.}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 Self (invisibly) for method chaining
 }
