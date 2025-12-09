@@ -95,11 +95,12 @@ straightforward, with both automated and manual pathways.
 ### Automated Setup
 
 A convenience function, `install_mcpr()`, is provided to handle package
-installation and agent-specific MCP configuration.
+installation and agent-specific MCP configuration. Supported agents
+include Claude, Gemini, Copilot, and Codex.
 
 ``` r
 library(MCPR)
-install_mcpr(agent = "claude") # Supported agents: 'claude', 'gemini', 'copilot'
+install_mcpr(agent = "claude") # Supported agents: 'claude', 'gemini', 'copilot', 'codex'
 ```
 
 ### Manual MCP Configuration
@@ -124,6 +125,23 @@ Then, add the following MCP server configuration:
   }
 }
 ```
+
+### Supported agents
+
+Currently, MCPR supports configuration for the following AI agents with
+the given configuration paths (note that these are approximate and might
+vary based on OS and installation):
+
+- **Claude:** Claude Desktop config at
+  `~/Library/Application Support/Claude/claude_desktop_config.json`
+  (macOS), `%APPDATA%/Claude/claude_desktop_config.json` (Windows), or
+  `~/.config/Claude/claude_desktop_config.json` (Linux).
+- **Gemini:** Global settings at `~/.gemini/settings.json` (use
+  `./.gemini/settings.json` for a project-local setup).
+- **Copilot:** Workspace configuration at `.vscode/mcp.json` (user-level
+  fallback at `~/.config/Code/User/mcp.json` or
+  `%APPDATA%/Code/User/mcp.json`).
+- **Codex:** Global TOML configuration at `~/.codex/config.toml`.
 
 ## Usage Pattern
 
