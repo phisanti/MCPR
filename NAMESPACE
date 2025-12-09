@@ -3,6 +3,7 @@
 export(ToolRegistry)
 export(create_instruction)
 export(install_mcpr)
+export(mcp_session)
 export(mcprClient)
 export(mcprServer)
 export(mcprSession)

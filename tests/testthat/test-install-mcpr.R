@@ -24,6 +24,8 @@ test_that("install_mcpr validates agent argument correctly", {
 test_that("install_mcpr validates other arguments correctly", {
   # Invalid scope for Claude
   expect_error(install_mcpr("claude", scope = "invalid"), "Invalid scope for claude")
+  # Invalid scope for Codex
+  expect_error(install_mcpr("codex", scope = "local"), "Invalid scope for codex")
 
   # Invalid server_name
   expect_error(
@@ -56,13 +58,17 @@ test_that("install_mcpr handles different agents appropriately", {
 
   # Create a temporary directory for testing
   temp_dir <- tempdir()
-  temp_config <- file.path(temp_dir, "test_config.json")
+  temp_json_config <- file.path(temp_dir, "test_config.json")
+  temp_toml_config <- file.path(temp_dir, "test_config.toml")
 
   # Create a mock function that returns our temp path instead of system paths
   mock_get_agent_config_path <- function(agent, scope = NULL) {
+    path <- if (agent == "codex") temp_toml_config else temp_json_config
+    type <- if (agent == "codex") "global" else "test"
+
     list(
-      path = temp_config,
-      type = "test"
+      path = path,
+      type = type
     )
   }
 
@@ -75,12 +81,16 @@ test_that("install_mcpr handles different agents appropriately", {
       expect_no_error(install_mcpr("claude", force = TRUE))
       expect_no_error(install_mcpr("gemini", force = TRUE))
       expect_no_error(install_mcpr("copilot", force = TRUE))
+      expect_no_error(install_mcpr("codex", force = TRUE))
     }
   )
 
   # Clean up
-  if (file.exists(temp_config)) {
-    unlink(temp_config)
+  if (file.exists(temp_json_config)) {
+    unlink(temp_json_config)
+  }
+  if (file.exists(temp_toml_config)) {
+    unlink(temp_toml_config)
   }
 })
 
@@ -138,6 +148,29 @@ test_that("install_mcpr provides appropriate error messages", {
 
   # Test with empty agent vector (should be caught in validation)
   expect_error(install_mcpr(character(0)), "No agent specified")
+})
+
+test_that("install_mcpr writes Codex configuration via TOML helpers", {
+  temp_dir <- tempdir()
+  temp_toml <- file.path(temp_dir, "test_codex_config.toml")
+  on.exit(if (file.exists(temp_toml)) unlink(temp_toml), add = TRUE)
+
+  mock_get_agent_config_path <- function(agent, scope = NULL) {
+    list(path = temp_toml, type = "global")
+  }
+
+  with_mocked_bindings(
+    get_agent_config_path = mock_get_agent_config_path,
+    .package = "MCPR",
+    {
+      expect_no_error(install_mcpr("codex", force = TRUE))
+    }
+  )
+
+  expect_true(file.exists(temp_toml))
+  lines <- readLines(temp_toml)
+  expect_true(any(grepl("^\\[mcp\\.mcpr\\]", lines)))
+  expect_true(any(grepl('command = \"R\"', lines)))
 })
 
 # test_that("install_mcpr creates correct JSON structure", {

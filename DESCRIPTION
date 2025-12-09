@@ -33,6 +33,7 @@ Imports:
     base64enc,
     jsonlite,
     processx,
+    later,
     promises,
     rlang,
     tools,
@@ -77,5 +78,6 @@ Collate:
     'view-utils.R'
     'view-session-state.R'
     'view-system-info.R'
+    'install-mcpr-toml.R'
     'install-mcpr.R'
     'create_instruction.R'

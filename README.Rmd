@@ -72,7 +72,7 @@ A convenience function, `install_mcpr()`, is provided to handle package installa
 
 ```r
 library(MCPR)
-install_mcpr(agent = "claude") # Supported agents: 'claude', 'gemini', 'copilot'
+install_mcpr(agent = "claude") # Supported agents: 'claude', 'gemini', 'copilot', 'codex'
 ```
 ### Manual MCP Configuration
 

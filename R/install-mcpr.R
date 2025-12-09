@@ -8,14 +8,15 @@
 #' @description Configures MCPR MCP server for specified AI agents with cross-platform support.
 #' Automatically detects configuration file locations, safely modifies existing configurations,
 #' and provides validation instructions. Supports Claude Code, Claude Desktop, GitHub Copilot,
-#' and Gemini CLI with appropriate error handling and user permission requests.
+#' Gemini CLI, and OpenAI Codex (TOML) with appropriate error handling and user permission requests.
 #'
 #' @param agent Character string specifying which agent to configure.
-#'   Must be one of: "claude", "gemini", "copilot". If NULL, displays helpful usage guide.
+#'   Must be one of: "claude", "gemini", "copilot", "codex". If NULL, displays helpful usage guide.
 #' @param scope Character. Configuration scope for the agent. If NULL, uses the recommended default.
 #'   For Claude: "local" (desktop), "project" (.mcp.json), "user" (code config).
 #'   For Copilot: "workspace" (.vscode/mcp.json), "user" (profile config), "remote" (remote config).
 #'   For Gemini: "global" (settings.json), "project" (extensions), "ide" (IDE-specific config).
+#'   For Codex: "global" (~/.codex/config.toml).
 #' @param server_name Character. Name for the MCPR server in configuration (default: "mcpr")
 #' @param force Logical. If TRUE, overwrites existing MCPR configuration without asking (default: FALSE)
 #'
@@ -29,6 +30,7 @@
 #' # Install for different agents (one at a time)
 #' install_mcpr("gemini")
 #' install_mcpr("copilot")
+#' install_mcpr("codex")
 #'
 #' # Install with custom server name
 #' install_mcpr("claude", server_name = "my-r-server")
@@ -51,13 +53,15 @@ install_mcpr <- function(agent = NULL,
         "*" = "{.strong claude} - Claude Desktop or Claude Code",
         "*" = "{.strong gemini} - Google Gemini CLI",
         "*" = "{.strong copilot} - GitHub Copilot in VS Code",
+        "*" = "{.strong codex} - OpenAI Codex",
         " " = "",
         "i" = "Choose your agent:",
         "*" = "For Claude Desktop: {.code install_mcpr(\"claude\")}",
         "*" = "For Claude Code (project): {.code install_mcpr(\"claude\", scope = \"project\")}",
         "*" = "For Claude Code (user): {.code install_mcpr(\"claude\", scope = \"user\")}",
         "*" = "For Gemini CLI: {.code install_mcpr(\"gemini\")}",
-        "*" = "For GitHub Copilot: {.code install_mcpr(\"copilot\")}"
+        "*" = "For GitHub Copilot: {.code install_mcpr(\"copilot\")}",
+        "*" = "For OpenAI Codex: {.code install_mcpr(\"codex\")}"
       )
     )
   }
@@ -72,12 +76,12 @@ install_mcpr <- function(agent = NULL,
     )
   }
 
-  if (!agent %in% c("claude", "gemini", "copilot")) {
+  if (!agent %in% c("claude", "gemini", "copilot", "codex")) {
     # Handle invalid agent
     cli::cli_abort(
       c(
         "!" = "Invalid agent: {.val {agent}}",
-        "i" = "Only {.val claude}, {.val gemini}, and {.val copilot} are supported."
+        "i" = "Only {.val claude}, {.val gemini}, {.val copilot}, and {.val codex} are supported."
       )
     )
   }
@@ -88,6 +92,7 @@ install_mcpr <- function(agent = NULL,
       "claude" = c("local", "project", "user"),
       "copilot" = c("workspace", "user", "remote"),
       "gemini" = c("global", "project", "ide", "local"),
+      "codex" = c("global"),
       stop("Internal error: unknown agent in scope validation")
     )
 
@@ -111,6 +116,10 @@ install_mcpr <- function(agent = NULL,
           "*" = "{.strong local} - Local project settings (./.gemini/settings.json)",
           "*" = "{.strong project} - Project extension (~/.gemini/extensions/mcpr/)",
           "*" = "{.strong ide} - IDE-specific config (IntelliJ mcp.json)"
+        ),
+        "codex" = c(
+          "i" = "For Codex, scope determines configuration location:",
+          "*" = "{.strong global} (default) - Global settings (~/.codex/config.toml)"
         )
       )
 
@@ -128,6 +137,7 @@ install_mcpr <- function(agent = NULL,
       "claude" = "local", # Claude Desktop
       "copilot" = "workspace", # VS Code workspace
       "gemini" = "global", # Global settings
+      "codex" = "global", # Codex global settings
       "local" # fallback
     )
   }
@@ -149,6 +159,8 @@ install_mcpr <- function(agent = NULL,
     "gemini_local" = "local project settings configuration (./.gemini/settings.json)",
     "gemini_project" = "project extension configuration",
     "gemini_ide" = "IDE-specific configuration",
+    # Codex scopes
+    "codex_global" = "global settings configuration (~/.codex/config.toml)",
     # Fallback
     paste(scope, "configuration")
   )
@@ -216,7 +228,7 @@ install_mcpr <- function(agent = NULL,
 # Unified configuration system
 
 #' Get Agent Specification
-#' @param agent Agent name ("claude", "gemini", "copilot")
+#' @param agent Agent name ("claude", "gemini", "copilot", "codex")
 #' @return List with agent configuration details
 #' @noRd
 get_agent_specification <- function(agent) {
@@ -228,6 +240,7 @@ get_agent_specification <- function(agent) {
   specs <- list(
     claude = list(
       server_section = "mcpServers",
+      config_format = "json",
       server_config = base_server_config,
       paths = list(
         desktop = list(
@@ -253,6 +266,7 @@ get_agent_specification <- function(agent) {
     ),
     gemini = list(
       server_section = "mcpServers",
+      config_format = "json",
       server_config = list(
         command = "Rscript",
         args = c("-e", "MCPR::mcpr_server()"),
@@ -273,6 +287,7 @@ get_agent_specification <- function(agent) {
     ),
     copilot = list(
       server_section = "mcpServers",
+      config_format = "json",
       server_config = list(
         workspace = base_server_config,
         user = base_server_config,
@@ -289,6 +304,16 @@ get_agent_specification <- function(agent) {
       ),
       test_commands = list(workspace = "code --help", user = "code --help", remote = NULL),
       restart_required = list(workspace = FALSE, user = FALSE, remote = TRUE)
+    ),
+    codex = list(
+      server_section = "mcp",
+      config_format = "toml",
+      server_config = base_server_config,
+      paths = list(
+        global = c(Sys.getenv("HOME"), ".codex", "config.toml")
+      ),
+      test_commands = list(global = "codex mcp list"),
+      restart_required = list(global = FALSE)
     )
   )
 
@@ -335,6 +360,7 @@ get_cross_platform_path <- function(path_spec) {
 #' @noRd
 install_mcpr_unified <- function(agent_name, config_path, config_metadata, agent_spec,
                                  server_name, force, scope = NULL) {
+  config_format <- agent_spec$config_format %||% "json"
   # Get server configuration
   if (is.list(agent_spec$server_config) && "command" %in% names(agent_spec$server_config)) {
     # Direct configuration structure (e.g., claude, gemini with command + args)
@@ -357,7 +383,7 @@ install_mcpr_unified <- function(agent_name, config_path, config_metadata, agent
   server_section <- agent_spec$server_section
 
   # Read or create configuration
-  config <- read_or_create_config(config_path, server_section)
+  config <- read_or_create_config(config_path, server_section, format = config_format)
 
   # Check for existing server and get user permission if needed
   if (server_exists(config, server_section, server_name) && !force) {
@@ -376,7 +402,7 @@ install_mcpr_unified <- function(agent_name, config_path, config_metadata, agent
   config[[server_section]][[server_name]] <- mcpr_config
 
   # Write configuration atomically
-  write_json_config(config, config_path)
+  write_config(config, config_path, format = config_format)
 
   # Determine test command and restart requirement
   config_type_key <- config_metadata$config_type %||%
@@ -400,11 +426,16 @@ install_mcpr_unified <- function(agent_name, config_path, config_metadata, agent
 #' Read or Create Configuration File
 #' @param config_path Path to configuration file
 #' @param server_section Name of server section ("mcpServers" or "servers")
+#' @param format Configuration format ("json" or "toml")
 #' @return Configuration list
 #' @noRd
-read_or_create_config <- function(config_path, server_section) {
+read_or_create_config <- function(config_path, server_section, format = "json") {
   if (file.exists(config_path)) {
-    config <- read_json_config(config_path)
+    config <- switch(format,
+      "json" = read_json_config(config_path),
+      "toml" = read_toml_config(config_path),
+      stop("Unsupported config format: ", format)
+    )
 
     # Ensure server section exists
     if (is.null(config[[server_section]])) {
@@ -480,6 +511,19 @@ read_json_config <- function(path) {
   )
 }
 
+#' Write Configuration File Atomically
+#' @param config Configuration list to write
+#' @param path Destination path for configuration file
+#' @param format Configuration format ("json" or "toml")
+#' @noRd
+write_config <- function(config, path, format = "json") {
+  switch(format,
+    "json" = write_json_config(config, path),
+    "toml" = write_toml_config(config, path),
+    stop("Unsupported config format: ", format)
+  )
+}
+
 #' Write JSON Configuration File Atomically
 #' @param config Configuration list to write
 #' @param path Destination path for configuration file
@@ -519,8 +563,8 @@ write_json_config <- function(config, path) {
 
 #' Get Agent Configuration Path with Intelligent Defaults
 #'
-#' @param agent Agent name: "claude", "gemini", or "copilot"
-#' @param scope For Claude only: "local", "project", or "user" scope (default: intelligent choice)
+#' @param agent Agent name: "claude", "gemini", "copilot", or "codex"
+#' @param scope Scope for the agent (default handled by install_mcpr)
 #' @return List with path (character) and type (character) indicating the chosen configuration
 #' @noRd
 get_agent_config_path <- function(agent, scope = NULL) {
@@ -551,6 +595,12 @@ get_agent_config_path <- function(agent, scope = NULL) {
       "project" = get_cross_platform_path(paths$project),
       "ide" = get_cross_platform_path(paths$ide),
       stop("Invalid Gemini scope: ", scope)
+    )
+    path_type <- scope
+  } else if (agent == "codex") {
+    config_path <- switch(scope,
+      "global" = get_cross_platform_path(paths$global),
+      stop("Invalid Codex scope: ", scope)
     )
     path_type <- scope
   } else {

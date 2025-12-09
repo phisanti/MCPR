@@ -8,12 +8,13 @@ install_mcpr(agent = NULL, scope = NULL, server_name = "mcpr", force = FALSE)
 }
 \arguments{
 \item{agent}{Character string specifying which agent to configure.
-Must be one of: "claude", "gemini", "copilot". If NULL, displays helpful usage guide.}
+Must be one of: "claude", "gemini", "copilot", "codex". If NULL, displays helpful usage guide.}
 
 \item{scope}{Character. Configuration scope for the agent. If NULL, uses the recommended default.
 For Claude: "local" (desktop), "project" (.mcp.json), "user" (code config).
 For Copilot: "workspace" (.vscode/mcp.json), "user" (profile config), "remote" (remote config).
-For Gemini: "global" (settings.json), "project" (extensions), "ide" (IDE-specific config).}
+For Gemini: "global" (settings.json), "project" (extensions), "ide" (IDE-specific config).
+For Codex: "global" (~/.codex/config.toml).}
 
 \item{server_name}{Character. Name for the MCPR server in configuration (default: "mcpr")}
 
@@ -26,7 +27,7 @@ Invisible list with installation result for the specified agent
 Configures MCPR MCP server for specified AI agents with cross-platform support.
 Automatically detects configuration file locations, safely modifies existing configurations,
 and provides validation instructions. Supports Claude Code, Claude Desktop, GitHub Copilot,
-and Gemini CLI with appropriate error handling and user permission requests.
+Gemini CLI, and OpenAI Codex (TOML) with appropriate error handling and user permission requests.
 }
 \details{
 Install MCPR for AI Agents
@@ -39,6 +40,7 @@ install_mcpr("claude")
 # Install for different agents (one at a time)
 install_mcpr("gemini")
 install_mcpr("copilot")
+install_mcpr("codex")
 
 # Install with custom server name
 install_mcpr("claude", server_name = "my-r-server")
