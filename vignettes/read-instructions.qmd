@@ -1,0 +1,182 @@
+---
+title: "Instruction Files in MCPR"
+vignette: >
+  %\VignetteIndexEntry{Instruction Files in MCPR}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    code-fold: false
+---
+
+## Why Instruction Files Matter
+
+Instruction files let you capture domain expertise once and reuse it across MCP sessions. They shine in three scenarios:
+
+- Repetitive workflows where analysts follow the same checklist each time.
+- Complex tasks that benefit from guides to avoid subtle mistakes.
+- Workflows authored with a high-end LLM but executed repeatedly on lower-spec models; the heavy lifting happens once, while lightweight agents inherit the guidance.
+
+The `read_instructions()` tool uses a two-call pattern (see Figure @ref(fig-workflow)):
+
+1. Call with no arguments to list the available instruction files. The agent then receives a table with a description for each manual and the keyword to retreive the given file. 
+2. Call with a specific keyword to fetch the detailed markdown content that the agent should follow.
+
+```{mermaid}
+%%| label: fig-workflow
+%%| fig-cap: "Instruction file workflow from authoring to agent execution"
+%%| fig-width: 6.5
+flowchart LR
+    A[Author Instruction Markdown] --> B[Store in .mcpr_instructions/]
+    B --> C[read_instructions]
+    C --> D[List available keywords]
+    C --> E[Fetch full instruction content]
+    E --> F[Agent executes guided workflow]
+```
+
+With this pattern in mind, the sections below walk through authoring an instruction file for the example dataset `mpg`, discovering it inside an MCP session, and illustrating how it works.
+
+## Prerequisites
+
+Before creating an instruction file, make sure you have:
+
+- `MCPR` installed and available in your R session.
+- A writable project directory where the `./.mcpr_instructions/` folder can live (the `create_instruction` function will create it if missing).
+- Familiarity with the YAML header requirements: every instruction markdown file needs at least `keyword` and `definition` fields so `read_instructions()` can index it.
+
+## Create a Template
+
+Use `create_instruction()` to scaffold a new instruction file. The helper ensures the directory exists and seeds a template with a guide on how to write good instructions for agents. In general, craft a focused manual aimed at a single, well-defined task and make the scope explicit in a short Purpose section. Write prescriptive, runnable steps in the imperative mood with concrete R code rather than vague guidance—prefer specific functions and arguments over generalities. Declare dependencies up front, including library calls and any data assumptions (and versions when relevant). Favor stable, reproducible patterns by setting seeds when randomness is involved, avoiding non-deterministic sources, and using fully qualified calls when ambiguity is possible.
+
+Validate early and fail loudly: check inputs (expected columns, types, and missingness) and stop with clear, actionable messages when assumptions are violated. Surface common pitfalls with concise Do/Don't examples to prevent regressions. Optimize for discovery with a short snake_case keyword, a crisp definition, and meaningful tags, and version intentionally—bump the version when behavior changes and note what changed. Keep the prose concise and unambiguous so LLMs can follow it efficiently. Figure @fig-template-anatomy summarizes the recommended sections and how the header (Keyword, Definition, Tags) supports the body (Purpose, Required Packages, Workflow, and Common Pitfalls).
+
+### Instructions Structure Diagram
+
+```{mermaid}
+%%| label: fig-template-anatomy
+%%| fig-cap: "Structure and relationships within an instruction file template"
+%%| fig-width: 7
+flowchart LR
+    subgraph Header
+        H1[Keyword, Definition, Tags]
+    end
+    subgraph Body
+        B1[Purpose: Clear use-case statement]
+        B2[Required Packages: Library calls]
+        B3[Workflow: Ordered checklist]
+        B4[Common Pitfalls: Do/Don't reminders]
+    end
+    H1 -- Guides discovery --> B1
+    B1 -- Context for steps --> B3
+    B2 -- Ensures dependencies --> B3
+    B4 -- Prevents regressions --> B3
+```
+
+With that structure in place, we now walk through a concrete example. First, we use `create_instruction()` to scaffold the template, and then we tailor each section—Purpose, Required Packages, Workflow, and Common Pitfalls—into precise, reproducible guidance for analyzing the `mpg` fuel‑economy dataset. This turns the template into actionable, testable steps an agent can execute consistently.
+
+```{r eval = FALSE}
+library(MCPR)
+
+# Create a template for our fuel-economy workflow instructions
+create_instruction("fuel-economy") # Optinally use overwrite = TRUE
+```
+
+The first call reports the path of the newly created file. If you rerun the tutorial, pass `overwrite = TRUE` to refresh the template:
+
+Open `.mcpr_instructions/fuel-economy.md` and update the YAML `keyword` to match the string you will pass to `read_instructions()` later (for example, `fuel_economy`).
+
+## Author the Instruction File
+
+Edit the generated markdown to provide concrete, prescriptive guidance. Below is an example tailored to the `mpg` dataset; feel free to adapt the text to your own needs.
+
+````markdown
+---
+keyword: fuel_economy
+definition: Fuel economy analysis workflow for ggplot2::mpg data
+version: "1.0"
+author: "Data Team"
+tags: ["mpg", "tutorial"]
+---
+
+# MPG Fuel Economy Instructions
+
+## Purpose
+Analyze ggplot2::mpg fuel-efficiency data with consistent QA checks and visuals.
+
+## Required Packages
+```r
+library(data.table)
+library(ggplot2)
+```
+
+## Workflow
+1. Load `mpg` with `data.table(ggplot2::mpg)` and ensure `manufacturer`, `model`, `year`, and `trans` are present.
+2. Validate there are no missing `hwy` observations; if there are, stop and report.
+3. Create summary statistics grouped by `class` and `cyl` using data.table syntax.
+4. Plot highway vs. city mileage, using `geom_smooth(method = "lm")` for trendlines.
+5. Produce a faceted plot showing highway mileage by drivetrain (`drv`).
+
+## Common Pitfalls
+- Don't forget to convert `cyl` to factor before grouping (prevents unintended numeric bins).
+- Do convert data.frame objects to data.table with `setDT()` for in-place conversion efficiency.
+
+---
+Test: `read_instructions("fuel_economy")`
+````
+
+This structure keeps the instructions actionable. The `Test` line doubles as a quick check that the keyword resolves correctly.
+
+## Inspect Instructions In-Session
+
+Back in your R session, confirm that the instruction file appears in the listing and then retrieve the full content. The first call exposes a formatted table of available instructions:
+
+```{r eval = FALSE}
+read_instructions()
+```
+
+Expected console output (abridged):
+
+```
+              Path      Keyword                               Description
+1: fuel-economy.md fuel_economy Fuel economy analysis workflow for...
+```
+
+Now fetch the full markdown by passing the keyword:
+
+```{r eval = FALSE}
+fuel_economy_text <- read_instructions("fuel_economy")
+cat(fuel_economy_text)
+```
+
+At this point, the MCP agent can receive the same text and rely on it as a playbook for any mpg fuel-economy request.
+
+## Agent Impact Example
+
+Instruction files shine when the same question is asked repeatedly. Below is a condensed before/after transcript illustrating how the agent response aligns with the new guidance.
+
+**Before Instructions**
+
+```
+User: Summarize highway mileage trends in ggplot2::mpg.
+Agent: I can compute mean highway mileage by vehicle class. (Returns a single summary table and omits validation.)
+```
+
+**After Loading `read_instructions("fuel_economy")`**
+
+```
+User: Summarize highway mileage trends in ggplot2::mpg.
+Agent: Confirmed mpg columns, no missing `hwy` values. Generated grouped summaries by class/cyl, produced two ggplot2 visualizations with linear trendlines, and flagged drivetrain differences per instructions.
+```
+
+The second response follows the step-by-step workflow defined in the instruction file, ensuring validation and visual outputs happen every time without additional prompting.
+
+## Best Practices
+
+- Version-control the `.mcpr_instructions/` directory so updates to shared guidance are reviewed.
+- Keep YAML headers valid; missing `keyword` or malformed front matter prevents discovery via `read_instructions()`.
+- Reuse `create_instruction()` for new domains to keep structure consistent.
+- Update instruction files whenever workflows change—agents faithfully follow whatever the markdown contains.
+
+
