@@ -152,13 +152,18 @@ test_that("mcprServer get_tools returns tools in json format", {
 test_that("mcprServer get_capabilities returns correct structure", {
   server <- mcprServer$new(.tools_dir = tools_dir)
 
+  # Test default (latest version)
   capabilities <- server$get_capabilities()
   expect_type(capabilities, "list")
-  expect_equal(capabilities$protocolVersion, "2024-11-05")
+  expect_equal(capabilities$protocolVersion, max(MCPR:::SUPPORTED_VERSIONS))
   expect_true("capabilities" %in% names(capabilities))
   expect_true("serverInfo" %in% names(capabilities))
   expect_equal(capabilities$serverInfo$name, "R MCPR server")
   expect_equal(capabilities$serverInfo$version, "1.0.0")
+
+  # Test specific version
+  caps_old <- server$get_capabilities(version = "2024-11-05")
+  expect_equal(caps_old$protocolVersion, "2024-11-05")
 })
 
 test_that("mcprServer is_running returns correct status", {
@@ -274,7 +279,7 @@ test_that("mcprServer handles invalid request structure", {
 test_that("mcprServer handles JSON-RPC initialize request correctly", {
   server <- mcprServer$new(.tools_dir = tools_dir)
 
-  # Test initialize request - focus on testing that it doesn't error
+  # Test initialize request with version negotiation
   init_request <- '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}'
 
   # Should handle without errors
@@ -282,11 +287,15 @@ test_that("mcprServer handles JSON-RPC initialize request correctly", {
     server$.__enclos_env__$private$handle_message_from_client(init_request)
   })
 
-  # Test the underlying method directly
+  # Test the underlying method - get_capabilities without version returns latest
   capabilities <- server$get_capabilities()
-  expect_equal(capabilities$protocolVersion, "2024-11-05")
+  expect_equal(capabilities$protocolVersion, max(MCPR:::SUPPORTED_VERSIONS))
   expect_true("serverInfo" %in% names(capabilities))
   expect_equal(capabilities$serverInfo$name, "R MCPR server")
+
+  # Test with specific version
+  capabilities_old <- server$get_capabilities(version = "2024-11-05")
+  expect_equal(capabilities_old$protocolVersion, "2024-11-05")
 })
 
 test_that("mcprServer handles JSON-RPC tools/list request correctly", {
@@ -493,7 +502,7 @@ test_that("mcprServer complete protocol flow simulation", {
 
   # Test that server public methods work correctly
   capabilities <- server$get_capabilities()
-  expect_equal(capabilities$protocolVersion, "2024-11-05")
+  expect_equal(capabilities$protocolVersion, max(MCPR:::SUPPORTED_VERSIONS))  # Default to latest
 
   tools <- server$get_tools("json")
   expect_type(tools, "list")

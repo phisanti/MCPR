@@ -339,8 +339,11 @@ test_that("mcprClient private methods create correct JSON-RPC messages", {
   expect_equal(init_msg$jsonrpc, "2.0")
   expect_equal(init_msg$id, 1)
   expect_equal(init_msg$method, "initialize")
-  expect_equal(init_msg$params$protocolVersion, "2024-11-05")
+  expect_equal(init_msg$params$protocolVersion, max(MCPR:::SUPPORTED_VERSIONS))  # Should use latest version
   expect_equal(init_msg$params$clientInfo$name, "MCPR Client")
+  # Test that capabilities are extracted from helper
+  expect_true("capabilities" %in% names(init_msg$params))
+  expect_true("tools" %in% names(init_msg$params$capabilities))
 
   # Test mcp_request_tools_list
   tools_msg <- client$.__enclos_env__$private$mcp_request_tools_list()

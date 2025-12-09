@@ -212,17 +212,14 @@ mcprClient <- R6::R6Class("mcprClient",
 
     # Create JSON-RPC initialize request message
     mcp_request_initialize = function() {
+      protocol_version <- max(SUPPORTED_VERSIONS)
       list(
         jsonrpc = "2.0",
         id = 1,
         method = "initialize",
         params = list(
-          protocolVersion = "2024-11-05",
-          capabilities = list(
-            tools = list(
-              listChanged = FALSE
-            )
-          ),
+          protocolVersion = protocol_version,
+          capabilities = create_client_capabilities(protocol_version),
           clientInfo = list(
             name = "MCPR Client",
             version = "1.0.0"

@@ -2,32 +2,108 @@
 # Functions for handling JSON-RPC 2.0 protocol messages and MCP capability definitions.
 # Provides standardized message creation, response handling, and protocol compliance.
 
-#' Define server capabilities for the MCP 'initialize' handshake
+
+#' Supported MCP Protocol Versions
 #'
-#' @return A list describing the server's capabilities.
+#' Vector of MCP protocol versions supported by this server, in chronological order.
+#' New versions should be appended to maintain version history.
 #' @noRd
-capabilities <- function() {
-  list(
-    protocolVersion = "2024-11-05",
-    capabilities = list(
-      prompts = named_list(
-        listChanged = FALSE
-      ),
-      resources = named_list(
-        subscribe = FALSE,
-        listChanged = FALSE
-      ),
-      tools = named_list(
-        listChanged = FALSE
-      )
-    ),
-    serverInfo = list(
-      name = "R mcptools server",
-      version = "0.0.1"
-    ),
-    instructions = "This provides information about a running R session."
+SUPPORTED_VERSIONS <- c("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
+
+#' Version-Capability Feature Matrix
+#'
+#' Maps protocol versions to supported MCP features and capabilities.
+#' Each version entry defines what capabilities the server advertises for that protocol version.
+#'
+#' @noRd
+VERSION_CAPABILITIES <- list(
+  "2024-11-05" = list(
+    prompts = list(listChanged = FALSE),
+    resources = list(subscribe = FALSE, listChanged = FALSE),
+    tools = list(listChanged = FALSE),
+    supports_tasks = FALSE,
+    supports_elicitation = FALSE
+  ),
+  "2025-03-26" = list(
+    prompts = list(listChanged = FALSE),
+    resources = list(subscribe = FALSE, listChanged = FALSE),
+    tools = list(listChanged = FALSE),
+    supports_tasks = FALSE,
+    supports_elicitation = FALSE
+  ),
+  "2025-06-18" = list(
+    prompts = list(listChanged = FALSE),
+    resources = list(subscribe = FALSE, listChanged = FALSE),
+    tools = list(listChanged = FALSE),
+    supports_tasks = FALSE,
+    supports_elicitation = FALSE
+  ),
+  "2025-11-25" = list(
+    prompts = list(listChanged = FALSE),
+    resources = list(subscribe = FALSE, listChanged = FALSE),
+    tools = list(listChanged = FALSE),
+    supports_tasks = TRUE,
+    supports_elicitation = TRUE
   )
+)
+
+
+#' Negotiate MCP Protocol Version
+#'
+#' Determines the appropriate protocol version to use based on client's request
+#' and server's supported versions. Implements fallback strategies for version
+#' compatibility and provides informative logging.
+#'
+#' @param client_version Version string from client's initialize request (may be NULL)
+#' @param supported_versions Vector of versions this server supports (default: SUPPORTED_VERSIONS)
+#' @return Negotiated version string (highest version both client and server support)
+#'
+#' @details
+#' Negotiation strategy:
+#' - If client version is NULL: default to "2024-11-05" (backward compatibility)
+#' - If client version exactly matches a supported version: use it
+#' - If client version is newer than all supported: use max supported version
+#' - If client version is older: use client version if supported, else closest match
+#'
+#' @noRd
+negotiate_protocol_version <- function(client_version,
+                                       supported_versions = SUPPORTED_VERSIONS) {
+  # Handle missing client version (backward compatibility with old clients)
+  if (is.null(client_version) || !is.character(client_version) || length(client_version) == 0) {
+    cli::cli_warn("Client did not specify protocolVersion, defaulting to 2024-11-05")
+    return("2024-11-05")
+  }
+
+  # If client requests exact match we support, use it
+  if (client_version %in% supported_versions) {
+    cli::cli_inform("Protocol version negotiated: {client_version}")
+    return(client_version)
+  }
+
+  # Client requested a version we don't support
+  # Strategy: Use highest version <= client version, or lowest if all are higher
+
+  # Find versions <= client version
+  compatible_versions <- supported_versions[supported_versions <= client_version]
+
+  if (length(compatible_versions) > 0) {
+    # Use highest compatible version
+    negotiated <- max(compatible_versions)
+    cli::cli_inform(
+      "Protocol version negotiated: {negotiated} (client requested {client_version})"
+    )
+    return(negotiated)
+  }
+
+  # All supported versions are newer than client's request
+  # Use our oldest supported version
+  negotiated <- min(supported_versions)
+  cli::cli_warn(
+    "Client requested {client_version}, but minimum supported version is {negotiated}. Using {negotiated}."
+  )
+  return(negotiated)
 }
+
 
 #' Output a JSON-formatted object to stdout
 #'
@@ -71,21 +147,57 @@ create_tool_request <- function(id, tool, arguments = list()) {
 #' Provides server capability information for MCP client negotiation including supported
 #' features and protocol compliance. Enables proper MCP protocol establishment.
 #'
+#' @param version Protocol version string (e.g., "2025-11-25"). Must be in SUPPORTED_VERSIONS.
+#' @param server_name Server name for serverInfo (default: "R MCPR server")
+#' @param server_version Server version for serverInfo (default: "1.0.0")
 #' @return Capabilities list with protocol version and feature support
 #' @noRd
-create_capabilities <- function() {
+create_capabilities <- function(version,
+                                server_name = "R MCPR server",
+                                server_version = "1.0.0") {
+  # Validate version
+  if (!version %in% names(VERSION_CAPABILITIES)) {
+    cli::cli_abort(
+      "Unsupported protocol version: {version}. Supported versions: {paste(SUPPORTED_VERSIONS, collapse = ', ')}"
+    )
+  }
+
+  # Get version-specific capabilities
+  caps <- VERSION_CAPABILITIES[[version]]
+
+  # Build response matching mcprServer$get_capabilities() structure
   list(
-    protocolVersion = "2024-11-05",
+    protocolVersion = version,
     capabilities = list(
-      prompts = named_list(listChanged = FALSE),
-      resources = named_list(subscribe = FALSE, listChanged = FALSE),
-      tools = named_list(listChanged = FALSE)
+      prompts = caps$prompts,
+      resources = caps$resources,
+      tools = caps$tools
     ),
     serverInfo = list(
-      name = "R mcptools server",
-      version = "0.0.1"
+      name = server_name,
+      version = server_version
     ),
     instructions = "This provides information about a running R session."
+  )
+}
+
+#' Create MCP Client Capabilities
+#'
+#' @title Create MCP Client Capabilities
+#' @description Creates client capabilities object for MCP initialization request.
+#' Returns version-appropriate client capabilities that may vary based on protocol version.
+#' Client capabilities declare what features the client can handle/support.
+#'
+#' @param version Protocol version string (e.g., "2025-11-25")
+#' @return List of client capabilities for the specified protocol version
+#' @noRd
+create_client_capabilities <- function(version) {
+  # Client capabilities are currently simple and don't vary much by version
+  # Future versions may add more capabilities (e.g., elicitation support)
+  list(
+    tools = list(
+      listChanged = FALSE
+    )
   )
 }
 
@@ -155,16 +267,19 @@ convert_json_types <- function(args) {
 #'
 #' @param client_name Client name for identification (default: "MCP Test Client")
 #' @param client_version Client version string (default: "0.1.0")
+#' @param protocol_version Protocol version to request (default: latest supported version)
 #' @return Initialization request list for MCP protocol handshake
 #' @noRd
-create_initialize_request <- function(client_name = "MCP Test Client", client_version = "0.1.0") {
+create_initialize_request <- function(client_name = "MCP Test Client",
+                                      client_version = "0.1.0",
+                                      protocol_version = max(SUPPORTED_VERSIONS)) {
   list(
     jsonrpc = "2.0",
     id = 1,
     method = "initialize",
     params = list(
-      protocolVersion = "2024-11-05",
-      capabilities = list(tools = list(listChanged = FALSE)),
+      protocolVersion = protocol_version,
+      capabilities = create_client_capabilities(protocol_version),
       clientInfo = list(name = client_name, version = client_version)
     )
   )

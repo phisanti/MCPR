@@ -159,27 +159,14 @@ mcprServer <- R6::R6Class("mcprServer",
     },
 
     #' @description Get server capabilities for MCP protocol
+    #' @param version Protocol version (if NULL, uses latest supported version)
     #' @return List of server capabilities
-    get_capabilities = function() {
-      list(
-        protocolVersion = "2024-11-05",
-        capabilities = list(
-          prompts = list(
-            listChanged = FALSE
-          ),
-          resources = list(
-            subscribe = FALSE,
-            listChanged = FALSE
-          ),
-          tools = list(
-            listChanged = FALSE
-          )
-        ),
-        serverInfo = list(
-          name = "R MCPR server",
-          version = "1.0.0"
-        ),
-        instructions = "This provides information about a running R session."
+    get_capabilities = function(version = NULL) {
+      # Thin wrapper around create_capabilities from protocol.R
+      create_capabilities(
+        version = version %||% max(SUPPORTED_VERSIONS),
+        server_name = "R MCPR server",
+        server_version = "1.0.0"
       )
     }
   ),
@@ -187,6 +174,7 @@ mcprServer <- R6::R6Class("mcprServer",
     .reader_socket = NULL,
     .cv = NULL,
     .running = FALSE,
+    .protocol_version = NULL,  # Negotiated protocol version for this connection
 
     # Handle incoming messages from MCP clients
     handle_message_from_client = function(line) {
@@ -212,7 +200,24 @@ mcprServer <- R6::R6Class("mcprServer",
       # Define method handlers
       handlers <- list(
         "initialize" = function(data) {
-          jsonrpc_response(data$id, self$get_capabilities())
+          # Extract client's requested protocol version
+          client_version <- data$params$protocolVersion
+
+          # Negotiate protocol version
+          negotiated <- negotiate_protocol_version(client_version)
+
+          # Store negotiated version for this connection
+          private$.protocol_version <- negotiated
+
+          # Log negotiation for debugging
+          private$log_info(sprintf(
+            "Protocol negotiation: client=%s, negotiated=%s",
+            client_version %||% "NULL",
+            negotiated
+          ))
+
+          # Return capabilities for negotiated version
+          jsonrpc_response(data$id, self$get_capabilities(version = negotiated))
         },
         "tools/list" = function(data) {
           jsonrpc_response(
