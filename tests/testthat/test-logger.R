@@ -1,11 +1,11 @@
 test_that("MCPRLogger can be instantiated", {
-  logger <- MCPRLogger$new()
+  logger <- MCPR:::MCPRLogger$new()
   expect_true(inherits(logger, "MCPRLogger"))
   expect_true(inherits(logger, "R6"))
 })
 
 test_that("MCPRLogger initializes with correct defaults", {
-  logger <- MCPRLogger$new()
+  logger <- MCPR:::MCPRLogger$new()
 
   # Test that logger methods exist
   expect_true(is.function(logger$info))
@@ -16,7 +16,7 @@ test_that("MCPRLogger initializes with correct defaults", {
 })
 
 test_that("MCPRLogger accepts custom component names", {
-  logger <- MCPRLogger$new(component = "TEST_COMPONENT")
+  logger <- MCPR:::MCPRLogger$new(component = "TEST_COMPONENT")
 
   # We can't easily test the private component field directly,
   # but we can test that the logger was created successfully
@@ -24,7 +24,7 @@ test_that("MCPRLogger accepts custom component names", {
 })
 
 test_that("MCPRLogger can be enabled and disabled", {
-  logger <- MCPRLogger$new()
+  logger <- MCPR:::MCPRLogger$new()
 
   # Test enable method exists
   expect_true(is.function(logger$enable))
@@ -39,7 +39,7 @@ test_that("MCPRLogger logging methods work without error", {
   temp_file <- tempfile()
   on.exit(unlink(temp_file), add = TRUE)
 
-  logger <- MCPRLogger$new(file = temp_file)
+  logger <- MCPR:::MCPRLogger$new(file = temp_file)
 
   # Test all logging levels
   expect_silent(logger$info("Test info message"))
@@ -59,7 +59,7 @@ test_that("MCPRLogger respects enabled/disabled state", {
   temp_file <- tempfile()
   on.exit(unlink(temp_file), add = TRUE)
 
-  logger <- MCPRLogger$new(file = temp_file)
+  logger <- MCPR:::MCPRLogger$new(file = temp_file)
 
   # Log when enabled
   logger$info("Enabled message")
@@ -83,14 +83,14 @@ test_that("MCPRLogger respects enabled/disabled state", {
 
 test_that("MCPRLogger handles different file outputs", {
   # Test with NULL file (should log to console)
-  console_logger <- MCPRLogger$new(file = NULL)
+  console_logger <- MCPR:::MCPRLogger$new(file = NULL)
   expect_silent(console_logger$info("Console message"))
 
   # Test with custom file
   custom_file <- tempfile(fileext = ".log")
   on.exit(unlink(custom_file), add = TRUE)
 
-  file_logger <- MCPRLogger$new(file = custom_file)
+  file_logger <- MCPR:::MCPRLogger$new(file = custom_file)
   file_logger$info("File message")
 
   expect_true(file.exists(custom_file))
@@ -101,7 +101,7 @@ test_that("MCPRLogger format includes timestamp and level", {
   temp_file <- tempfile()
   on.exit(unlink(temp_file), add = TRUE)
 
-  logger <- MCPRLogger$new(file = temp_file, component = "TEST")
+  logger <- MCPR:::MCPRLogger$new(file = temp_file, component = "TEST")
   logger$info("Test message")
 
   if (file.exists(temp_file)) {
@@ -118,7 +118,7 @@ test_that("MCPRLogger format includes timestamp and level", {
 })
 
 test_that("MCPRLogger methods return self for chaining", {
-  logger <- MCPRLogger$new()
+  logger <- MCPR:::MCPRLogger$new()
 
   # Logging methods return self for method chaining (R6 pattern)
   result1 <- logger$info("Test")
@@ -138,7 +138,7 @@ test_that("MCPRLogger can handle empty and special messages", {
   temp_file <- tempfile()
   on.exit(unlink(temp_file), add = TRUE)
 
-  logger <- MCPRLogger$new(file = temp_file)
+  logger <- MCPR:::MCPRLogger$new(file = temp_file)
 
   # Test with empty message
   expect_silent(logger$info(""))

@@ -1,7 +1,7 @@
 # Test for Basic Serializer Registry
 test_that("register_mcpr_serializer adds and retrieves custom serializers", {
   # Clear any existing serializers for clean test
-  original_serializers <- get_mcpr_serializers()
+  original_serializers <- MCPR:::get_mcpr_serializers()
 
   # Test registering a custom serializer
   test_serializer <- function(obj) {
@@ -11,10 +11,10 @@ test_that("register_mcpr_serializer adds and retrieves custom serializers", {
     )
   }
 
-  register_mcpr_serializer("test_class", test_serializer)
+  MCPR:::register_mcpr_serializer("test_class", test_serializer)
 
   # Check that serializer was registered
-  serializers <- get_mcpr_serializers()
+  serializers <- MCPR:::get_mcpr_serializers()
   expect_true("test_class" %in% names(serializers))
   expect_true(is.function(serializers[["test_class"]]))
 
@@ -28,25 +28,25 @@ test_that("register_mcpr_serializer adds and retrieves custom serializers", {
 test_that("serializer registry supports overwriting and persistence", {
   # Register initial serializer
   serializer1 <- function(obj) list(version = 1, data = obj)
-  register_mcpr_serializer("overwrite_test", serializer1)
+  MCPR:::register_mcpr_serializer("overwrite_test", serializer1)
 
   # Verify first serializer
-  serializers1 <- get_mcpr_serializers()
+  serializers1 <- MCPR:::get_mcpr_serializers()
   result1 <- serializers1[["overwrite_test"]](42)
   expect_equal(result1$version, 1)
 
   # Register new serializer with same name
   serializer2 <- function(obj) list(version = 2, data = obj * 2)
-  register_mcpr_serializer("overwrite_test", serializer2)
+  MCPR:::register_mcpr_serializer("overwrite_test", serializer2)
 
   # Verify second serializer overwrote the first
-  serializers2 <- get_mcpr_serializers()
+  serializers2 <- MCPR:::get_mcpr_serializers()
   result2 <- serializers2[["overwrite_test"]](42)
   expect_equal(result2$version, 2)
   expect_equal(result2$data, 84)
 
   # Test persistence across calls
-  serializers3 <- get_mcpr_serializers()
+  serializers3 <- MCPR:::get_mcpr_serializers()
   expect_true("overwrite_test" %in% names(serializers3))
   expect_identical(
     serializers2[["overwrite_test"]],
@@ -56,12 +56,12 @@ test_that("serializer registry supports overwriting and persistence", {
 
 test_that("multiple custom serializers can coexist", {
   # Register multiple serializers
-  register_mcpr_serializer("type_a", function(obj) list(type = "A"))
-  register_mcpr_serializer("type_b", function(obj) list(type = "B"))
-  register_mcpr_serializer("type_c", function(obj) list(type = "C"))
+  MCPR:::register_mcpr_serializer("type_a", function(obj) list(type = "A"))
+  MCPR:::register_mcpr_serializer("type_b", function(obj) list(type = "B"))
+  MCPR:::register_mcpr_serializer("type_c", function(obj) list(type = "C"))
 
   # Check all are present
-  serializers <- get_mcpr_serializers()
+  serializers <- MCPR:::get_mcpr_serializers()
   expect_true("type_a" %in% names(serializers))
   expect_true("type_b" %in% names(serializers))
   expect_true("type_c" %in% names(serializers))
@@ -167,7 +167,7 @@ test_that("Mixed data frames with special types work", {
 
 test_that("Custom serializers work with to_mcpr_json", {
   # Register a custom serializer
-  register_mcpr_serializer("myclass", function(obj) {
+  MCPR:::register_mcpr_serializer("myclass", function(obj) {
     list(
       `_mcp_type` = "custom_myclass",
       data = obj$data,
@@ -182,7 +182,7 @@ test_that("Custom serializers work with to_mcpr_json", {
   )
 
   # Convert using custom serializer
-  result <- to_mcpr_json(obj, custom_serializers = get_mcpr_serializers())
+  result <- to_mcpr_json(obj, custom_serializers = MCPR:::get_mcpr_serializers())
 
   expect_equal(result$`_mcp_type`, "custom_myclass")
   expect_equal(result$data, 1:5)

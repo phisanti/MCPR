@@ -201,13 +201,14 @@ test_that("mcprSession private send_response handles missing socket", {
 
 test_that("mcpr_session_stop handles existing session", {
   # Create a mock session in the global environment
-  the$mcpr_session <- mcprSession$new()
-  the$session <- 1
+  the_env <- MCPR:::the
+  the_env$mcpr_session <- mcprSession$new()
+  the_env$session <- 1
 
   # Stop should clean up both
   expect_no_error(mcpr_session_stop())
-  expect_null(the$mcpr_session)
-  expect_null(the$session)
+  expect_null(the_env$mcpr_session)
+  expect_null(the_env$session)
 })
 
 test_that("mcprSession timeout functionality works with short timeout", {
@@ -376,26 +377,27 @@ test_that("mcprSession last activity tracking", {
 
 test_that("mcpr_session_start and stop integration", {
   # Test the convenience functions
+  the_env <- MCPR:::the
 
   # Store original state
-  original_session <- the$mcpr_session
-  original_session_id <- the$session
+  original_session <- the_env$mcpr_session
+  original_session_id <- the_env$session
 
   # Test start (should return invisibly in non-interactive mode)
   result <- mcpr_session_start(timeout_seconds = 60)
   expect_null(result) # Should be invisible NULL in non-interactive
 
   # Test stop cleanup
-  the$mcpr_session <- mcprSession$new()
-  the$session <- 123
+  the_env$mcpr_session <- mcprSession$new()
+  the_env$session <- 123
 
   expect_no_error(mcpr_session_stop())
-  expect_null(the$mcpr_session)
-  expect_null(the$session)
+  expect_null(the_env$mcpr_session)
+  expect_null(the_env$session)
 
   # Restore original state
-  the$mcpr_session <- original_session
-  the$session <- original_session_id
+  the_env$mcpr_session <- original_session
+  the_env$session <- original_session_id
 })
 
 

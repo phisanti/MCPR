@@ -29,7 +29,7 @@ test_that("tool() handles name parameter correctly", {
   auto_named_tool <- tool(
     fun = test_fun,
     description = "Identity function",
-    arguments = list(x = type_number(description = "Input value"))
+    arguments = list(x = MCPR:::type_number(description = "Input value"))
   )
 
   expect_equal(auto_named_tool$name, "test_fun")
@@ -61,8 +61,8 @@ test_that("ToolDef class has proper structure", {
     fun = function(a, b) a + b,
     description = "Add two numbers",
     arguments = list(
-      a = type_number(),
-      b = type_number()
+      a = MCPR:::type_number(),
+      b = MCPR:::type_number()
     )
   )
 
@@ -81,8 +81,8 @@ test_that("ToolDef$call method works correctly", {
     fun = function(x, y) x + y,
     description = "Add two numbers",
     arguments = list(
-      x = type_number(),
-      y = type_number()
+      x = MCPR:::type_number(),
+      y = MCPR:::type_number()
     )
   )
 
@@ -92,7 +92,7 @@ test_that("ToolDef$call method works correctly", {
 
 test_that("tool_annotations creates proper annotation lists", {
   # Test basic annotations
-  annotations <- tool_annotations(
+  annotations <- MCPR:::tool_annotations(
     title = "Test Tool",
     read_only_hint = TRUE,
     open_world_hint = FALSE
@@ -104,7 +104,7 @@ test_that("tool_annotations creates proper annotation lists", {
   expect_false(annotations$open_world_hint)
 
   # Test with additional parameters
-  custom_annotations <- tool_annotations(
+  custom_annotations <- MCPR:::tool_annotations(
     title = "Custom Tool",
     custom_field = "custom_value"
   )
@@ -114,17 +114,17 @@ test_that("tool_annotations creates proper annotation lists", {
 
 test_that("tool_reject throws proper errors", {
   # Test default rejection
-  expect_error(tool_reject(), "Tool call rejected")
+  expect_error(MCPR:::tool_reject(), "Tool call rejected")
 
   # Test custom reason
   expect_error(
-    tool_reject("Custom rejection reason"),
+    MCPR:::tool_reject("Custom rejection reason"),
     "Custom rejection reason"
   )
 
   # Test error class
   tryCatch(
-    tool_reject("Test"),
+    MCPR:::tool_reject("Test"),
     error = function(e) {
       expect_true("mcpr_tool_reject" %in% class(e))
     }
@@ -133,8 +133,9 @@ test_that("tool_reject throws proper errors", {
 
 test_that("unique_tool_name generates unique names", {
   # Clear counter for testing
-  if (exists("cur_tool_id", envir = the)) {
-    the$cur_tool_id <- 0
+  the_env <- MCPR:::the
+  if (exists("cur_tool_id", envir = the_env)) {
+    the_env$cur_tool_id <- 0
   }
 
   name1 <- unique_tool_name()
@@ -150,7 +151,7 @@ test_that("tool with convert=FALSE doesn't convert arguments", {
   no_convert_tool <- tool(
     fun = function(x) class(x),
     description = "Return class of input",
-    arguments = list(x = type_string(description = "Input value")),
+    arguments = list(x = MCPR:::type_string(description = "Input value")),
     convert = FALSE
   )
 

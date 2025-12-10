@@ -2,7 +2,7 @@
 test_that("mcpr_serialize creates valid JSON strings", {
   # Test basic serialization
   test_obj <- list(result = 42, message = "success")
-  json_str <- mcpr_serialize(test_obj)
+  json_str <- MCPR:::mcpr_serialize(test_obj)
 
   expect_true(is.character(json_str))
   expect_length(json_str, 1)
@@ -14,7 +14,7 @@ test_that("mcpr_serialize creates valid JSON strings", {
 test_that("mcpr_deserialize reconstructs objects correctly", {
   # Test basic deserialization
   json_str <- '{"result": 42, "message": "success"}'
-  result <- mcpr_deserialize(json_str)
+  result <- MCPR:::mcpr_deserialize(json_str)
 
   expect_equal(result$result, 42)
   expect_equal(result$message, "success")
@@ -22,13 +22,13 @@ test_that("mcpr_deserialize reconstructs objects correctly", {
 
 test_that("can_serialize identifies serializable objects", {
   # Test objects that can be serialized
-  expect_true(can_serialize(list(a = 1, b = "test")))
-  expect_true(can_serialize(c(1, 2, 3)))
-  expect_true(can_serialize("simple string"))
-  expect_true(can_serialize(data.frame(x = 1:3, y = letters[1:3])))
+  expect_true(MCPR:::can_serialize(list(a = 1, b = "test")))
+  expect_true(MCPR:::can_serialize(c(1, 2, 3)))
+  expect_true(MCPR:::can_serialize("simple string"))
+  expect_true(MCPR:::can_serialize(data.frame(x = 1:3, y = letters[1:3])))
 
   # Test NULL
-  expect_true(can_serialize(NULL))
+  expect_true(MCPR:::can_serialize(NULL))
 })
 
 test_that("mcpr_serialize and mcpr_deserialize round-trip correctly", {
@@ -41,8 +41,8 @@ test_that("mcpr_serialize and mcpr_deserialize round-trip correctly", {
   )
 
   # Serialize then deserialize
-  json_str <- mcpr_serialize(original)
-  reconstructed <- mcpr_deserialize(json_str)
+  json_str <- MCPR:::mcpr_serialize(original)
+  reconstructed <- MCPR:::mcpr_deserialize(json_str)
 
   # Check basic equality (dates will be different class but same value)
   expect_equal(unlist(reconstructed$numbers), original$numbers)
@@ -56,30 +56,30 @@ test_that("mcpr_serialize handles pretty printing and auto_unbox parameter", {
   test_obj <- list(value = 42, message = "success")
 
   # Test pretty printing
-  json_pretty <- mcpr_serialize(test_obj, pretty = TRUE)
+  json_pretty <- MCPR:::mcpr_serialize(test_obj, pretty = TRUE)
   expect_true(grepl("\\n", json_pretty))
 
   # Test with auto_unbox = TRUE (default)
   single_value <- list(value = 42)
-  json_unbox <- mcpr_serialize(single_value, auto_unbox = TRUE)
+  json_unbox <- MCPR:::mcpr_serialize(single_value, auto_unbox = TRUE)
   parsed_unbox <- jsonlite::fromJSON(json_unbox)
   expect_equal(parsed_unbox$value, 42) # Should be scalar
 
   # Test with auto_unbox = FALSE
-  json_no_unbox <- mcpr_serialize(single_value, auto_unbox = FALSE)
+  json_no_unbox <- MCPR:::mcpr_serialize(single_value, auto_unbox = FALSE)
   parsed_no_unbox <- jsonlite::fromJSON(json_no_unbox)
   expect_length(parsed_no_unbox$value, 1) # Should be array with one element
 })
 
 test_that("utilities handle edge cases gracefully", {
   # Test empty objects
-  expect_no_error(mcpr_serialize(list()))
-  expect_no_error(mcpr_serialize(character(0)))
-  expect_no_error(mcpr_serialize(numeric(0)))
+  expect_no_error(MCPR:::mcpr_serialize(list()))
+  expect_no_error(MCPR:::mcpr_serialize(character(0)))
+  expect_no_error(MCPR:::mcpr_serialize(numeric(0)))
 
   # Test deserializing empty JSON
-  expect_no_error(mcpr_deserialize("{}"))
-  expect_no_error(mcpr_deserialize("[]"))
+  expect_no_error(MCPR:::mcpr_deserialize("{}"))
+  expect_no_error(MCPR:::mcpr_deserialize("[]"))
 })
 
 # Test for Data Frame Streaming
@@ -149,12 +149,12 @@ test_that("Schema validation works correctly", {
 
 test_that("mcpr_deserialize handles malformed JSON gracefully", {
   # Test invalid JSON strings
-  expect_error(mcpr_deserialize('{"invalid": json}'))
-  expect_error(mcpr_deserialize('{"unclosed": "quote}'))
-  expect_error(mcpr_deserialize("[1, 2, 3,]")) # Trailing comma
-  expect_error(mcpr_deserialize("")) # Empty string
-  expect_error(mcpr_deserialize("{invalid json")) # Malformed syntax
-  expect_error(mcpr_deserialize('{"key": undefined}')) # Undefined value
+  expect_error(MCPR:::mcpr_deserialize('{"invalid": json}'))
+  expect_error(MCPR:::mcpr_deserialize('{"unclosed": "quote}'))
+  expect_error(MCPR:::mcpr_deserialize("[1, 2, 3,]")) # Trailing comma
+  expect_error(MCPR:::mcpr_deserialize("")) # Empty string
+  expect_error(MCPR:::mcpr_deserialize("{invalid json")) # Malformed syntax
+  expect_error(MCPR:::mcpr_deserialize('{"key": undefined}')) # Undefined value
 })
 
 test_that("stream_dataframe handles edge cases in chunking", {
@@ -224,12 +224,12 @@ test_that("deeply nested objects serialize and deserialize correctly", {
   )
 
   # Test serialization
-  json_str <- mcpr_serialize(complex_obj)
+  json_str <- MCPR:::mcpr_serialize(complex_obj)
   expect_true(is.character(json_str))
   expect_true(nchar(json_str) > 100) # Should be substantial
 
   # Test deserialization
-  reconstructed <- mcpr_deserialize(json_str)
+  reconstructed <- MCPR:::mcpr_deserialize(json_str)
 
   # Verify key nested elements
   expect_equal(reconstructed$level1$level2$level3$numbers[1:3], c(1, 2, 3))
@@ -400,13 +400,13 @@ test_that("stream_dataframe handles edge cases", {
 
 test_that("type constructor functions work correctly", {
   # Test type_boolean
-  bool_type <- type_boolean("Boolean flag", required = FALSE)
+  bool_type <- MCPR:::type_boolean("Boolean flag", required = FALSE)
   expect_equal(bool_type$type, "boolean")
   expect_equal(bool_type$description, "Boolean flag")
   expect_equal(bool_type$required, FALSE)
 
   # Test type_integer
-  int_type <- type_integer("Integer value")
+  int_type <- MCPR:::type_integer("Integer value")
   expect_equal(int_type$type, "integer")
   expect_equal(int_type$description, "Integer value")
   expect_equal(int_type$required, TRUE)
@@ -422,8 +422,8 @@ test_that("mcpr_serialize handles different parameters", {
   test_obj <- list(a = 1, b = "test", c = TRUE)
 
   # Test pretty formatting
-  json_pretty <- mcpr_serialize(test_obj, pretty = TRUE)
-  json_compact <- mcpr_serialize(test_obj, pretty = FALSE)
+  json_pretty <- MCPR:::mcpr_serialize(test_obj, pretty = TRUE)
+  json_compact <- MCPR:::mcpr_serialize(test_obj, pretty = FALSE)
 
   expect_type(json_pretty, "character")
   expect_type(json_compact, "character")
@@ -431,8 +431,8 @@ test_that("mcpr_serialize handles different parameters", {
 
   # Test auto_unbox parameter
   single_val <- list(value = 42)
-  json_unbox <- mcpr_serialize(single_val, auto_unbox = TRUE)
-  json_no_unbox <- mcpr_serialize(single_val, auto_unbox = FALSE)
+  json_unbox <- MCPR:::mcpr_serialize(single_val, auto_unbox = TRUE)
+  json_no_unbox <- MCPR:::mcpr_serialize(single_val, auto_unbox = FALSE)
 
   expect_type(json_unbox, "character")
   expect_type(json_no_unbox, "character")
@@ -443,7 +443,7 @@ test_that("mcpr_serialize handles size limits", {
   large_obj <- list(data = matrix(runif(1000), nrow = 100))
 
   # Test with very small size limit
-  json_limited <- mcpr_serialize(large_obj, size_limit = 100)
+  json_limited <- MCPR:::mcpr_serialize(large_obj, size_limit = 100)
   expect_type(json_limited, "character")
 
   # Should still produce valid JSON

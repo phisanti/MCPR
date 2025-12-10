@@ -1,12 +1,12 @@
 test_that("decode_tool_args handles basic arguments", {
   # Test basic argument passthrough
   basic_args <- list(x = 42, y = "test", z = TRUE)
-  result <- decode_tool_args(basic_args)
+  result <- MCPR:::decode_tool_args(basic_args)
   expect_equal(result, basic_args)
 
   # Test non-list input
-  expect_equal(decode_tool_args("not a list"), "not a list")
-  expect_equal(decode_tool_args(42), 42)
+  expect_equal(MCPR:::decode_tool_args("not a list"), "not a list")
+  expect_equal(MCPR:::decode_tool_args(42), 42)
 })
 
 test_that("decode_tool_args detects MCP type markers", {
@@ -20,7 +20,7 @@ test_that("decode_tool_args detects MCP type markers", {
   )
 
   # Should trigger from_mcp_json processing
-  result <- decode_tool_args(mcp_args)
+  result <- MCPR:::decode_tool_args(mcp_args)
   expect_true(is.list(result))
   # The exact structure depends on from_mcpr_json implementation
   expect_true(!is.null(result))
@@ -28,14 +28,14 @@ test_that("decode_tool_args detects MCP type markers", {
 
 test_that("decode_tool_args handles empty and NULL inputs", {
   # Test NULL
-  expect_null(decode_tool_args(NULL))
+  expect_null(MCPR:::decode_tool_args(NULL))
 
   # Test empty list
-  expect_equal(decode_tool_args(list()), list())
+  expect_equal(MCPR:::decode_tool_args(list()), list())
 
   # Test list without MCP markers
   no_markers <- list(a = 1, b = list(x = 2, y = 3))
-  expect_equal(decode_tool_args(no_markers), no_markers)
+  expect_equal(MCPR:::decode_tool_args(no_markers), no_markers)
 })
 
 test_that("encode_tool_results handles simple text results", {
@@ -43,7 +43,7 @@ test_that("encode_tool_results handles simple text results", {
   test_data <- list(id = 1)
   simple_result <- "Simple text result"
 
-  output <- encode_tool_results(test_data, simple_result)
+  output <- MCPR:::encode_tool_results(test_data, simple_result)
 
   expect_true(is.list(output))
   expect_equal(output$jsonrpc, "2.0")
@@ -62,7 +62,7 @@ test_that("encode_tool_results handles complex objects", {
     stringsAsFactors = FALSE
   )
 
-  output <- encode_tool_results(test_data, complex_result)
+  output <- MCPR:::encode_tool_results(test_data, complex_result)
 
   expect_true(is.list(output))
   expect_equal(output$jsonrpc, "2.0")
@@ -80,7 +80,7 @@ test_that("encode_tool_results handles numeric vectors", {
   test_data <- list(id = 3)
   numeric_result <- c(1, 2, 3, 4, 5)
 
-  output <- encode_tool_results(test_data, numeric_result)
+  output <- MCPR:::encode_tool_results(test_data, numeric_result)
 
   expect_true(is.list(output))
   expect_equal(output$id, 3)
@@ -95,7 +95,7 @@ test_that("encode_tool_results handles lists", {
   test_data <- list(id = 4)
   list_result <- list(status = "success", data = 1:5, message = "Complete")
 
-  output <- encode_tool_results(test_data, list_result)
+  output <- MCPR:::encode_tool_results(test_data, list_result)
 
   expect_true(is.list(output))
   expect_equal(output$id, 4)

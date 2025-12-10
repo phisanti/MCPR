@@ -1,37 +1,37 @@
 test_that("set_server_tools accepts valid ToolRegistry", {
   # Test with valid ToolRegistry
   registry <- ToolRegistry$new()
-  expect_silent(set_server_tools(registry = registry))
+  expect_silent(MCPR:::set_server_tools(registry = registry))
 
   # Verify tools were set
-  tools <- get_mcptools_tools()
+  tools <- MCPR:::get_mcptools_tools()
   expect_true(is.list(tools))
 })
 
 test_that("set_server_tools validates ToolRegistry parameter", {
   # Test with invalid registry parameter
   expect_error(
-    set_server_tools(registry = "not_a_registry"),
+    MCPR:::set_server_tools(registry = "not_a_registry"),
     "registry must be a ToolRegistry instance"
   )
 
   expect_error(
-    set_server_tools(registry = list()),
+    MCPR:::set_server_tools(registry = list()),
     "registry must be a ToolRegistry instance"
   )
 
   expect_error(
-    set_server_tools(registry = 123),
+    MCPR:::set_server_tools(registry = 123),
     "registry must be a ToolRegistry instance"
   )
 })
 
 test_that("set_server_tools handles NULL registry", {
   # Test with NULL registry (should set empty tools list)
-  expect_silent(set_server_tools(registry = NULL))
+  expect_silent(MCPR:::set_server_tools(registry = NULL))
 
   # Verify empty tools list was set
-  tools <- get_mcptools_tools()
+  tools <- MCPR:::get_mcptools_tools()
   expect_true(is.list(tools))
   expect_equal(length(tools), 0)
 })
@@ -54,9 +54,9 @@ test_that("get_mcptools_tools returns current server tools", {
 
   registry <- ToolRegistry$new(tools_dir = temp_dir)
   registry$search_tools()
-  set_server_tools(registry = registry)
+  MCPR:::set_server_tools(registry = registry)
 
-  tools <- get_mcptools_tools()
+  tools <- MCPR:::get_mcptools_tools()
   expect_true(is.list(tools))
   expect_true("test_tool" %in% names(tools))
 })
@@ -64,7 +64,7 @@ test_that("get_mcptools_tools returns current server tools", {
 test_that("get_mcptools_tools_as_json returns JSON-compatible format", {
   # Set up a registry
   registry <- ToolRegistry$new()
-  set_server_tools(registry = registry)
+  MCPR:::set_server_tools(registry = registry)
 
   server <- mcprServer$new(registry = registry)
   json_tools <- server$get_tools("json")
@@ -82,11 +82,11 @@ test_that("get_mcptools_tools_as_json returns JSON-compatible format", {
 test_that("server tools integration with global state", {
   # Test that tools are stored in global state
   registry <- ToolRegistry$new()
-  set_server_tools(registry = registry)
+  MCPR:::set_server_tools(registry = registry)
 
   # Check that global state was updated
-  expect_true(exists("server_tools", envir = the))
-  expect_true(is.list(the$server_tools))
+  expect_true(exists("server_tools", envir = MCPR:::the))
+  expect_true(is.list(MCPR:::the$server_tools))
 })
 
 test_that("set_server_tools preserves existing registry tools", {
@@ -116,9 +116,9 @@ test_that("set_server_tools preserves existing registry tools", {
 
   registry <- ToolRegistry$new(tools_dir = temp_dir)
   registry$search_tools()
-  set_server_tools(registry = registry)
+  MCPR:::set_server_tools(registry = registry)
 
-  tools <- get_mcptools_tools()
+  tools <- MCPR:::get_mcptools_tools()
   expect_true("first_tool" %in% names(tools))
   expect_true("second_tool" %in% names(tools))
   expect_equal(length(tools), 2)
@@ -126,9 +126,9 @@ test_that("set_server_tools preserves existing registry tools", {
 
 test_that("get_mcptools_tools handles empty tools list", {
   # Set empty tools
-  set_server_tools(registry = NULL)
+  MCPR:::set_server_tools(registry = NULL)
 
-  tools <- get_mcptools_tools()
+  tools <- MCPR:::get_mcptools_tools()
   expect_true(is.list(tools))
   expect_equal(length(tools), 0)
   expect_equal(names(tools), character(0))
@@ -151,9 +151,9 @@ test_that("tool functions can be executed from server tools", {
 
   registry <- ToolRegistry$new(tools_dir = temp_dir)
   registry$search_tools()
-  set_server_tools(registry = registry)
+  MCPR:::set_server_tools(registry = registry)
 
-  tools <- get_mcptools_tools()
+  tools <- MCPR:::get_mcptools_tools()
   tool_obj <- tools[["executable_tool"]]
 
   expect_true(inherits(tool_obj, "ToolDef"))
@@ -173,7 +173,7 @@ test_that("tool_as_json converts ToolDef to MCP format", {
     arguments = list(x = "number")
   )
 
-  json_result <- tool_as_json(test_tool)
+  json_result <- MCPR:::tool_as_json(test_tool)
 
   expect_type(json_result, "list")
   expect_equal(json_result$name, "double_value")
@@ -193,7 +193,7 @@ test_that("tool_as_json handles complex argument types", {
     )
   )
 
-  json_result <- tool_as_json(complex_tool)
+  json_result <- MCPR:::tool_as_json(complex_tool)
 
   expect_type(json_result, "list")
   expect_true("inputSchema" %in% names(json_result))
@@ -206,9 +206,9 @@ test_that("set_server_tools handles concurrent access", {
   registry1 <- ToolRegistry$new()
   registry2 <- ToolRegistry$new()
 
-  expect_no_error(set_server_tools(registry1))
-  expect_no_error(set_server_tools(registry2))
-  expect_no_error(set_server_tools(NULL))
+  expect_no_error(MCPR:::set_server_tools(registry1))
+  expect_no_error(MCPR:::set_server_tools(registry2))
+  expect_no_error(MCPR:::set_server_tools(NULL))
 })
 
 test_that("get_mcptools_tools preserves tool names correctly", {
@@ -228,9 +228,9 @@ test_that("get_mcptools_tools preserves tool names correctly", {
 
   registry <- ToolRegistry$new(tools_dir = temp_dir)
   registry$search_tools()
-  set_server_tools(registry)
+  MCPR:::set_server_tools(registry)
 
-  tools <- get_mcptools_tools()
+  tools <- MCPR:::get_mcptools_tools()
   tool_names <- names(tools)
 
   expect_true("specific_name_tool" %in% tool_names)
@@ -240,16 +240,17 @@ test_that("get_mcptools_tools preserves tool names correctly", {
 
 test_that("server tools error handling", {
   # Test error conditions
-  expect_error(set_server_tools(42), "registry must be a ToolRegistry instance")
-  expect_error(set_server_tools("invalid"), "registry must be a ToolRegistry instance")
+  expect_error(MCPR:::set_server_tools(42), "registry must be a ToolRegistry instance")
+  expect_error(MCPR:::set_server_tools("invalid"), "registry must be a ToolRegistry instance")
 
   # Test with corrupted global state
-  old_server_tools <- the$server_tools
-  the$server_tools <- "invalid"
+  the_env <- MCPR:::the
+  old_server_tools <- the_env$server_tools
+  the_env$server_tools <- "invalid"
 
   # Should still work - functions should handle invalid state
-  expect_no_error(set_server_tools(NULL))
+  expect_no_error(MCPR:::set_server_tools(NULL))
 
   # Restore
-  the$server_tools <- old_server_tools
+  the_env$server_tools <- old_server_tools
 })

@@ -3,7 +3,7 @@
 # across MCPR components including state management, logging, and cleanup
 
 test_that("BaseMCPR initialization requires component name", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
 
   # Should fail without component name
   expect_error(
@@ -24,7 +24,7 @@ test_that("BaseMCPR initialization requires component name", {
 })
 
 test_that("BaseMCPR initialization works correctly", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   expect_true(base_obj$is_initialized())
@@ -34,7 +34,7 @@ test_that("BaseMCPR initialization works correctly", {
 })
 
 test_that("BaseMCPR prevents access before initialization", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
 
   expect_error(
     base_obj$state_get("test"),
@@ -54,7 +54,7 @@ test_that("BaseMCPR prevents access before initialization", {
 })
 
 test_that("state management functions work correctly", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Test state_get with default
@@ -81,10 +81,10 @@ test_that("state management functions work correctly", {
 })
 
 test_that("state ownership is tracked separately by instances", {
-  base_obj1 <- BaseMCPR$new()
+  base_obj1 <- MCPR:::BaseMCPR$new()
   base_obj1$initialize_base("TEST1")
 
-  base_obj2 <- BaseMCPR$new()
+  base_obj2 <- MCPR:::BaseMCPR$new()
   base_obj2$initialize_base("TEST2")
 
   # Set different keys in each instance
@@ -112,7 +112,7 @@ test_that("state ownership is tracked separately by instances", {
 })
 
 test_that("logging methods work correctly", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Skip logging tests due to environment conflicts
@@ -132,7 +132,7 @@ test_that("logging methods work correctly", {
 })
 
 test_that("resource cleanup registration works", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Test resource cleanup
@@ -153,7 +153,7 @@ test_that("resource cleanup registration works", {
 })
 
 test_that("resource cleanup validation works", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Should reject non-function cleanup
@@ -164,7 +164,7 @@ test_that("resource cleanup validation works", {
 })
 
 test_that("resource cleanup is executed in LIFO order", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   execution_order <- character(0)
@@ -199,7 +199,7 @@ test_that("resource cleanup is executed in LIFO order", {
 })
 
 test_that("socket utilities work correctly", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Set socket URL
@@ -229,7 +229,7 @@ test_that("socket utilities work correctly", {
 test_that("socket creation works with cleanup", {
   skip_if_not_installed("nanonext")
 
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Create socket
@@ -245,7 +245,7 @@ test_that("socket creation works with cleanup", {
 test_that("inheritance pattern works correctly", {
   # Create mock class that inherits from BaseMCPR
   MockComponent <- R6::R6Class("MockComponent",
-    inherit = BaseMCPR,
+    inherit = MCPR:::BaseMCPR,
     public = list(
       initialize = function() {
         self$initialize_base("MOCK")
@@ -281,7 +281,7 @@ test_that("inheritance pattern works correctly", {
 })
 
 test_that("cleanup_all is safe to call multiple times", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Set some state and register cleanup
@@ -304,7 +304,7 @@ test_that("cleanup_all is safe to call multiple times", {
 })
 
 test_that("cleanup handles errors gracefully", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Register cleanup that will error
@@ -332,7 +332,7 @@ test_that("cleanup handles errors gracefully", {
 })
 
 test_that("state_clear handles missing keys gracefully", {
-  base_obj <- BaseMCPR$new()
+  base_obj <- MCPR:::BaseMCPR$new()
   base_obj$initialize_base("TEST")
 
   # Clearing non-existent key should not error

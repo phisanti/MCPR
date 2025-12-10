@@ -155,7 +155,7 @@ test_that("create_initialize_request creates proper initialization", {
   expect_equal(init_req1$jsonrpc, "2.0")
   expect_equal(init_req1$id, 1)
   expect_equal(init_req1$method, "initialize")
-  expect_equal(init_req1$params$protocolVersion, "2024-11-05")
+  expect_equal(init_req1$params$protocolVersion, max(MCPR:::SUPPORTED_VERSIONS))  # Should use latest version
   expect_equal(init_req1$params$clientInfo$name, "MCP Test Client")
   expect_equal(init_req1$params$clientInfo$version, "0.1.0")
 

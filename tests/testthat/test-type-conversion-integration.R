@@ -9,7 +9,7 @@ test_that("legacy argument processing works", {
     tool = function(x, y) paste(x, y)
   )
 
-  result <- execute_tool_call(mock_data)
+  result <- MCPR:::execute_tool_call(mock_data)
 
   expect_true(is.list(result))
   expect_equal(result$id, 1)
@@ -36,7 +36,7 @@ test_that("enhanced argument processing handles MCP types", {
     }
   )
 
-  result <- execute_tool_call(mock_data)
+  result <- MCPR:::execute_tool_call(mock_data)
 
   expect_true(is.list(result))
   expect_equal(result$id, 2)
@@ -60,7 +60,7 @@ test_that("tool execution maintains backward compatibility", {
     tool = simple_tool
   )
 
-  result <- execute_tool_call(legacy_data)
+  result <- MCPR:::execute_tool_call(legacy_data)
 
   expect_true(is.list(result))
   expect_equal(result$id, 3)
@@ -87,7 +87,7 @@ test_that("enhanced tool execution handles complex R objects", {
     tool = complex_tool
   )
 
-  result <- execute_tool_call(complex_data)
+  result <- MCPR:::execute_tool_call(complex_data)
 
   expect_true(is.list(result))
   expect_equal(result$id, 4)
@@ -116,7 +116,7 @@ test_that("tool execution handles arrays correctly", {
     tool = array_tool
   )
 
-  result <- execute_tool_call(array_data)
+  result <- MCPR:::execute_tool_call(array_data)
 
   expect_true(is.list(result))
   expect_equal(result$id, 5)
@@ -138,7 +138,7 @@ test_that("enhanced processing falls back to legacy when needed", {
     tool = fallback_tool
   )
 
-  result <- execute_tool_call(fallback_data)
+  result <- MCPR:::execute_tool_call(fallback_data)
 
   expect_true(is.list(result))
   expect_equal(result$id, 6)
@@ -162,7 +162,7 @@ test_that("error handling works with enhanced processing", {
     tool = error_tool
   )
 
-  result <- execute_tool_call(error_data)
+  result <- MCPR:::execute_tool_call(error_data)
 
   expect_true(is.list(result))
   expect_equal(result$id, 7)
@@ -197,7 +197,7 @@ test_that("round-trip type conversion works end-to-end", {
     tool = roundtrip_tool
   )
 
-  result <- execute_tool_call(roundtrip_request)
+  result <- MCPR:::execute_tool_call(roundtrip_request)
 
   expect_true(is.list(result))
   expect_equal(result$id, 8)
