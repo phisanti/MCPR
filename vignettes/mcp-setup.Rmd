@@ -118,3 +118,86 @@ Once configured, your AI agent will have access to these tools:
 - `MCPTOOLS_LOG_FILE`: Path for debug logs
 - `MCPTOOLS_TOOLS_DIR`: Custom tools directory
 - `R_LIBS_USER`: R library path
+
+## Common Issues
+
+### Working with MCPR in renv Projects
+
+When using MCPR with AI agents (like Claude Desktop or Codex) in renv-enabled projects, you may encounter connection issues where the agent cannot find or load the MCPR package.
+
+**Problem**: The MCP server fails to start or behaves unexpectedly because `renv` isolates the project's R library. This causes the AI agent to run a different instance or version of `MCPR` (installed in the global library) than the one you are running in your interactive R session (often in the local library), leading to communication mismatches.
+
+**Solution**: Configure renv to use your global MCPR installation by creating a scaffold file before initializing renv:
+
+1. **Before running `renv::init()`**, create a file called `scaffold.R` in your project root:
+
+```r
+# scaffold.R
+library(MCPR)
+```
+
+2. Initialize renv normally:
+
+```r
+renv::init()
+```
+
+This approach ensures that renv detects MCPR as a dependency and links to your global installation rather than trying to install a separate copy. This is similar to the [recommended approach for VSCode-R with renv](https://github.com/REditorSupport/vscode-R/wiki/Working-with-renv-enabled-projects).
+
+**For existing renv projects**:
+
+If you already have an renv project without MCPR, you can add it:
+
+```r
+# Install MCPR into the renv library
+renv::install("path/to/MCPR", repos = NULL, type = "source")
+
+# Or use the global installation
+renv::use_package("MCPR", type = "Imports", dev = TRUE)
+renv::snapshot()
+```
+
+### GitHub Copilot / Codex Configuration Issues
+
+Some newer versions of AI coding assistants require explicit specification of the MCP server connection type.
+
+**Problem**: MCP server fails to connect with error messages like "handshaking with MCP server failed" or "connection closed: initialize response".
+
+**Solution**: Ensure your configuration file explicitly declares `"type": "stdio"`.
+
+**Correct configuration** for `~/.vscode/mcp.json` or equivalent:
+
+```json
+{
+    "servers": {
+        "MCPR": {
+            "type": "stdio",
+            "command": "R",
+            "args": [
+                "--quiet",
+                "--slave",
+                "-e",
+                "MCPR::mcpr_server()"
+            ]
+        }
+    },
+    "inputs": []
+}
+```
+
+**Key points**:
+- The `"type": "stdio"` field is **required** for newer MCP client implementations
+- Without this field, the client may fail to establish the communication channel
+- The `"inputs": []` field may also be required by some clients
+
+### Protocol Version Mismatches
+
+Different AI coding agents support different MCP protocol versions. MCPR implements protocol version negotiation to handle this automatically.
+
+**Supported versions**:
+- `2024-11-05` (baseline)
+- `2025-03-26`
+- `2025-06-18`
+- `2025-11-25` (latest)
+
+If you encounter version-related errors, check your agent's logs for protocol version information. MCPR should automatically negotiate the highest mutually supported version.
