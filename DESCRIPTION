@@ -76,6 +76,7 @@ Collate:
     'type-conversion-utilities.R'
     'utils.R'
     'view-utils.R'
+    'inspect-object.R'
     'view-session-state.R'
     'view-system-info.R'
     'install-mcpr-toml.R'

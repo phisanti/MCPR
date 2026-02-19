@@ -66,6 +66,27 @@ test_that("view_search_path handles conflicts", {
   expect_true(grepl("conflict", result, ignore.case = TRUE))
 })
 
+test_that("view_help returns help content for base R function", {
+  result <- MCPR:::view_help("mean", 200)
+  expect_type(result, "character")
+  expect_true(grepl("Help: mean", result))
+  expect_true(grepl("Package: base", result))
+  expect_true(grepl("arithmetic mean|Arithmetic Mean", result, ignore.case = TRUE))
+})
+
+test_that("view_help handles package::topic format", {
+  result <- MCPR:::view_help("stats::lm", 200)
+  expect_type(result, "character")
+  expect_true(grepl("Help: stats::lm", result))
+  expect_true(grepl("Package: stats", result))
+})
+
+test_that("view_help handles nonexistent topic", {
+  result <- MCPR:::view_help("nonexistent_xyz_function_12345", 100)
+  expect_type(result, "character")
+  expect_true(grepl("No help found", result))
+})
+
 test_that("system info functions handle edge cases gracefully", {
   # These should not error even with minimal inputs
   expect_no_error(MCPR:::view_installed_packages(1))

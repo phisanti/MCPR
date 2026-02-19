@@ -660,3 +660,60 @@ view_workspace <- function(max_lines = 100) {
 
   return(result)
 }
+
+# ---- Last Value ----
+
+#' View the last computed R value (.Last.value)
+#' @param max_lines Maximum lines to display
+#' @return Formatted last value information
+#' @noRd
+view_last_value <- function(max_lines = 100) {
+  result <- "Last Computed Value"
+
+  if (!exists(".Last.value", envir = .GlobalEnv)) {
+    result <- paste0(result, "\nNo .Last.value available (no expressions evaluated yet)")
+    return(result)
+  }
+
+  tryCatch(
+    {
+      last_val <- get(".Last.value", envir = .GlobalEnv)
+
+      # Object metadata
+      obj_class <- paste(class(last_val), collapse = ", ")
+      obj_type <- typeof(last_val)
+      obj_size <- format(utils::object.size(last_val), units = "auto")
+
+      result <- paste0(result, "\nClass: ", obj_class)
+      result <- paste0(result, "\nType: ", obj_type)
+      result <- paste0(result, "\nSize: ", obj_size)
+
+      # Dimensions if applicable
+      if (!is.null(dim(last_val))) {
+        dims <- dim(last_val)
+        result <- paste0(result, "\nDimensions: ", paste(dims, collapse = " x "))
+      } else if (is.atomic(last_val) || is.list(last_val)) {
+        result <- paste0(result, "\nLength: ", length(last_val))
+      }
+
+      # Content preview
+      captured <- capture_print(last_val, max_print = max_lines)
+
+      if (length(captured) > 0) {
+        if (length(captured) <= max_lines) {
+          result <- paste0(result, "\n\nValue:\n", paste(captured, collapse = "\n"))
+        } else {
+          preview <- captured[1:max_lines]
+          result <- paste0(result, "\n\nValue (first ", max_lines, " lines):\n",
+                           paste(preview, collapse = "\n"))
+          result <- paste0(result, "\n... (", length(captured) - max_lines, " more lines)")
+        }
+      }
+    },
+    error = function(e) {
+      result <<- paste0(result, "\nError retrieving .Last.value: ", e$message)
+    }
+  )
+
+  return(result)
+}

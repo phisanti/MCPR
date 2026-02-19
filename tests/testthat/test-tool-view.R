@@ -7,7 +7,7 @@ source(file.path(system.file(package = "MCPR"), "tool-view.R"))
 test_that("view accepts valid what arguments", {
   valid_options <- c(
     "session", "terminal", "last_error", "installed_packages",
-    "workspace", "search_path", "warnings"
+    "workspace", "search_path", "warnings", "last_value"
   )
 
   for (option in valid_options) {
@@ -15,6 +15,17 @@ test_that("view accepts valid what arguments", {
     expect_type(result, "character")
     expect_true(grepl("View completed:", result))
   }
+})
+
+test_that("view help target works with valid topic", {
+  result <- view("help", topic = "lm")
+  expect_type(result, "character")
+  expect_true(grepl("View completed:", result))
+})
+
+test_that("view help target errors without topic", {
+  expect_error(view("help"))
+  expect_error(view("help", topic = ""))
 })
 
 test_that("view rejects invalid arguments", {

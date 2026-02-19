@@ -149,6 +149,27 @@ test_that("parse_radian_history handles malformed input", {
   expect_type(result_malformed, "character")
 })
 
+test_that("view_last_value returns info when .Last.value exists", {
+  assign(".Last.value", 42, envir = .GlobalEnv)
+  on.exit(rm(".Last.value", envir = .GlobalEnv), add = TRUE)
+
+  result <- MCPR:::view_last_value(100)
+  expect_type(result, "character")
+  expect_true(grepl("Last Computed Value", result))
+  expect_true(grepl("Class:", result))
+  expect_true(grepl("42", result))
+})
+
+test_that("view_last_value handles data frame last value", {
+  assign(".Last.value", data.frame(a = 1:3, b = letters[1:3]), envir = .GlobalEnv)
+  on.exit(rm(".Last.value", envir = .GlobalEnv), add = TRUE)
+
+  result <- MCPR:::view_last_value(100)
+  expect_type(result, "character")
+  expect_true(grepl("data.frame", result))
+  expect_true(grepl("Dimensions:", result))
+})
+
 test_that("session state functions handle edge cases gracefully", {
   # These should not error even if environment is minimal
   expect_no_error(MCPR:::view_session(5))
