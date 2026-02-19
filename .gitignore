@@ -1,0 +1,43 @@
+# Reference projects
+references/
+
+# Developing
+.vscode/
+scripts/
+mcp_debugger/
+.gemini/
+*.log
+*.save
+new_components/
+global.R
+CLAUDE.md
+AGENTS.md
+*.xml
+*.md
+reports/
+
+# Auto-generated README preview (keep README.md but ignore HTML preview)
+README.html
+devutils/
+experiments/
+
+# R specific
+..Rcheck/
+renv/
+.Rproj.user/
+.Rprofile
+.Rbuildignore
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Vignette built HTML files (avoid shipping with package)
+vignettes/*.html
+.DS_Store
+.gitignore
+.renvignore
+renv.lock
+docs/
+social_media/
+Rplots.pdf

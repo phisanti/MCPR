@@ -1,6 +1,7 @@
-# Create Plot Tool for MCPR
-# Unified plotting tool using httpgd backend for optimal performance and simplicity.
-# Handles the primary data analyst workflow of creating and viewing R plots efficiently.
+# Show Plot Tool for MCPR
+# Unified plotting tool with target-based routing.
+# target="user" (default): prints the plot to the active graphics device for the user to see.
+# target="agent": renders to base64 for agent analysis, with token management.
 
 #' Create an image response in base64 format
 #'
@@ -176,32 +177,32 @@ generate_optimization_suggestions <- function(current_width, current_height, cur
   return(suggestions)
 }
 
-#' Create plots for agent analysis and inspection
+#' Create and display R plots
 #'
-#' @description IMPORTANT: This tool is designed for AI agents to analyze plot contents,
-#' NOT for displaying plots to users.
-#' USE THIS TOOL WHEN:
-#' - You need to see and analyze plot data visually
-#' - Debugging plot generation issues
-#' - Inspecting plot contents for data validation
+#' @description Create and display R plots. By default (target='user'), the plot
+#' is shown to the user via the active graphics device — the user sees it
+#' directly. Set target='agent' when YOU (the agent) need to see and analyze the
+#' plot as an image — returns a base64-encoded image optimized for token
+#' efficiency. The user does NOT see agent-targeted plots.
 #'
-#' FOR USER-FACING PLOTS, USE INSTEAD:
-#' - execute_r_code("print(your_plot)")  # Shows plot to user
-#' - execute_r_code("ggsave('plot.png', plot)")  # Saves for artifacts
-#'
-#' This tool optimizes for token efficiency with agent-friendly defaults
-#' (600x450px) and includes automatic size management for MCP protocol limits.
+#' The width, height, format, token_limit, and warn_threshold parameters only
+#' apply when target='agent'. For target='user', the plot is simply printed to
+#' the user's active graphics device at its default size.
 #'
 #' @param expr R code expression to generate the plot
-#' @param width Width in pixels (default: 600, optimized for agent analysis)
-#' @param height Height in pixels (default: 450, optimized for agent analysis)
-#' @param format Output format: 'png', 'jpeg', 'pdf', or 'svg' (default: 'png')
-#' @param token_limit Maximum allowed tokens (default: 25000, MCP protocol limit)
-#' @param warn_threshold Token threshold for optimization warnings (default: 20000)
+#' @param target Who should see the plot: 'user' (default) prints to the active
+#'   graphics device for the user to see; 'agent' returns a base64-encoded image
+#'   for agent analysis
+#' @param width Width in pixels (agent only, default: 600)
+#' @param height Height in pixels (agent only, default: 450)
+#' @param format Output format: 'png', 'jpeg', 'pdf', or 'svg' (agent only, default: 'png')
+#' @param token_limit Maximum allowed tokens (agent only, default: 25000)
+#' @param warn_threshold Token threshold for optimization warnings (agent only, default: 20000)
 #' @keywords mcpr_tool
-#' @return Image response with the created plot, includes optimization metadata
-create_plot <- function(expr, width = 600, height = 450, format = "png",
-                        token_limit = 25000, warn_threshold = 20000) {
+#' @return For target='user': a text confirmation. For target='agent': image
+#'   response with base64-encoded plot and optimization metadata.
+show_plot <- function(expr, target = "user", width = 600, height = 450, format = "png",
+                      token_limit = 25000, warn_threshold = 20000) {
   # Validate inputs
   if (!is.character(expr) || length(expr) != 1) {
     stop("Expression must be a single character string")
@@ -211,6 +212,57 @@ create_plot <- function(expr, width = 600, height = 450, format = "png",
     stop("Expression cannot be empty")
   }
 
+  valid_targets <- c("user", "agent")
+  if (!target %in% valid_targets) {
+    stop("Target must be one of: ", paste(valid_targets, collapse = ", "))
+  }
+
+  if (target == "user") {
+    return(show_plot_user(expr))
+  }
+
+  # target == "agent"
+  show_plot_agent(expr, width, height, format, token_limit, warn_threshold)
+}
+
+#' Display a plot to the user via the active graphics device
+#'
+#' @param expr R code expression to generate the plot
+#' @return A text confirmation message
+#' @noRd
+show_plot_user <- function(expr) {
+  tryCatch(
+    {
+      result <- eval(parse(text = expr), envir = .GlobalEnv)
+
+      # Print the result to the active graphics device
+      if (!is.null(result)) {
+        print(result)
+      }
+
+      list(
+        type = "text",
+        content = "Plot displayed to user via active graphics device."
+      )
+    },
+    error = function(e) {
+      stop("Error displaying plot: ", e$message)
+    }
+  )
+}
+
+#' Render a plot for agent analysis as base64-encoded image
+#'
+#' @param expr R code expression to generate the plot
+#' @param width Width in pixels
+#' @param height Height in pixels
+#' @param format Output format
+#' @param token_limit Maximum allowed tokens
+#' @param warn_threshold Token threshold for optimization warnings
+#' @return Image response with base64-encoded plot and optimization metadata
+#' @noRd
+show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
+                            token_limit = 25000, warn_threshold = 20000) {
   # Validate format
   valid_formats <- c("png", "jpeg", "pdf", "svg")
   if (!format %in% valid_formats) {
@@ -246,12 +298,10 @@ create_plot <- function(expr, width = 600, height = 450, format = "png",
         suggestions <- generate_optimization_suggestions(width, height, actual_tokens, token_limit, format)
 
         error_msg <- sprintf(
-          "Plot analysis failed: %s tokens exceeds %s token limit.
-          REMINDER: This tool is for agent analysis only.
-          For user-facing plots, use: execute_r_code('print(your_plot)')
-          If you need this plot for analysis, try these optimizations
+          "Plot too large for agent analysis: %s tokens exceeds %s token limit.
+          Try these optimizations:
           - %s
-          Note: Agent analysis plots prioritize token efficiency over visual quality.",
+          Or use show_plot with target='user' to display directly to the user instead.",
           format(actual_tokens, big.mark = ","),
           format(token_limit, big.mark = ","),
           paste(suggestions, collapse = "\n- ")
@@ -267,9 +317,9 @@ create_plot <- function(expr, width = 600, height = 450, format = "png",
 
         optimization_warning <- sprintf(
           "WARNING: HIGH TOKEN USAGE: %s tokens (%.1f%% of limit)
-        Agent Analysis Mode: Consider optimizing for better efficiency:
+        Consider optimizing for better efficiency:
         - %s
-        For User Display: Use execute_r_code('print(plot)') instead",
+        Or use show_plot with target='user' to display directly to the user instead.",
           format(actual_tokens, big.mark = ","),
           (actual_tokens / token_limit) * 100,
           paste(suggestions, collapse = "\n- ")
@@ -306,4 +356,4 @@ create_plot <- function(expr, width = 600, height = 450, format = "png",
 }
 
 #' @export
-create_plot <- create_plot
+show_plot <- show_plot

@@ -159,10 +159,10 @@ view("workspace")
 
 ### Plot Creation
 ```{r eval=FALSE}
-# Create visualizations
-create_plot("
+# Show a plot to the user
+show_plot("
   hist(random_numbers, main = 'Random Numbers Distribution')
-", width = 600, height = 400)
+")
 ```
 
 ## Conclusion

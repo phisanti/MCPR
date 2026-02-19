@@ -66,7 +66,7 @@ Once configured, your AI agent will have access to these tools:
 - `execute_r_code(code)` - Run R code in the connected session
 
 ### Visualization
-- `create_plot(expr, width, height, format)` - Generate plots
+- `show_plot(expr, target, ...)` - Create and display plots (target='user' or 'agent')
 
 ### Inspection
 - `view('session')` - View workspace objects
@@ -80,7 +80,7 @@ Once configured, your AI agent will have access to these tools:
 2. Agent joins session: `manage_r_sessions('join', session=1)`
 3. Load data: `execute_r_code("data <- read.csv('data.csv')")`
 4. Explore: `view('session')` to see loaded objects
-5. Visualize: `create_plot("plot(data$x, data$y)")`
+5. Visualize: `show_plot("plot(data$x, data$y)")`
 6. Iterate and refine analysis
 
 ### Multi-Session Development

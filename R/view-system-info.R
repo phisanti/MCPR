@@ -237,3 +237,108 @@ view_search_path <- function(max_lines = 100) {
 
   return(result)
 }
+
+# ---- Help Documentation ----
+
+#' View parsed help page for a topic
+#' @param topic Help topic string, e.g. "lm" or "dplyr::mutate"
+#' @param max_lines Maximum lines to display
+#' @return Formatted help page content
+#' @noRd
+view_help <- function(topic, max_lines = 100) {
+  result <- paste0("Help: ", topic)
+
+  tryCatch(
+    {
+      # Parse package::topic or bare topic
+      parts <- strsplit(topic, "::", fixed = TRUE)[[1]]
+
+      if (length(parts) == 2) {
+        package_name <- parts[1]
+        topic_name <- parts[2]
+      } else {
+        package_name <- NULL
+        topic_name <- parts[1]
+      }
+
+      # Look up help
+      help_obj <- if (!is.null(package_name)) {
+        try(utils::help(topic_name, package = (package_name)), silent = TRUE)
+      } else {
+        try(utils::help(topic_name), silent = TRUE)
+      }
+
+      if (inherits(help_obj, "try-error") || length(help_obj) == 0) {
+        result <- paste0(result, "\nNo help found for '", topic, "'")
+
+        # Suggest alternatives
+        tryCatch(
+          {
+            search_results <- utils::help.search(topic_name, agrep = TRUE)
+            matches <- search_results$matches
+            if (nrow(matches) > 0) {
+              n_show <- min(5, nrow(matches))
+              result <- paste0(result, "\n\nDid you mean:")
+              for (i in seq_len(n_show)) {
+                result <- paste0(result, "\n  ", matches$Package[i], "::", matches$Topic[i],
+                                 " - ", matches$Title[i])
+              }
+            }
+          },
+          error = function(e) {
+            # help.search failed, skip suggestions
+          }
+        )
+
+        return(result)
+      }
+
+      # Determine which package it came from
+      help_path <- as.character(help_obj)[1]
+      resolved_pkg <- tryCatch(
+        basename(dirname(dirname(help_path))),
+        error = function(e) NULL
+      )
+
+      if (!is.null(resolved_pkg) && nzchar(resolved_pkg)) {
+        result <- paste0(result, "\nPackage: ", resolved_pkg)
+      }
+
+      # Extract and render help content as plain text
+      rd_content <- tryCatch(
+        {
+          help_file <- utils:::.getHelpFile(help_path)
+          tmp <- tempfile()
+          on.exit(unlink(tmp), add = TRUE)
+          tools::Rd2txt(help_file, out = tmp, outputEncoding = "UTF-8")
+          readLines(tmp, warn = FALSE)
+        },
+        error = function(e) NULL
+      )
+
+      if (!is.null(rd_content) && length(rd_content) > 0) {
+        # Trim trailing blank lines
+        while (length(rd_content) > 0 && !nzchar(trimws(rd_content[length(rd_content)]))) {
+          rd_content <- rd_content[-length(rd_content)]
+        }
+
+        if (length(rd_content) <= max_lines) {
+          result <- paste0(result, "\n\n", paste(rd_content, collapse = "\n"))
+        } else {
+          preview <- rd_content[1:max_lines]
+          result <- paste0(result, "\n\n", paste(preview, collapse = "\n"))
+          result <- paste0(result, "\n\n... (", length(rd_content) - max_lines,
+                           " more lines, use max_lines to see more)")
+        }
+      } else {
+        result <- paste0(result, "\nHelp topic found but content could not be rendered")
+        result <- paste0(result, "\nUse help('", topic, "') in R directly")
+      }
+    },
+    error = function(e) {
+      result <<- paste0(result, "\nError accessing help: ", e$message)
+    }
+  )
+
+  return(result)
+}
