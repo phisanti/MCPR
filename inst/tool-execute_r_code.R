@@ -8,7 +8,7 @@
 #* @mcp_tool
 #' Execute R code in the current session
 #'
-#' @description Execute R code in the current R session. This tool allows you to run any valid R code and see the results. The code will be executed in the global environment, so variables and objects created will persist for future tool calls. Use this tool to perform data analysis, create visualizations, load packages, manipulate data, or any other R operation. The tool will return the results, any output, warnings, and errors. For complex multi-line code, ensure proper syntax and use semicolons or newlines to separate statements.
+#' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only — invisible to the user. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat.
 #' @param code character The R code to execute. Can be a single expression or multiple statements.
 #' @keywords mcpr_tool
 #' @return A list containing the results, output, and any warnings/errors
