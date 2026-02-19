@@ -225,29 +225,130 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
   show_plot_agent(expr, width, height, format, token_limit, warn_threshold)
 }
 
-#' Display a plot to the user via the active graphics device
+#' Detect the best available output channel for user-facing plots
+#'
+#' Checks for httpgd availability, interactive sessions with displays,
+#' and falls back to file export for headless environments.
+#'
+#' @return Character string: "httpgd", "device", or "file"
+#' @noRd
+detect_output_channel <- function() {
+  # 1. httpgd already the active device?
+  dev_name <- names(grDevices::dev.cur())
+  if (dev_name %in% c("httpgd", "unigd")) return("httpgd")
+
+  # 2. httpgd available but not active? Start it.
+  if (requireNamespace("httpgd", quietly = TRUE)) return("httpgd")
+
+  # 3. Interactive with a display?
+  if (interactive()) return("device")
+
+  # 4. Headless fallback
+  return("file")
+}
+
+#' Display a plot to the user via the best available channel
+#'
+#' Routes through httpgd (with browser), active graphics device, or
+#' file export depending on the environment.
 #'
 #' @param expr R code expression to generate the plot
 #' @return A text confirmation message
 #' @noRd
 show_plot_user <- function(expr) {
+  channel <- detect_output_channel()
+
   tryCatch(
-    {
-      result <- eval(parse(text = expr), envir = .GlobalEnv)
-
-      # Print the result to the active graphics device
-      if (!is.null(result)) {
-        print(result)
-      }
-
-      list(
-        type = "text",
-        content = "Plot displayed to user via active graphics device."
-      )
-    },
+    switch(channel,
+      httpgd = show_plot_via_httpgd(expr),
+      device = show_plot_via_device(expr),
+      file   = show_plot_via_file(expr)
+    ),
     error = function(e) {
       stop("Error displaying plot: ", e$message)
     }
+  )
+}
+
+#' Display a plot via httpgd and open in the browser
+#'
+#' Starts an httpgd device if needed, evaluates the plot expression,
+#' and opens the httpgd viewer in the user's default browser.
+#' If httpgd fails to start (e.g., memory constraints in MCP sessions),
+#' falls back to device or file output.
+#'
+#' @param expr R code expression to generate the plot
+#' @return A text confirmation message
+#' @noRd
+show_plot_via_httpgd <- function(expr) {
+  dev_name <- names(grDevices::dev.cur())
+  already_active <- dev_name %in% c("httpgd", "unigd")
+
+  if (!already_active) {
+    started <- tryCatch(
+      { httpgd::hgd(silent = TRUE); TRUE },
+      error = function(e) FALSE
+    )
+    if (!started) {
+      # httpgd failed to start — fall back
+      if (interactive()) return(show_plot_via_device(expr))
+      return(show_plot_via_file(expr))
+    }
+  }
+
+  result <- eval(parse(text = expr), envir = .GlobalEnv)
+  if (!is.null(result)) {
+    print(result)
+  }
+
+  url <- httpgd::hgd_url()
+
+  # Open in browser so the user can see it
+  if (!already_active) {
+    httpgd::hgd_browse()
+  }
+
+  list(
+    type = "text",
+    content = sprintf("Plot displayed to user via httpgd at %s", url)
+  )
+}
+
+#' Display a plot via the active graphics device (print)
+#'
+#' @param expr R code expression to generate the plot
+#' @return A text confirmation message
+#' @noRd
+show_plot_via_device <- function(expr) {
+  result <- eval(parse(text = expr), envir = .GlobalEnv)
+  if (!is.null(result)) {
+    print(result)
+  }
+
+  list(
+    type = "text",
+    content = "Plot displayed to user via active graphics device."
+  )
+}
+
+#' Save a plot to a temp file for headless environments
+#'
+#' @param expr R code expression to generate the plot
+#' @return A text confirmation with the file path
+#' @noRd
+show_plot_via_file <- function(expr) {
+  tmp <- tempfile(fileext = ".png")
+  grDevices::png(tmp, width = 800, height = 600)
+  on.exit(grDevices::dev.off())
+
+  result <- eval(parse(text = expr), envir = .GlobalEnv)
+  if (!is.null(result)) {
+    print(result)
+  }
+
+  list(
+    type = "text",
+    content = sprintf("Plot saved to file: %s (headless environment, no display available).", tmp)
   )
 }
 

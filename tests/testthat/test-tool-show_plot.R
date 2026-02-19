@@ -42,12 +42,25 @@ test_that("show_plot agent defaults match optimized values", {
   expect_equal(formals_list$warn_threshold, 20000)
 })
 
+# --- Channel detection ---
+
+test_that("detect_output_channel returns valid channel", {
+  channel <- detect_output_channel()
+  expect_true(channel %in% c("httpgd", "device", "file"))
+})
+
+test_that("detect_output_channel prefers httpgd when available", {
+  skip_if_not(requireNamespace("httpgd", quietly = TRUE), "httpgd not available")
+  channel <- detect_output_channel()
+  expect_equal(channel, "httpgd")
+})
+
 # --- User target ---
 
 test_that("show_plot user target returns text confirmation", {
   result <- show_plot("plot(1:10)", target = "user")
   expect_equal(result$type, "text")
-  expect_true(grepl("Plot displayed to user", result$content))
+  expect_true(grepl("Plot displayed to user|Plot saved to file", result$content))
 })
 
 test_that("show_plot user target does not return base64 image", {
@@ -63,6 +76,29 @@ test_that("show_plot user target handles ggplot objects", {
 
 test_that("show_plot user target reports errors", {
   expect_error(show_plot("nonexistent_var + 1", target = "user"), "Error displaying plot")
+})
+
+# --- httpgd channel ---
+
+test_that("show_plot_via_httpgd returns url in confirmation", {
+  skip_if_not(requireNamespace("httpgd", quietly = TRUE), "httpgd not available")
+  result <- show_plot_via_httpgd("plot(1:10)")
+  expect_equal(result$type, "text")
+  expect_true(grepl("httpgd", result$content))
+  expect_true(grepl("http", result$content))
+  # Clean up httpgd device
+  if (names(grDevices::dev.cur()) %in% c("httpgd", "unigd")) {
+    grDevices::dev.off()
+  }
+})
+
+# --- File fallback ---
+
+test_that("show_plot_via_file saves png and returns path", {
+  result <- show_plot_via_file("plot(1:10)")
+  expect_equal(result$type, "text")
+  expect_true(grepl("Plot saved to file", result$content))
+  expect_true(grepl("\\.png", result$content))
 })
 
 # --- Optimization suggestions (shared helper) ---
