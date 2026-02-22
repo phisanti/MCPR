@@ -98,7 +98,15 @@ test_that("get_session_start_time returns reasonable time", {
 })
 
 test_that("view_session handles objects with different types", {
-  # Create test objects with various types
+  # Isolate GlobalEnv so alphabetical ordering is not affected by other tests
+  old_names <- ls(envir = .GlobalEnv, all.names = TRUE)
+  saved <- mget(old_names, envir = .GlobalEnv)
+  rm(list = old_names, envir = .GlobalEnv)
+  on.exit({
+    rm(list = ls(envir = .GlobalEnv, all.names = TRUE), envir = .GlobalEnv)
+    list2env(saved, envir = .GlobalEnv)
+  }, add = TRUE)
+
   assign("test_df", data.frame(a = 1:3, b = letters[1:3]), envir = .GlobalEnv)
   assign("test_vec", 1:10, envir = .GlobalEnv)
   assign("test_func", function() "test", envir = .GlobalEnv)
@@ -106,14 +114,10 @@ test_that("view_session handles objects with different types", {
 
   result <- MCPR:::view_session(50)
 
-  # Should detect different object types
   expect_true(grepl("data\\.frame.*3x2", result))
   expect_true(grepl("integer\\[10\\]", result))
   expect_true(grepl("function", result))
   expect_true(grepl("Hidden objects:", result))
-
-  # Clean up
-  rm(list = c("test_df", "test_vec", "test_func", ".hidden_obj"), envir = .GlobalEnv)
 })
 
 test_that("view_session respects max_lines parameter", {
