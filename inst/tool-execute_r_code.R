@@ -8,7 +8,7 @@
 #* @mcp_tool
 #' Execute R code in the current session
 #'
-#' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only — invisible to the user. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat.
+#' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only - invisible to the user. Note that cat() and message() calls also have no visible side-effect to the user; their output is captured and returned to the agent only. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat.
 #' @param code character The R code to execute. Can be a single expression or multiple statements.
 #' @keywords mcpr_tool
 #' @return A list containing the results, output, and any warnings/errors

@@ -64,14 +64,14 @@ format_sessions_table <- function(session_data) {
 }
 
 #* @mcp_tool
-#' @description Manage R sessions - list available sessions with detailed status, join a specific session, or start a new session. Use action="list" to see all available sessions with working directory and timestamp. Use action="join" with session parameter to connect to a specific session. Use action="start" to create a new R session. Do not use this tool unless specifically asked to manage R sessions.
-#' @param action character The action to perform: "list", "join", or "start"
+#' @description Manage R sessions - list available sessions with detailed status, join a specific session. Use action="list" to see all available sessions with working directory and timestamp. Use action="join" with session parameter to connect to a specific session. Do not use this tool unless specifically asked to manage R sessions.
+#' @param action character The action to perform: "list" or "join"
 #' @param session integer Optional. The R session number to join (required when action="join")
 #' @keywords mcpr_tool
-#' @return For "list": vector of detailed session descriptions. For "join": success message. For "start": new session information.
+#' @return For "list": vector of detailed session descriptions. For "join": success message.
 manage_r_sessions <- function(action = "list", session = NULL) {
-  if (!action %in% c("list", "join", "start")) {
-    stop("action must be one of: 'list', 'join', 'start'")
+  if (!action %in% c("list", "join")) {
+    stop("action must be one of: 'list', 'join'")
   }
 
   # Get platform-specific socket URL once and reuse
@@ -135,60 +135,6 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       url = sprintf("%s%d", socket_base, session)
     )
     sprintf("Joined session %d successfully.", session)
-  } else if (action == "start") {
-    # Start new R session using processx
-    tryCatch(
-      {
-        # Find next available session number
-        sock <- nanonext::socket("poly")
-        on.exit(nanonext::reap(sock), add = TRUE)
-
-        next_session <- 1L
-        for (i in seq_len(1024L)) {
-          if (!nanonext::dial(
-            sock,
-            url = sprintf("%s%d", socket_base, i),
-            autostart = NA,
-            fail = "none"
-          )) {
-            next_session <- i
-            break
-          }
-        }
-
-        # Start new R process with MCPR session in daemon mode
-        working_dir <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
-        r_cmd <- file.path(R.home("bin"), "R")
-        r_expr <- sprintf(
-          "MCPR::mcp_session(session_id = %d, working_dir = %s, daemon = TRUE)",
-          next_session,
-          encodeString(working_dir, quote = "\"")
-        )
-        args <- c(
-          "--vanilla", "-e",
-          r_expr
-        )
-
-        proc <- processx::process$new(
-          command = r_cmd,
-          args = args,
-          stdout = "|",
-          stderr = "|"
-        )
-
-        # Give the process a moment to start
-        Sys.sleep(1)
-
-        if (proc$is_alive()) {
-          sprintf("Started new R session %d (PID: %d)", next_session, proc$get_pid())
-        } else {
-          stop("Failed to start new R session")
-        }
-      },
-      error = function(e) {
-        sprintf("Error starting new session: %s", e$message)
-      }
-    )
   }
 }
 
