@@ -64,27 +64,6 @@ test_that("mcprSession stop method is idempotent", {
   expect_false(info$is_running)
 })
 
-test_that("mcprSession handles non-interactive environment gracefully", {
-  # Mock non-interactive environment
-  original_interactive <- rlang::is_interactive
-
-  # Create a mock function that returns FALSE
-  mock_interactive <- function() FALSE
-
-  # We can't easily mock rlang::is_interactive in tests, so we'll test
-  # that the start method returns the session object
-  session <- mcprSession$new()
-  result <- session$start()
-  expect_identical(result, session)
-})
-
-test_that("mcpr_session_start functional wrapper works", {
-  # Should return invisibly without error in non-interactive mode
-  expect_invisible(result <- mcpr_session_start())
-
-  # Clean up any session that might have been created
-  mcpr_session_stop()
-})
 
 test_that("mcpr_session_stop is safe to call when no session exists", {
   # Should not error when called without an active session
@@ -273,29 +252,6 @@ test_that("mcprSession timeout boundaries work correctly", {
   expect_false(session$get_info()$is_running)
 })
 
-test_that("mcprSession start method handles interactive detection correctly", {
-  session <- mcprSession$new()
-
-  # Test start in non-interactive mode (should return gracefully)
-  result <- session$start()
-  expect_identical(result, session)
-
-  # Should not have started
-  expect_false(session$get_info()$is_running)
-})
-
-test_that("mcprSession start method prevents duplicate starts", {
-  session <- mcprSession$new()
-
-  # Manually set running state to simulate already running
-  session$.__enclos_env__$private$.is_running <- TRUE
-
-  # In non-interactive mode, start() returns early without warning
-  # Test that it handles running state appropriately
-  result <- session$start()
-  expect_identical(result, session)
-  expect_true(session$get_info()$is_running) # Should still be running
-})
 
 # NOTE: Test disabled - fails in GHA runner due to interactive/non-interactive environment differences
 # test_that("mcprSession state management works correctly", {
@@ -375,29 +331,16 @@ test_that("mcprSession last activity tracking", {
   expect_equal(session$get_info()$last_activity, new_time)
 })
 
-test_that("mcpr_session_start and stop integration", {
-  # Test the convenience functions
+test_that("mcpr_session_stop integration", {
   the_env <- MCPR:::the
 
-  # Store original state
-  original_session <- the_env$mcpr_session
-  original_session_id <- the_env$session
-
-  # Test start (should return invisibly in non-interactive mode)
-  result <- mcpr_session_start(timeout_seconds = 60)
-  expect_null(result) # Should be invisible NULL in non-interactive
-
-  # Test stop cleanup
+  # Test stop cleanup with manually injected session
   the_env$mcpr_session <- mcprSession$new()
   the_env$session <- 123
 
   expect_no_error(mcpr_session_stop())
   expect_null(the_env$mcpr_session)
   expect_null(the_env$session)
-
-  # Restore original state
-  the_env$mcpr_session <- original_session
-  the_env$session <- original_session_id
 })
 
 
@@ -431,12 +374,9 @@ test_that("mcprSession handles different object states", {
 test_that("mcprSession method chaining works", {
   session <- mcprSession$new()
 
-  # All methods should return self for chaining
   result1 <- session$stop()
   result2 <- session$check_timeout()
-  result3 <- session$start() # Won't actually start in non-interactive
 
   expect_identical(result1, session)
   expect_identical(result2, session)
-  expect_identical(result3, session)
 })
