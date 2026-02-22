@@ -1,6 +1,6 @@
 # Manage R Sessions Tool for MCPR
-# Unified tool for listing, joining, and starting R sessions with enhanced status information.
-# Combines functionality from list_r_sessions and select_r_session with session creation capabilities.
+# Unified tool for listing and joining R sessions with enhanced status information.
+# Combines functionality from list_r_sessions and select_r_session.
 
 #' Format Session List as Table
 #'

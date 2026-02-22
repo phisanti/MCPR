@@ -297,7 +297,7 @@ show_plot_via_httpgd <- function(expr) {
   }
 
   result <- eval(parse(text = expr), envir = .GlobalEnv)
-  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis"))) {
+  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "htmlwidget", "plotly"))) {
     print(result)
   }
 
@@ -321,7 +321,7 @@ show_plot_via_httpgd <- function(expr) {
 #' @noRd
 show_plot_via_device <- function(expr) {
   result <- eval(parse(text = expr), envir = .GlobalEnv)
-  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis"))) {
+  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "htmlwidget", "plotly"))) {
     print(result)
   }
 
@@ -342,7 +342,7 @@ show_plot_via_file <- function(expr) {
   on.exit(grDevices::dev.off())
 
   result <- eval(parse(text = expr), envir = .GlobalEnv)
-  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis"))) {
+  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "htmlwidget", "plotly"))) {
     print(result)
   }
 
