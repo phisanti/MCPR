@@ -477,29 +477,24 @@ view_last_error <- function(max_lines = 100) {
         result <- paste0(result, "\nNo call stack information available")
       }
 
-      # Check if rlang is available for enhanced error information
-      if (requireNamespace("rlang", quietly = TRUE)) {
-        tryCatch(
-          {
-            # Try to get the last condition/error from rlang
-            if (exists("last_error", envir = rlang::global_env(), inherits = FALSE)) {
-              last_rlang_error <- get("last_error", envir = rlang::global_env())
-              if (!is.null(last_rlang_error)) {
-                result <- paste0(result, "\n\nEnhanced error info (rlang):")
-                error_summary <- utils::capture.output(print(last_rlang_error))
-                preview_lines <- min(5, length(error_summary))
-                result <- paste0(result, "\n", paste(error_summary[1:preview_lines], collapse = "\n"))
-                if (length(error_summary) > 5) {
-                  result <- paste0(result, "\n... (output truncated)")
-                }
+      # Enhanced error information via rlang
+      tryCatch(
+        {
+          if (exists("last_error", envir = rlang::global_env(), inherits = FALSE)) {
+            last_rlang_error <- get("last_error", envir = rlang::global_env())
+            if (!is.null(last_rlang_error)) {
+              result <- paste0(result, "\n\nEnhanced error info (rlang):")
+              error_summary <- utils::capture.output(print(last_rlang_error))
+              preview_lines <- min(5, length(error_summary))
+              result <- paste0(result, "\n", paste(error_summary[1:preview_lines], collapse = "\n"))
+              if (length(error_summary) > 5) {
+                result <- paste0(result, "\n... (output truncated)")
               }
             }
-          },
-          error = function(e) {
-            # rlang error info not available
           }
-        )
-      }
+        },
+        error = function(e) NULL
+      )
 
       # Provide some context about the error
       result <- paste0(result, "\n\nTroubleshooting tips:")

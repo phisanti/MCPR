@@ -11,7 +11,7 @@
 #' @noRd
 response_image <- function(file, mime_type = "image/png") {
   if (!file.exists(file)) {
-    stop("Image file does not exist: ", file)
+    cli::cli_abort("Image file does not exist: {file}")
   }
 
   list(
@@ -205,16 +205,16 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
                       token_limit = 25000, warn_threshold = 20000) {
   # Validate inputs
   if (!is.character(expr) || length(expr) != 1) {
-    stop("Expression must be a single character string")
+    cli::cli_abort("Expression must be a single character string")
   }
 
   if (nchar(trimws(expr)) == 0) {
-    stop("Expression cannot be empty")
+    cli::cli_abort("Expression cannot be empty")
   }
 
   valid_targets <- c("user", "agent")
   if (!target %in% valid_targets) {
-    stop("Target must be one of: ", paste(valid_targets, collapse = ", "))
+    cli::cli_abort("Target must be one of: {paste(valid_targets, collapse = ', ')}")
   }
 
   if (target == "user") {
@@ -265,7 +265,7 @@ show_plot_user <- function(expr) {
       file   = show_plot_via_file(expr)
     ),
     error = function(e) {
-      stop("Error displaying plot: ", e$message)
+      cli::cli_abort("Error displaying plot: {e$message}")
     }
   )
 }
@@ -367,15 +367,15 @@ show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
   # Validate format
   valid_formats <- c("png", "jpeg", "pdf", "svg")
   if (!format %in% valid_formats) {
-    stop("Format must be one of: ", paste(valid_formats, collapse = ", "))
+    cli::cli_abort("Format must be one of: {paste(valid_formats, collapse = ', ')}")
   }
 
   # Validate dimensions
   if (!is.numeric(width) || width <= 0) {
-    stop("Width must be a positive number")
+    cli::cli_abort("Width must be a positive number")
   }
   if (!is.numeric(height) || height <= 0) {
-    stop("Height must be a positive number")
+    cli::cli_abort("Height must be a positive number")
   }
 
   # Convert to integer
@@ -408,7 +408,7 @@ show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
           paste(suggestions, collapse = "\n- ")
         )
 
-        stop(error_msg)
+        cli::cli_abort(error_msg)
       }
 
       # Generate warning for high token usage
@@ -426,8 +426,7 @@ show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
           paste(suggestions, collapse = "\n- ")
         )
 
-        # Print warning to console for user awareness
-        message(optimization_warning)
+        cli::cli_warn(optimization_warning)
       }
 
       # Add optimization metadata to response
@@ -451,7 +450,7 @@ show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
       if (grDevices::dev.cur() != 1) {
         try(grDevices::dev.off(), silent = TRUE)
       }
-      stop("Error creating plot: ", e$message)
+      cli::cli_abort("Error creating plot: {e$message}")
     }
   )
 }

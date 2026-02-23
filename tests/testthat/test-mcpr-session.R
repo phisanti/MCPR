@@ -179,6 +179,8 @@ test_that("mcprSession private send_response handles missing socket", {
 })
 
 test_that("mcpr_session_stop handles existing session", {
+  skip_if(identical(Sys.getenv("R_COVR"), "true"), "Direct global state manipulation unreliable under covr instrumentation")
+
   # Create a mock session in the global environment
   the_env <- MCPR:::the
   the_env$mcpr_session <- mcprSession$new()
@@ -332,6 +334,8 @@ test_that("mcprSession last activity tracking", {
 })
 
 test_that("mcpr_session_stop integration", {
+  skip_if(identical(Sys.getenv("R_COVR"), "true"), "Direct global state manipulation unreliable under covr instrumentation")
+
   the_env <- MCPR:::the
 
   # Test stop cleanup with manually injected session

@@ -169,9 +169,16 @@ For "list": named list of ToolDef objects. For "json": list suitable for JSON se
 \subsection{Method \code{get_capabilities()}}{
 Get server capabilities for MCP protocol
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{mcprServer$get_capabilities()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{mcprServer$get_capabilities(version = NULL)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{version}}{Protocol version (if NULL, uses latest supported version)}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 List of server capabilities
 }

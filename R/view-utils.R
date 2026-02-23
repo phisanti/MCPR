@@ -37,9 +37,7 @@ capture_print <- function(x, max_print = 100) {
   }
 
   # Strip ANSI codes if present
-  if (requireNamespace("cli", quietly = TRUE)) {
-    out <- cli::ansi_strip(out)
-  }
+  out <- cli::ansi_strip(out)
 
   return(out)
 }

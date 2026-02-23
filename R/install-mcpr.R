@@ -93,7 +93,7 @@ install_mcpr <- function(agent = NULL,
       "copilot" = c("workspace", "user", "remote"),
       "gemini" = c("global", "project", "ide", "local"),
       "codex" = c("global"),
-      stop("Internal error: unknown agent in scope validation")
+      cli::cli_abort("Internal error: unknown agent in scope validation", .internal = TRUE)
     )
 
     if (!scope %in% valid_scopes) {
@@ -343,7 +343,7 @@ get_cross_platform_path <- function(path_spec) {
     }
   }
 
-  stop("Invalid path specification")
+  cli::cli_abort("Invalid path specification", .internal = TRUE)
 }
 
 
@@ -376,7 +376,7 @@ install_mcpr_unified <- function(agent_name, config_path, config_metadata, agent
     if (length(agent_spec$server_config) > 0) {
       mcpr_config <- agent_spec$server_config[[1]]
     } else {
-      stop("No valid server configuration found for agent: ", agent_name)
+      cli::cli_abort("No valid server configuration found for agent: {agent_name}")
     }
   }
 
@@ -434,7 +434,7 @@ read_or_create_config <- function(config_path, server_section, format = "json") 
     config <- switch(format,
       "json" = read_json_config(config_path),
       "toml" = read_toml_config(config_path),
-      stop("Unsupported config format: ", format)
+      cli::cli_abort("Unsupported config format: {format}", .internal = TRUE)
     )
 
     # Ensure server section exists
@@ -520,7 +520,7 @@ write_config <- function(config, path, format = "json") {
   switch(format,
     "json" = write_json_config(config, path),
     "toml" = write_toml_config(config, path),
-    stop("Unsupported config format: ", format)
+    cli::cli_abort("Unsupported config format: {format}", .internal = TRUE)
   )
 }
 
@@ -577,7 +577,7 @@ get_agent_config_path <- function(agent, scope = NULL) {
       "local" = get_cross_platform_path(paths$desktop),
       "project" = get_cross_platform_path(paths$code_local),
       "user" = get_cross_platform_path(paths$code_user),
-      stop("Invalid Claude scope: ", scope)
+      cli::cli_abort("Invalid Claude scope: {scope}", .internal = TRUE)
     )
     path_type <- if (scope == "local") "desktop" else "code"
   } else if (agent == "copilot") {
@@ -585,7 +585,7 @@ get_agent_config_path <- function(agent, scope = NULL) {
       "workspace" = get_cross_platform_path(paths$workspace),
       "user" = get_cross_platform_path(paths$user),
       "remote" = get_cross_platform_path(paths$remote),
-      stop("Invalid Copilot scope: ", scope)
+      cli::cli_abort("Invalid Copilot scope: {scope}", .internal = TRUE)
     )
     path_type <- scope
   } else if (agent == "gemini") {
@@ -594,17 +594,17 @@ get_agent_config_path <- function(agent, scope = NULL) {
       "local" = get_cross_platform_path(paths$local),
       "project" = get_cross_platform_path(paths$project),
       "ide" = get_cross_platform_path(paths$ide),
-      stop("Invalid Gemini scope: ", scope)
+      cli::cli_abort("Invalid Gemini scope: {scope}", .internal = TRUE)
     )
     path_type <- scope
   } else if (agent == "codex") {
     config_path <- switch(scope,
       "global" = get_cross_platform_path(paths$global),
-      stop("Invalid Codex scope: ", scope)
+      cli::cli_abort("Invalid Codex scope: {scope}", .internal = TRUE)
     )
     path_type <- scope
   } else {
-    stop("Internal error: Unsupported agent in get_agent_config_path")
+    cli::cli_abort("Internal error: unsupported agent in get_agent_config_path", .internal = TRUE)
   }
 
   list(path = config_path, type = path_type)

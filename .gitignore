@@ -35,6 +35,9 @@ renv/
 # Vignette built HTML files (avoid shipping with package)
 vignettes/*.html
 .DS_Store
+
+# testthat generated artifacts
+tests/testthat/*.rds
 .gitignore
 .renvignore
 renv.lock

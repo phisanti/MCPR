@@ -307,7 +307,7 @@ view_help <- function(topic, max_lines = 100) {
       # Extract and render help content as plain text
       rd_content <- tryCatch(
         {
-          help_file <- utils:::.getHelpFile(help_path)
+          help_file <- get(".getHelpFile", envir = asNamespace("utils"))(help_path)
           tmp <- tempfile()
           on.exit(unlink(tmp), add = TRUE)
           tools::Rd2txt(help_file, out = tmp, outputEncoding = "UTF-8")

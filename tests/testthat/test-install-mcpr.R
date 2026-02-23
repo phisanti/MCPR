@@ -151,26 +151,17 @@ test_that("install_mcpr provides appropriate error messages", {
 })
 
 test_that("install_mcpr writes Codex configuration via TOML helpers", {
-  temp_dir <- tempdir()
-  temp_toml <- file.path(temp_dir, "test_codex_config.toml")
-  on.exit(if (file.exists(temp_toml)) unlink(temp_toml), add = TRUE)
+  temp_home <- withr::local_tempdir()
 
-  mock_get_agent_config_path <- function(agent, scope = NULL) {
-    list(path = temp_toml, type = "global")
-  }
+  withr::with_envvar(list(HOME = temp_home), {
+    expect_no_error(install_mcpr("codex", force = TRUE))
+  })
 
-  with_mocked_bindings(
-    get_agent_config_path = mock_get_agent_config_path,
-    .package = "MCPR",
-    {
-      expect_no_error(install_mcpr("codex", force = TRUE))
-    }
-  )
-
-  expect_true(file.exists(temp_toml))
-  lines <- readLines(temp_toml)
+  expected_toml <- file.path(temp_home, ".codex", "config.toml")
+  expect_true(file.exists(expected_toml))
+  lines <- readLines(expected_toml)
   expect_true(any(grepl("^\\[mcp\\.mcpr\\]", lines)))
-  expect_true(any(grepl('command = \"R\"', lines)))
+  expect_true(any(grepl('command = "R"', lines)))
 })
 
 # test_that("install_mcpr creates correct JSON structure", {

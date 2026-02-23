@@ -22,7 +22,8 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::covr, any::xml2, any::devtools, nx10/httpgd
+          # covr@3.6.4 pinned: 3.6.5+ has a segfault in deparse/pmatch triggered by recursive GC
+          extra-packages: covr@3.6.4, any::xml2, any::devtools, nx10/httpgd
           needs: coverage
 
       - name: Test coverage
