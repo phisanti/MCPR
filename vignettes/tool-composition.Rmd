@@ -1,0 +1,291 @@
+---
+title: "Composing Tool Surfaces with MCPR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Composing Tool Surfaces with MCPR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+# Building Domain-Specific MCP Servers on MCPR
+
+MCPR is designed to be a substrate. It handles transport, sessions, and tool schemas so that domain packages can focus on what they know: their own tools. This vignette shows how `ToolRegistry` supports that through multi-directory discovery and filtering.
+
+## The Problem
+
+By default, `mcprServer$new()` discovers all tools shipped with MCPR:
+
+```{r}
+library(MCPR)
+
+registry <- ToolRegistry$new(tools_dir = system.file(package = "MCPR"))
+registry$search_tools()
+registry$get_tool_summary()
+#>                  name                                        description parameters source_dir
+#> 1     execute_r_code     Execute R code in the active R session and ...          2  /path/MCPR
+#> 2     inspect_object     Inspect an R object in the active session ...          3  /path/MCPR
+#> 3 manage_r_sessions      Manage R sessions: list, join, or get info...          2  /path/MCPR
+#> 4 read_instructions  Read the instructions file for the current R ...          0  /path/MCPR
+#> 5          show_plot     Generate and display R plots as base64 PNG...          4  /path/MCPR
+#> 6               view     View the current state of the R session, t...          2  /path/MCPR
+```
+
+That's the right default for a general-purpose R assistant. But a genomics package like `omicspgxmcp` wants a narrower surface: its own analysis tools, maybe session management, and definitely *not* `execute_r_code` — which would let an LLM run arbitrary code in a clinical pipeline.
+
+Two mechanisms solve this: **multi-directory discovery** and **filtering**.
+
+## Case 1: MCPR Tools Only (Default)
+
+Nothing changes. This is how MCPR works today:
+
+```{r}
+server <- mcprServer$new()
+```
+
+Under the hood this creates a `ToolRegistry` pointed at MCPR's installed `inst/` directory, calls `search_tools()`, and loads every `tool-*.R` file it finds.
+
+## Case 2: MCPR Tools + Your Package's Tools
+
+Pass a character vector to `tools_dir`:
+
+```{r}
+mcpr_dir <- system.file(package = "MCPR")
+my_dir   <- system.file("tools", package = "omicspgxmcp")
+
+registry <- ToolRegistry$new(
+  tools_dir = c(mcpr_dir, my_dir)
+)
+registry$search_tools()
+registry$get_tool_summary()
+#>                  name                                        description parameters     source_dir
+#> 1     execute_r_code     Execute R code in the active R session and ...          2     /path/MCPR
+#> 2     inspect_object     ...                                                    3     /path/MCPR
+#> ...
+#> 7         run_gwas        Run genome-wide association study on ...               4  /path/omicspgxmcp
+#> 8     query_variants     Query pharmacogenomic variant database ...              2  /path/omicspgxmcp
+
+server <- mcprServer$new(registry = registry)
+```
+
+Each directory is scanned independently. If a directory doesn't exist it's skipped with a warning, not an error — so your package works gracefully whether a dependency is installed or not.
+
+**Duplicate tool names produce a warning.** If both directories define a tool called `view`, `search_tools()` warns with provenance details showing which directories contributed the conflict. You should resolve it by filtering one out — silent shadowing causes debugging nightmares in composed registries.
+
+## Case 3: Only Your Package's Tools
+
+Point the registry at your package alone:
+
+```{r}
+registry <- ToolRegistry$new(
+  tools_dir = system.file("tools", package = "omicspgxmcp")
+)
+registry$search_tools()
+
+server <- mcprServer$new(registry = registry)
+```
+
+No MCPR built-in tools are loaded. Your server exposes exactly what your package defines.
+
+## Case 4: Cherry-Pick from MCPR + All of Your Package
+
+This is the most common real-world pattern. You want session management from MCPR (so the LLM can switch between R sessions), but not `execute_r_code` or other open-ended tools.
+
+Two approaches, same result:
+
+**Approach A — exclude what you don't want:**
+
+```{r}
+registry <- ToolRegistry$new(
+  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "omicspgxmcp"))
+)
+registry$search_tools()
+registry$filter(exclude = c("execute_r_code", "show_plot", "inspect_object"))
+
+registry$get_tool_summary()
+#>                 name         ...   source_dir
+#> 1 manage_r_sessions         ...   /path/MCPR
+#> 2 read_instructions         ...   /path/MCPR
+#> 3              view         ...   /path/MCPR
+#> 4          run_gwas         ...   /path/omicspgxmcp
+#> 5      query_variants        ...   /path/omicspgxmcp
+
+server <- mcprServer$new(registry = registry)
+```
+
+**Approach B — include what you want:**
+
+```{r}
+registry <- ToolRegistry$new(
+  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "omicspgxmcp"))
+)
+registry$search_tools()
+registry$filter(include = c("manage_r_sessions", "run_gwas", "query_variants"))
+```
+
+Use `exclude` when you want "everything except these". Use `include` when you want "only these, nothing else".
+
+Filters persist across `search_tools()` calls — if you re-scan (e.g., `search_tools(force_refresh = TRUE)`), the same filter is reapplied automatically. Call `filter()` with no arguments to clear all filters.
+
+## Case 5: Multiple Tool Subdirectories from One Package
+
+Some packages organize tools by domain:
+
+```
+omicspgxmcp/
+  inst/
+    tools-gwas/
+      tool-run_gwas.R
+      tool-manhattan_plot.R
+    tools-pgx/
+      tool-query_variants.R
+      tool-drug_response.R
+    tools-qc/
+      tool-sample_qc.R
+```
+
+Point the registry at all of them:
+
+```{r}
+pkg_base <- system.file(package = "omicspgxmcp")
+
+registry <- ToolRegistry$new(
+  tools_dir = c(
+    file.path(pkg_base, "tools-gwas"),
+    file.path(pkg_base, "tools-pgx"),
+    file.path(pkg_base, "tools-qc")
+  )
+)
+registry$search_tools()
+registry$get_tool_summary()
+#>              name                          ...     source_dir
+#> 1        run_gwas   Run genome-wide ...          /path/tools-gwas
+#> 2  manhattan_plot   Generate Manhattan ...       /path/tools-gwas
+#> 3 query_variants   Query pharmacogenomic ...    /path/tools-pgx
+#> 4  drug_response   Predict drug response ...    /path/tools-pgx
+#> 5      sample_qc   Run sample quality ...       /path/tools-qc
+```
+
+Or load a subset of modules:
+
+```{r}
+# GWAS server — only GWAS + QC tools, no PGx
+registry <- ToolRegistry$new(
+  tools_dir = c(
+    file.path(pkg_base, "tools-gwas"),
+    file.path(pkg_base, "tools-qc")
+  )
+)
+```
+
+## Chaining: configure(), filter(), search_tools()
+
+`configure()`, `filter()`, and `set_verbose()` return `self` (invisibly) for chaining. `search_tools()` returns the tool list directly. The intended usage pattern is:
+
+```{r}
+# Declarative: set up, then scan
+registry <- ToolRegistry$new(tools_dir = system.file(package = "MCPR"))
+registry$search_tools()
+registry$filter(exclude = "execute_r_code")
+
+# Or reconfigure an existing registry
+registry$configure(
+  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "omicspgxmcp"))
+)
+registry$search_tools()
+registry$filter(include = c("manage_r_sessions", "run_gwas"))
+```
+
+`configure()` clears the cache and resets the directory list. `filter()` applies immediately to already-discovered tools *and* persists for future scans. `search_tools()` respects both.
+
+## Provenance: Where Did This Tool Come From?
+
+Every discovered tool is stamped with `source_dir` and `source_file` in its annotations. This shows up in `get_tool_summary()` and is accessible programmatically:
+
+```{r}
+tool <- registry$get_tool("run_gwas")
+tool$annotations$source_dir
+#> [1] "/Library/R/4.3/library/omicspgxmcp/tools-gwas"
+tool$annotations$source_file
+#> [1] "tool-run_gwas.R"
+```
+
+Enable verbose mode to see provenance during discovery:
+
+```{r}
+registry$set_verbose(TRUE)
+registry$search_tools(force_refresh = TRUE)
+#> ℹ Searching 8 files across 3 directories...
+#> ℹ Loaded 2 tools from tool-run_gwas.R
+#> ℹ Loaded 1 tool from tool-query_variants.R
+#> ...
+#> ℹ Found 8 tools, 5 active after filtering.
+```
+
+## Writing Tools for Your Package
+
+MCPR discovers tools through roxygen2 tags. A tool file in your package looks exactly like MCPR's own:
+
+```{r, code = readLines(system.file("tool-view.R", package = "MCPR"))[1:15], eval = FALSE}
+```
+
+The key elements:
+
+1. **`@keywords mcpr_tool`** — this is how `ToolRegistry` identifies tool functions
+2. **`@param`** tags with type annotations — converted to JSON Schema for MCP clients
+3. **`@description`** — becomes the tool description that LLMs see
+
+Place your tool files in `inst/tools/` (or any subdirectory convention you prefer) and point `ToolRegistry` at it. That's it — MCPR handles roxygen parsing, schema generation, JSON-RPC dispatch, and session routing.
+
+**Note on paths:** `system.file(package = "pkg")` returns the *installed* package root, where `inst/` contents are lifted to the top level. During development with `devtools::load_all()`, tool files remain under `inst/` — use the source path directly in that case.
+
+## Putting It All Together: A Package Entry Point
+
+A downstream package typically exposes a convenience function:
+
+```{r}
+# In omicspgxmcp/R/server.R
+
+#' Start the omicspgxmcp MCP Server
+#' @param include_session_tools Include MCPR session management tools (default: TRUE)
+#' @export
+omics_server <- function(include_session_tools = TRUE) {
+  dirs <- system.file("tools", package = "omicspgxmcp")
+
+  if (include_session_tools) {
+    dirs <- c(system.file(package = "MCPR"), dirs)
+  }
+
+  registry <- MCPR::ToolRegistry$new(tools_dir = dirs)
+  registry$search_tools()
+
+  if (include_session_tools) {
+    # Keep session management, drop open-ended tools
+    registry$filter(exclude = c("execute_r_code", "show_plot"))
+  }
+
+  server <- MCPR::mcprServer$new(registry = registry)
+  server$start()
+}
+```
+
+Users of the package get a safe, domain-specific MCP server without needing to understand MCPR internals.
+
+## Summary
+
+| I want to... | Code |
+|---|---|
+| Use MCPR defaults | `mcprServer$new()` |
+| Add my tools alongside MCPR's | `ToolRegistry$new(tools_dir = c(mcpr, mine))` |
+| Use only my tools | `ToolRegistry$new(tools_dir = mine)` |
+| Cherry-pick from MCPR | `registry$filter(include = c("manage_r_sessions"))` |
+| Remove dangerous tools | `registry$filter(exclude = c("execute_r_code"))` |
+| Multiple tool subdirs | `tools_dir = c(dir1, dir2, dir3)` |
+| See where tools came from | `registry$get_tool_summary()` or `tool$annotations$source_dir` |

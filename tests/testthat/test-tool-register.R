@@ -283,3 +283,232 @@ test_that("ToolRegistry precedence over tools parameter works correctly", {
   server_tools <- server$get_tools()
   expect_true("precedence_function" %in% names(server_tools))
 })
+
+
+# --- filter() tests ---
+
+test_that("filter(include) retains only named tools", {
+  temp_dir <- tempfile("tools_filter_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(temp_dir, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+  registry$filter(include = "calculate_mean")
+
+  tools <- registry$get_tools()
+  expect_length(tools, 1)
+  expect_equal(tools[[1]]$name, "calculate_mean")
+})
+
+test_that("filter(exclude) drops named tools", {
+  temp_dir <- tempfile("tools_filter_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(temp_dir, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+  registry$filter(exclude = "calculate_mean")
+
+  tools <- registry$get_tools()
+  expect_length(tools, 1)
+  expect_equal(tools[[1]]$name, "calculate_sum")
+})
+
+test_that("filter with overlapping include/exclude throws error", {
+  registry <- ToolRegistry$new()
+  expect_error(
+    registry$filter(include = "foo", exclude = "foo"),
+    "include.*exclude"
+  )
+})
+
+test_that("filter() with no args clears all filters", {
+  temp_dir <- tempfile("tools_filter_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(temp_dir, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+
+  registry$filter(include = "calculate_mean")
+  expect_length(registry$get_tools(), 1)
+
+  registry$filter()
+  expect_length(registry$get_tools(), 2)
+})
+
+test_that("filter before search_tools sets state for next search", {
+  temp_dir <- tempfile("tools_filter_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(temp_dir, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$filter(exclude = "calculate_sum")
+  tools <- registry$search_tools()
+
+  expect_length(tools, 1)
+  expect_equal(tools[[1]]$name, "calculate_mean")
+})
+
+test_that("filter persists across search_tools(force_refresh = TRUE)", {
+  temp_dir <- tempfile("tools_filter_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(temp_dir, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+  registry$filter(include = "calculate_sum")
+
+  refreshed <- registry$search_tools(force_refresh = TRUE)
+  expect_length(refreshed, 1)
+  expect_equal(refreshed[[1]]$name, "calculate_sum")
+})
+
+
+# --- multi-directory discovery tests ---
+
+test_that("tools_dir vector discovers tools from multiple directories", {
+  dir1 <- tempfile("tools_dir1_")
+  dir2 <- tempfile("tools_dir2_")
+  dir.create(dir1)
+  dir.create(dir2)
+  on.exit({
+    unlink(dir1, recursive = TRUE)
+    unlink(dir2, recursive = TRUE)
+  }, add = TRUE)
+
+  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(dir2, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = c(dir1, dir2))
+  tools <- registry$search_tools()
+
+  expect_length(tools, 2)
+  tool_names <- vapply(tools, function(x) x$name, character(1))
+  expect_true("calculate_mean" %in% tool_names)
+  expect_true("calculate_sum" %in% tool_names)
+})
+
+test_that("missing directory in multi-dir is skipped with warning", {
+  dir1 <- tempfile("tools_dir1_")
+  dir.create(dir1)
+  on.exit(unlink(dir1, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
+
+  missing_dir <- file.path(tempdir(), "nonexistent_tools_dir_xyz")
+
+  registry <- ToolRegistry$new(tools_dir = c(dir1, missing_dir))
+  expect_warning(
+    tools <- registry$search_tools(),
+    "Skipping missing directory"
+  )
+  expect_length(tools, 1)
+})
+
+test_that("duplicate tool names across directories produce warning", {
+  dir1 <- tempfile("tools_dup1_")
+  dir2 <- tempfile("tools_dup2_")
+  dir.create(dir1)
+  dir.create(dir2)
+  on.exit({
+    unlink(dir1, recursive = TRUE)
+    unlink(dir2, recursive = TRUE)
+  }, add = TRUE)
+
+  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
+  writeLines(tool_code_mean, file.path(dir2, "tool-mean.R"))
+
+  registry <- ToolRegistry$new(tools_dir = c(dir1, dir2))
+  expect_warning(registry$search_tools(), "Duplicate tool name")
+})
+
+test_that("configure(tools_dir = vector) works like constructor", {
+  dir1 <- tempfile("tools_cfg1_")
+  dir2 <- tempfile("tools_cfg2_")
+  dir.create(dir1)
+  dir.create(dir2)
+  on.exit({
+    unlink(dir1, recursive = TRUE)
+    unlink(dir2, recursive = TRUE)
+  }, add = TRUE)
+
+  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(dir2, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = tempdir())
+  registry$configure(tools_dir = c(dir1, dir2))
+  tools <- registry$search_tools()
+
+  expect_length(tools, 2)
+  tool_names <- vapply(tools, function(x) x$name, character(1))
+  expect_true("calculate_mean" %in% tool_names)
+  expect_true("calculate_sum" %in% tool_names)
+})
+
+test_that("filters persist across configure() calls", {
+  dir1 <- tempfile("tools_fp1_")
+  dir2 <- tempfile("tools_fp2_")
+  dir.create(dir1)
+  dir.create(dir2)
+  on.exit({
+    unlink(dir1, recursive = TRUE)
+    unlink(dir2, recursive = TRUE)
+  }, add = TRUE)
+
+  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(dir2, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = dir1)
+  registry$search_tools()
+  registry$filter(exclude = "calculate_mean")
+
+  # Reconfigure to include dir2 — filter should persist
+  registry$configure(tools_dir = c(dir1, dir2))
+  tools <- registry$search_tools()
+
+  tool_names <- vapply(tools, function(x) x$name, character(1))
+  expect_false("calculate_mean" %in% tool_names)
+  expect_true("calculate_sum" %in% tool_names)
+})
+
+
+# --- provenance stamping tests ---
+
+test_that("tools have source_dir and source_file in annotations", {
+  temp_dir <- tempfile("tools_prov_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "tool-mean.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+
+  tool <- registry$get_tool("calculate_mean")
+  expect_equal(tool$annotations$source_dir, temp_dir)
+  expect_equal(tool$annotations$source_file, "tool-mean.R")
+})
+
+test_that("get_tool_summary includes source_dir column", {
+  temp_dir <- tempfile("tools_prov_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  writeLines(tool_code_mean, file.path(temp_dir, "tool-mean.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+
+  summary_df <- registry$get_tool_summary()
+  expect_true("source_dir" %in% names(summary_df))
+  expect_equal(summary_df$source_dir, temp_dir)
+})
