@@ -237,6 +237,14 @@ get_agent_specification <- function(agent) {
     args = c("--quiet", "--slave", "-e", "MCPR::mcpr_server()")
   )
 
+  # Codex runs in renv-heavy projects where .Rprofile / renv/activate.R can
+  # block or crash the server process before MCPR initialises. Skipping init
+  # and site files makes startup reliable without affecting tool behaviour.
+  codex_server_config <- list(
+    command = "R",
+    args = c("--quiet", "--slave", "--no-init-file", "--no-site-file", "-e", "MCPR::mcpr_server()")
+  )
+
   specs <- list(
     claude = list(
       server_section = "mcpServers",
@@ -308,7 +316,7 @@ get_agent_specification <- function(agent) {
     codex = list(
       server_section = "mcp",
       config_format = "toml",
-      server_config = base_server_config,
+      server_config = codex_server_config,
       paths = list(
         global = c(Sys.getenv("HOME"), ".codex", "config.toml")
       ),
