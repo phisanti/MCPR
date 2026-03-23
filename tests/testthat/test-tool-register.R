@@ -36,7 +36,7 @@ calculate_mean_tool_traditional <- function() {
     fun = function(x) mean(x, na.rm = TRUE),
     name = "calculate_mean",
     description = "Calculates the mean of a numeric vector.",
-    arguments = list(x = type_number(description = "A numeric vector."))
+    arguments = list(x = MCPR:::type_number(description = "A numeric vector."))
   )
 }
 
@@ -45,7 +45,7 @@ calculate_sum_tool_traditional <- function() {
     fun = function(x) sum(x, na.rm = TRUE),
     name = "calculate_sum",
     description = "Calculates the sum of a numeric vector.",
-    arguments = list(x = type_number(description = "A numeric vector."))
+    arguments = list(x = MCPR:::type_number(description = "A numeric vector."))
   )
 }
 
@@ -233,16 +233,16 @@ test_that("ToolRegistry handles non-existent directory gracefully", {
 test_that("set_server_tools validates ToolRegistry parameter", {
   # Test with valid ToolRegistry
   registry <- ToolRegistry$new()
-  expect_no_error(set_server_tools(registry = registry))
+  expect_no_error(MCPR:::set_server_tools(registry = registry))
 
   # Test with invalid registry parameter
   expect_error(
-    set_server_tools(registry = "not_a_registry"),
+    MCPR:::set_server_tools(registry = "not_a_registry"),
     "registry must be a ToolRegistry instance"
   )
 
   expect_error(
-    set_server_tools(registry = list()),
+    MCPR:::set_server_tools(registry = list()),
     "registry must be a ToolRegistry instance"
   )
 })
@@ -275,7 +275,7 @@ test_that("ToolRegistry precedence over tools parameter works correctly", {
   registry$search_tools() # Populate registry
 
   # Test registry functionality
-  set_server_tools(registry = registry)
+  MCPR:::set_server_tools(registry = registry)
 
   # Verify registry tools are used
   # Create a server instance to access the get_tools method
@@ -511,4 +511,59 @@ test_that("get_tool_summary includes source_dir column", {
   summary_df <- registry$get_tool_summary()
   expect_true("source_dir" %in% names(summary_df))
   expect_equal(summary_df$source_dir, temp_dir)
+})
+
+# --- Annotations discovery ---
+
+test_that("create_tool_from_block picks up .{name}_annotations", {
+  temp_dir <- tempfile("tools_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  tool_code <- c(
+    "#' Annotated Tool",
+    "#' @description A tool with annotations",
+    "#' @param x numeric Input value",
+    "#' @keywords mcpr_tool",
+    "annotated_tool <- function(x) x",
+    "",
+    ".annotated_tool_annotations <- list(",
+    "  `_meta` = list(ui = list(resourceUri = 'ui://mcpr/plots')),",
+    "  title = 'Annotated'",
+    ")"
+  )
+  writeLines(tool_code, file.path(temp_dir, "tool-annotated.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+
+  tools <- registry$get_tools()
+  expect_true(length(tools) > 0)
+
+  tool_obj <- tools[[1]]
+  expect_equal(tool_obj$annotations[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
+  expect_equal(tool_obj$annotations$title, "Annotated")
+})
+
+test_that("create_tool_from_block works without annotations variable", {
+  temp_dir <- tempfile("tools_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  tool_code <- c(
+    "#' Plain Tool",
+    "#' @description A tool without annotations",
+    "#' @param x numeric Input value",
+    "#' @keywords mcpr_tool",
+    "plain_tool <- function(x) x"
+  )
+  writeLines(tool_code, file.path(temp_dir, "tool-plain.R"))
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir)
+  registry$search_tools()
+
+  tools <- registry$get_tools()
+  expect_true(length(tools) > 0)
+  # No _meta in annotations (source_dir/source_file added by registry are fine)
+  expect_null(tools[[1]]$annotations[["_meta"]])
 })

@@ -225,14 +225,31 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
   show_plot_agent(expr, width, height, format, token_limit, warn_threshold)
 }
 
+#' Check if the current request originates from an MCP Apps-capable client
+#'
+#' Delegates to the package-level function when available, falling back to FALSE.
+#'
+#' @return Logical
+#' @noRd
+.mcp_apps_supported <- function() {
+  fn <- tryCatch(
+    get("mcp_apps_supported", envir = asNamespace("MCPR"), inherits = FALSE),
+    error = function(e) NULL
+  )
+  if (is.function(fn)) fn() else FALSE
+}
+
 #' Detect the best available output channel for user-facing plots
 #'
-#' Checks for httpgd availability, interactive sessions with displays,
-#' and falls back to file export for headless environments.
+#' Checks for MCP Apps support first, then httpgd availability, interactive
+#' sessions with displays, and falls back to file export for headless environments.
 #'
-#' @return Character string: "httpgd", "device", or "file"
+#' @return Character string: "mcp_app", "httpgd", "device", or "file"
 #' @noRd
 detect_output_channel <- function() {
+  # 0. MCP App client? Route to inline viewer
+  if (.mcp_apps_supported()) return("mcp_app")
+
   # 1. httpgd already the active device?
   dev_name <- names(grDevices::dev.cur())
   if (dev_name %in% c("httpgd", "unigd")) return("httpgd")
@@ -260,13 +277,103 @@ show_plot_user <- function(expr) {
 
   tryCatch(
     switch(channel,
-      httpgd = show_plot_via_httpgd(expr),
-      device = show_plot_via_device(expr),
-      file   = show_plot_via_file(expr)
+      mcp_app = show_plot_via_mcp_app(expr),
+      httpgd  = show_plot_via_httpgd(expr),
+      device  = show_plot_via_device(expr),
+      file    = show_plot_via_file(expr)
     ),
     error = function(e) {
       cli::cli_abort("Error displaying plot: {e$message}")
     }
+  )
+}
+
+#' Display a plot via MCP App inline viewer
+#'
+#' Captures static plots as PNG and returns a single MCP content item with
+#' response-level UI metadata. If the expression yields an htmlwidget/plotly
+#' object, delegates to show_plotly_via_mcp_app() for interactive rendering.
+#'
+#' @param expr R code expression to generate the plot
+#' @return A single content item descriptor for encode_tool_results()
+#' @noRd
+show_plot_via_mcp_app <- function(expr) {
+  tmp <- tempfile(fileext = ".png")
+  device_open <- FALSE
+  on.exit({
+    if (device_open && grDevices::dev.cur() != 1) {
+      try(grDevices::dev.off(), silent = TRUE)
+    }
+    unlink(tmp)
+  }, add = TRUE)
+
+  grDevices::png(tmp, width = 800, height = 600)
+  device_open <- TRUE
+
+  result <- tryCatch(
+    eval(parse(text = expr), envir = .GlobalEnv),
+    error = function(e) {
+      cli::cli_abort("Error evaluating plot expression: {e$message}")
+    }
+  )
+
+  # Delegate interactive plots to the plotly path
+  if (inherits(result, c("htmlwidget", "plotly"))) {
+    grDevices::dev.off()
+    device_open <- FALSE
+    return(show_plotly_via_mcp_app(result))
+  }
+
+  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot"))) {
+    print(result)
+  }
+  grDevices::dev.off()
+  device_open <- FALSE
+
+  # Base64-encode the PNG
+  raw_data <- readBin(tmp, "raw", file.info(tmp)$size)
+  b64_data <- base64enc::base64encode(raw_data)
+
+  list(
+    type = "image",
+    data = b64_data,
+    mimeType = "image/png",
+    `_meta` = list(ui = list(resourceUri = "ui://mcpr/plots"))
+  )
+}
+
+#' Display a plotly/htmlwidget via MCP App inline viewer
+#'
+#' Builds the plotly spec and returns it as _mcpr_plotly JSON for the MCP App
+#' viewer to render interactively.
+#'
+#' @param widget A plotly or htmlwidget object
+#' @return A single content item descriptor for encode_tool_results()
+#' @noRd
+show_plotly_via_mcp_app <- function(widget) {
+  if (!requireNamespace("plotly", quietly = TRUE)) {
+    cli::cli_abort("plotly package is required for interactive chart rendering")
+  }
+
+  built <- plotly::plotly_build(widget)
+
+  spec <- list(
+    data   = built$x$data,
+    layout = built$x$layout,
+    config = built$x$config
+  )
+
+  plotly_json <- jsonlite::toJSON(
+    list(`_mcpr_plotly` = spec),
+    auto_unbox = TRUE,
+    null = "null",
+    force = TRUE
+  )
+
+  list(
+    type = "text",
+    content = as.character(plotly_json),
+    `_meta` = list(ui = list(resourceUri = "ui://mcpr/plots"))
   )
 }
 

@@ -37,6 +37,14 @@ create_tool_from_block <- function(block, env, file_path) {
   param_tags <- Filter(function(tag) inherits(tag, "roxy_tag_param"), block$tags)
   mcpr_args <- convert_to_schema(param_tags)
 
+  # Check for companion annotations variable (.{func_name}_annotations)
+  annotations_var <- paste0(".", func_name, "_annotations")
+  annotations <- if (exists(annotations_var, envir = env)) {
+    get(annotations_var, envir = env)
+  } else {
+    list()
+  }
+
   # Create the tool using new ToolDef system
   tryCatch(
     {
@@ -44,7 +52,8 @@ create_tool_from_block <- function(block, env, file_path) {
         fun = func,
         name = func_name,
         description = description,
-        arguments = mcpr_args
+        arguments = mcpr_args,
+        annotations = annotations
       )
     },
     error = function(e) {

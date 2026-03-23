@@ -48,11 +48,32 @@ tool_as_json <- function(tool) {
   # Convert tool arguments to JSON schema format
   inputSchema <- convert_arguments_to_schema(tool$arguments)
 
-  compact(list(
+  result <- compact(list(
     name = tool$name,
     description = tool$description,
     inputSchema = inputSchema
   ))
+
+  annotations <- tool$annotations
+  if (length(annotations) > 0) {
+    # Extract _meta to top level (MCP Apps extension point)
+    if (!is.null(annotations[["_meta"]])) {
+      meta <- annotations[["_meta"]]
+      # Also expose legacy flat key for compatibility
+      if (!is.null(meta$ui$resourceUri)) {
+        meta[["ui/resourceUri"]] <- meta$ui$resourceUri
+      }
+      result[["_meta"]] <- meta
+    }
+
+    # Remaining annotations (standard MCP annotations excluding _meta)
+    standard_annotations <- annotations[setdiff(names(annotations), "_meta")]
+    if (length(standard_annotations) > 0) {
+      result$annotations <- standard_annotations
+    }
+  }
+
+  result
 }
 
 #' Convert tool arguments to JSON schema format

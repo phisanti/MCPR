@@ -5,8 +5,27 @@ library(testthat)
 library(ggplot2)
 library(jsonlite)
 
-# Source the show_plot tool
-source(system.file("tool-show_plot.R", package = "MCPR", mustWork = TRUE))
+get_local_or_installed_path <- function(...) {
+  candidates <- c(...)
+  existing <- candidates[file.exists(candidates)]
+  if (length(existing) > 0) existing[[1]] else NULL
+}
+
+# Source the show_plot tool into a dedicated environment so helper functions
+# remain accessible in tests.
+.tool_env <- new.env(parent = asNamespace("MCPR"))
+.tool_path <- get_local_or_installed_path(
+  "inst/tool-show_plot.R",
+  "../inst/tool-show_plot.R",
+  "../../inst/tool-show_plot.R",
+  system.file("tool-show_plot.R", package = "MCPR", mustWork = TRUE)
+)
+source(.tool_path, local = .tool_env)
+
+# Re-export all names into the test file scope for test_that blocks
+for (.name in ls(.tool_env, all.names = TRUE)) {
+  assign(.name, get(.name, envir = .tool_env), envir = environment())
+}
 
 # --- Input validation ---
 
@@ -46,7 +65,7 @@ test_that("show_plot agent defaults match optimized values", {
 
 test_that("detect_output_channel returns valid channel", {
   channel <- detect_output_channel()
-  expect_true(channel %in% c("httpgd", "device", "file"))
+  expect_true(channel %in% c("mcp_app", "httpgd", "device", "file"))
 })
 
 test_that("detect_output_channel prefers httpgd when available", {
@@ -126,6 +145,71 @@ test_that("render-first approach function signature", {
   formals_suggestions <- formals(generate_optimization_suggestions)
   expect_true("current_format" %in% names(formals_suggestions))
   expect_equal(formals_suggestions$current_format, "png")
+})
+
+# --- MCP App channel ---
+
+test_that("detect_output_channel returns mcp_app when flag is set", {
+  # Simulate MCP Apps request context
+  the <- MCPR:::the
+  the$current_request <- list(mcp_apps_supported = TRUE)
+  on.exit(the$current_request <- NULL, add = TRUE)
+
+  channel <- detect_output_channel()
+  expect_equal(channel, "mcp_app")
+})
+
+test_that("detect_output_channel ignores mcp_app flag when FALSE", {
+  the <- MCPR:::the
+  the$current_request <- list(mcp_apps_supported = FALSE)
+  on.exit(the$current_request <- NULL, add = TRUE)
+
+  channel <- detect_output_channel()
+  expect_true(channel %in% c("httpgd", "device", "file"))
+})
+
+test_that("show_plot_via_mcp_app returns a single image item with UI metadata", {
+  the <- MCPR:::the
+  the$current_request <- list(mcp_apps_supported = TRUE)
+  on.exit(the$current_request <- NULL, add = TRUE)
+
+  result <- show_plot_via_mcp_app("plot(1:10)")
+
+  expect_equal(result$type, "image")
+  expect_equal(result$mimeType, "image/png")
+  expect_equal(result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
+  expect_true(nchar(result$data) > 0)
+})
+
+test_that("show_plot_via_mcp_app handles ggplot objects", {
+  result <- show_plot_via_mcp_app("ggplot(mtcars, aes(mpg, hp)) + geom_point()")
+
+  expect_equal(result$type, "image")
+  expect_equal(result$mimeType, "image/png")
+})
+
+test_that("show_plot_via_mcp_app returns mcp_app channel result via show_plot", {
+  the <- MCPR:::the
+  the$current_request <- list(mcp_apps_supported = TRUE)
+  on.exit(the$current_request <- NULL, add = TRUE)
+
+  result <- show_plot("plot(1:10)", target = "user")
+
+  expect_equal(result$type, "image")
+  expect_equal(result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
+})
+
+test_that("show_plot_via_mcp_app routes plotly widgets to viewer payloads", {
+  skip_if_not_installed("plotly")
+
+  result <- show_plot_via_mcp_app(
+    "plotly::plot_ly(mtcars, x = ~mpg, y = ~hp, type = 'scatter', mode = 'markers')"
+  )
+
+  expect_equal(result$type, "text")
+  expect_equal(result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
+  parsed <- jsonlite::fromJSON(result$content)
+  expect_true(!is.null(parsed$`_mcpr_plotly`))
 })
 
 # --- Agent target (graphics device tests) ---

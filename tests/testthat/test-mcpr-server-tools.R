@@ -254,3 +254,61 @@ test_that("server tools error handling", {
   # Restore
   the_env$server_tools <- old_server_tools
 })
+
+# --- tool_as_json _meta extraction ---
+
+test_that("tool_as_json extracts _meta to top level", {
+  test_tool <- tool(
+    function(x) x,
+    name = "plot_tool",
+    description = "A tool with annotations",
+    arguments = list(x = "string"),
+    annotations = list(
+      `_meta` = list(ui = list(resourceUri = "ui://mcpr/plots")),
+      title = "Plot Tool"
+    )
+  )
+
+  json_result <- MCPR:::tool_as_json(test_tool)
+
+  # _meta should be at top level
+
+  expect_equal(json_result[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
+  # Legacy flat key
+  expect_equal(json_result[["_meta"]][["ui/resourceUri"]], "ui://mcpr/plots")
+  # Standard annotations in $annotations
+  expect_equal(json_result$annotations$title, "Plot Tool")
+  # _meta should NOT be in $annotations
+  expect_null(json_result$annotations[["_meta"]])
+})
+
+test_that("tool_as_json works without annotations", {
+  test_tool <- tool(
+    function(x) x,
+    name = "simple_tool",
+    description = "No annotations",
+    arguments = list(x = "string")
+  )
+
+  json_result <- MCPR:::tool_as_json(test_tool)
+
+  expect_null(json_result[["_meta"]])
+  expect_null(json_result$annotations)
+  expect_equal(json_result$name, "simple_tool")
+})
+
+test_that("tool_as_json handles annotations without _meta", {
+  test_tool <- tool(
+    function(x) x,
+    name = "annotated_tool",
+    description = "Has annotations but no _meta",
+    arguments = list(x = "string"),
+    annotations = list(title = "My Tool", read_only_hint = TRUE)
+  )
+
+  json_result <- MCPR:::tool_as_json(test_tool)
+
+  expect_null(json_result[["_meta"]])
+  expect_equal(json_result$annotations$title, "My Tool")
+  expect_true(json_result$annotations$read_only_hint)
+})

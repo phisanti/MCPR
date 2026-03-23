@@ -2,6 +2,33 @@
 # Core server class implementing Model Context Protocol for persistent R session management.
 # Handles JSON-RPC communication, tool discovery, and routing between MCP clients and R sessions.
 
+#' Detect MCP Apps support from client initialize params
+#'
+#' Checks capabilities.experimental.mcpApps first (spec-driven),
+#' then falls back to clientInfo.name matching known UI hosts.
+#'
+#' @param params The params object from the initialize request
+#' @return Logical indicating MCP Apps support
+#' @noRd
+detect_mcp_apps_support <- function(params) {
+  # Spec-driven: check capabilities.experimental.mcpApps
+  if (isTRUE(params$capabilities$experimental$mcpApps)) {
+    return(TRUE)
+  }
+
+  # MCP Apps UI extension (Claude Desktop sends this)
+  ui_ext <- params$capabilities$extensions[["io.modelcontextprotocol/ui"]]
+  if (!is.null(ui_ext)) {
+    return(TRUE)
+  }
+
+  # Fallback: match known UI host names (exact match, not substring)
+  client_name <- tolower(trimws(params$clientInfo$name %||% ""))
+  known_ui_hosts <- c("claude desktop", "claude-ai", "zed", "cline")
+
+  client_name %in% known_ui_hosts
+}
+
 #' MCP Server
 #' @description Implements Model Context Protocol server for persistent R session management.
 #' Operates through nanonext sockets for non-blocking message handling between JSON-RPC
@@ -168,6 +195,12 @@ mcprServer <- R6::R6Class("mcprServer",
         server_name = "R MCPR server",
         server_version = "1.0.0"
       )
+    },
+
+    #' @description Check if the connected client supports MCP Apps
+    #' @return Logical indicating MCP Apps support
+    mcp_apps_supported = function() {
+      private$.mcp_apps_supported
     }
   ),
   private = list(
@@ -175,6 +208,7 @@ mcprServer <- R6::R6Class("mcprServer",
     .cv = NULL,
     .running = FALSE,
     .protocol_version = NULL,  # Negotiated protocol version for this connection
+    .mcp_apps_supported = FALSE,
 
     # Handle incoming messages from MCP clients
     handle_message_from_client = function(line) {
@@ -216,6 +250,10 @@ mcprServer <- R6::R6Class("mcprServer",
             negotiated
           ))
 
+          # Detect MCP Apps support from client capabilities or name
+          private$.mcp_apps_supported <- detect_mcp_apps_support(data$params)
+          private$log_info(sprintf("MCP Apps supported: %s", private$.mcp_apps_supported))
+
           # Return capabilities for negotiated version
           jsonrpc_response(data$id, self$get_capabilities(version = negotiated))
         },
@@ -226,10 +264,41 @@ mcprServer <- R6::R6Class("mcprServer",
           )
         },
         "resources/list" = function(data) {
-          jsonrpc_response(
-            data$id,
-            list(resources = list())
-          )
+          resources <- list()
+          if (private$.mcp_apps_supported) {
+            resources <- list(list(
+              uri = "ui://mcpr/plots",
+              name = "MCPR Plot Viewer",
+              description = "Interactive plot viewer for R visualizations",
+              mimeType = "text/html;profile=mcp-app"
+            ))
+          }
+          jsonrpc_response(data$id, list(resources = resources))
+        },
+        "resources/read" = function(data) {
+          uri <- data$params$uri
+          if (identical(uri, "ui://mcpr/plots")) {
+            viewer_path <- system.file("mcp_app/plot-viewer.html", package = "MCPR")
+            if (!nzchar(viewer_path) || !file.exists(viewer_path)) {
+              return(jsonrpc_response(
+                data$id,
+                error = list(code = -32002, message = "Plot viewer resource not found")
+              ))
+            }
+            viewer_content <- paste(readLines(viewer_path, warn = FALSE), collapse = "\n")
+            jsonrpc_response(data$id, list(
+              contents = list(list(
+                uri = uri,
+                mimeType = "text/html;profile=mcp-app",
+                text = viewer_content
+              ))
+            ))
+          } else {
+            jsonrpc_response(
+              data$id,
+              error = list(code = -32002, message = paste("Resource not found:", uri))
+            )
+          }
         },
         "prompts/list" = function(data) {
           jsonrpc_response(
@@ -288,6 +357,9 @@ mcprServer <- R6::R6Class("mcprServer",
       result <- if (is.list(prepared) && !is.null(prepared$error)) {
         prepared
       } else {
+        # Propagate MCP Apps flag so server-local tools can query it
+        the$current_request <- list(mcp_apps_supported = private$.mcp_apps_supported)
+        on.exit(the$current_request <- NULL, add = TRUE)
         execute_tool_call(prepared)
       }
       private$log_comm("FROM SERVER", to_json(result))
@@ -301,6 +373,8 @@ mcprServer <- R6::R6Class("mcprServer",
       if (is.list(prepared) && !is.null(prepared$error)) {
         return(cat_json(prepared))
       }
+      # Propagate MCP Apps flag so session-side tools can query it
+      prepared$mcp_apps_supported <- private$.mcp_apps_supported
       server_socket <- self$state_get("server_socket")
       nanonext::send_aio(server_socket, prepared, mode = "serial")
     },

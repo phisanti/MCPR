@@ -509,3 +509,40 @@ test_that("mcprServer complete protocol flow simulation", {
 
   expect_false(server$is_running()) # Should not be running in test mode
 })
+
+# --- MCP Apps detection ---
+
+test_that("detect_mcp_apps_support detects capability flag", {
+  params <- list(
+    capabilities = list(experimental = list(mcpApps = TRUE)),
+    clientInfo = list(name = "some-client")
+  )
+  expect_true(MCPR:::detect_mcp_apps_support(params))
+})
+
+test_that("detect_mcp_apps_support detects Claude Desktop by name", {
+  params <- list(
+    capabilities = list(),
+    clientInfo = list(name = "Claude Desktop")
+  )
+  expect_true(MCPR:::detect_mcp_apps_support(params))
+})
+
+test_that("detect_mcp_apps_support is case-insensitive for client name", {
+  params <- list(clientInfo = list(name = "CLAUDE DESKTOP"))
+  expect_true(MCPR:::detect_mcp_apps_support(params))
+})
+
+test_that("detect_mcp_apps_support returns FALSE for unknown clients", {
+  params <- list(clientInfo = list(name = "Claude Code"))
+  expect_false(MCPR:::detect_mcp_apps_support(params))
+})
+
+test_that("detect_mcp_apps_support returns FALSE for empty params", {
+  expect_false(MCPR:::detect_mcp_apps_support(list()))
+})
+
+test_that("mcprServer has mcp_apps_supported accessor", {
+  server <- mcprServer$new(.tools_dir = tempdir())
+  expect_false(server$mcp_apps_supported())
+})

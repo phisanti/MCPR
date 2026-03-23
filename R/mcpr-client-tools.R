@@ -111,8 +111,52 @@ decode_tool_args <- function(arguments) {
 #' @keywords internal
 #' @seealso \code{\link{mcpr_serialize}} for complex object serialization
 #' @noRd
+apply_default_audience <- function(item, default_audience = "assistant") {
+  if (is.null(item$annotations$audience)) {
+    if (is.null(item$annotations)) {
+      item$annotations <- list(audience = list(default_audience))
+    } else {
+      item$annotations$audience <- list(default_audience)
+    }
+  }
+  item
+}
+
 encode_tool_results <- function(data, result) {
   is_error <- FALSE
+
+  # Image content: tool returned list(type="image", data=..., mimeType=...)
+  if (is.list(result) && identical(result$type, "image") && !is.null(result$data)) {
+    default_audience <- if (!is.null(result$`_meta`)) "user" else "assistant"
+    item <- compact(list(
+      type = "image",
+      data = result$data,
+      mimeType = result$mimeType %||% "image/png"
+    ))
+    if (!is.null(result$annotations)) item$annotations <- result$annotations
+    item <- apply_default_audience(item, default_audience)
+    response_result <- list(
+      content = list(item),
+      isError = is_error
+    )
+    if (!is.null(result$`_meta`)) response_result[["_meta"]] <- result$`_meta`
+    return(jsonrpc_response(data$id, response_result))
+  }
+
+  # Text content with metadata: tool returned list(type="text", content=..., _meta=...)
+  if (is.list(result) && identical(result$type, "text") &&
+      !is.null(result$content) && is.character(result$content)) {
+    default_audience <- if (!is.null(result$`_meta`)) "user" else "assistant"
+    item <- list(type = "text", text = result$content)
+    if (!is.null(result$annotations)) item$annotations <- result$annotations
+    item <- apply_default_audience(item, default_audience)
+    response_result <- list(
+      content = list(item),
+      isError = is_error
+    )
+    if (!is.null(result$`_meta`)) response_result[["_meta"]] <- result$`_meta`
+    return(jsonrpc_response(data$id, response_result))
+  }
 
   # For simple text results
   if (is.character(result) && length(result) == 1) {

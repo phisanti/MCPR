@@ -224,6 +224,11 @@ mcprSession <- R6::R6Class("mcprSession",
       }
       private$log_comm("FROM SERVER", paste("Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Tool:", data$params$name %||% "unknown", "| Data:", jsonlite::toJSON(log_data, auto_unbox = TRUE)))
 
+      # Store request metadata so tools can query context (e.g., MCP Apps support)
+      the$current_request <- list(
+        mcp_apps_supported = isTRUE(data$mcp_apps_supported)
+      )
+
       # Process tool call or return error with timing
       start_time <- Sys.time()
       body <- if (data$method == "tools/call") {
@@ -269,6 +274,14 @@ mcprSession <- R6::R6Class("mcprSession",
     }
   )
 )
+
+#' Check if current request originates from an MCP Apps-capable client
+#'
+#' @return Logical indicating MCP Apps support for the current request
+#' @noRd
+mcp_apps_supported <- function() {
+  isTRUE(the$current_request$mcp_apps_supported)
+}
 
 #' Make R Session Available to MCP Server
 #'
