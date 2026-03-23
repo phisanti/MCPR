@@ -224,10 +224,16 @@ mcprSession <- R6::R6Class("mcprSession",
       }
       private$log_comm("FROM SERVER", paste("Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Tool:", data$params$name %||% "unknown", "| Data:", jsonlite::toJSON(log_data, auto_unbox = TRUE)))
 
-      # Store request metadata so tools can query context (e.g., MCP Apps support)
-      the$current_request <- list(
-        mcp_apps_supported = isTRUE(data$mcp_apps_supported)
+      # TODO(Phase 3): Remove legacy flat-field fallback once all servers use mcpr_request_context
+      context <- as_mcpr_request_context(
+        data$mcpr_request_context %||% list(
+          mcp_apps_supported = data$mcp_apps_supported,
+          mcpr_interface = data$mcpr_interface,
+          mcpr_client_name = data$mcpr_client_name
+        )
       )
+      set_mcpr_request_context(context)
+      on.exit(clear_mcpr_request_context(), add = TRUE)
 
       # Process tool call or return error with timing
       start_time <- Sys.time()
@@ -280,7 +286,7 @@ mcprSession <- R6::R6Class("mcprSession",
 #' @return Logical indicating MCP Apps support for the current request
 #' @noRd
 mcp_apps_supported <- function() {
-  isTRUE(the$current_request$mcp_apps_supported)
+  isTRUE(get_mcpr_request_context()$mcp_apps_supported)
 }
 
 #' Make R Session Available to MCP Server

@@ -222,7 +222,7 @@ mcprClient <- R6::R6Class("mcprClient",
           capabilities = create_client_capabilities(protocol_version),
           clientInfo = list(
             name = "MCPR Client",
-            version = "1.0.0"
+            version = mcpr_package_version()
           )
         )
       )

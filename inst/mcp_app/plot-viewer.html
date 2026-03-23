@@ -107,69 +107,185 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
 
       var contentEl = document.getElementById('content');
       var plotCounter = 0;
+      var initialized = false;
+      var sentInitialized = false;
+      var pendingToolResult = null;
+      var resizeRaf = null;
+      var lastSize = { width: 0, height: 0 };
+      var initializeRequestId = 'mcpr-init-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+
+      function parseIncoming(data) {
+        if (typeof data === 'string') {
+          try {
+            return JSON.parse(data);
+          } catch (e) {
+            return null;
+          }
+        }
+        return data && typeof data === 'object' ? data : null;
+      }
 
       // --- Host communication ---
 
+      // Target origin '*' is standard for MCP App iframes — the app does not know
+      // the host's origin at runtime. Content is non-sensitive (plot data + sizing).
       function sendToHost(message) {
-        window.parent.postMessage(JSON.stringify(message), '*');
+        window.parent.postMessage(message, '*');
       }
 
       function reportSize() {
+        var width = Math.ceil(
+          Math.max(
+            document.documentElement ? document.documentElement.scrollWidth : 0,
+            document.body ? document.body.scrollWidth : 0,
+            contentEl ? contentEl.scrollWidth : 0
+          )
+        );
+        var height = Math.ceil(
+          Math.max(
+            document.documentElement ? document.documentElement.scrollHeight : 0,
+            document.body ? document.body.scrollHeight : 0,
+            contentEl ? contentEl.scrollHeight : 0
+          )
+        );
+
+        if (width === lastSize.width && height === lastSize.height) {
+          return;
+        }
+
+        lastSize.width = width;
+        lastSize.height = height;
+
         sendToHost({
           jsonrpc: '2.0',
           method: 'ui/notifications/size-changed',
-          params: { height: document.body.scrollHeight }
+          params: {
+            width: width,
+            height: height
+          }
         });
+      }
+
+      function scheduleSizeReport() {
+        if (resizeRaf !== null) {
+          return;
+        }
+        resizeRaf = window.requestAnimationFrame(function () {
+          resizeRaf = null;
+          reportSize();
+        });
+      }
+
+      function sendInitialized() {
+        if (sentInitialized) {
+          return;
+        }
+        sentInitialized = true;
+        sendToHost({
+          jsonrpc: '2.0',
+          method: 'ui/notifications/initialized'
+        });
+        scheduleSizeReport();
+      }
+
+      function completeInitialization() {
+        initialized = true;
+        sendInitialized();
+
+        if (pendingToolResult) {
+          renderToolResult(pendingToolResult);
+          pendingToolResult = null;
+        }
       }
 
       // --- Message handling ---
 
       function handleMessage(event) {
-        var msg;
-        try {
-          msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        } catch (e) {
+        var msg = parseIncoming(event.data);
+        if (!msg) {
           return;
         }
-        if (!msg || !msg.method) return;
+
+        // App-style init response path (View -> Host ui/initialize request)
+        if (msg.id === initializeRequestId && msg.result) {
+          completeInitialization();
+          return;
+        }
+
+        if (!msg.method) {
+          return;
+        }
 
         switch (msg.method) {
           case 'ui/initialize':
-            handleInitialize(msg.params || {});
+            // Legacy host-requested init compatibility path.
+            sendToHost({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: {
+                // MCP Apps UI protocol version per ext-apps specification
+                protocolVersion: '2026-01-26',
+                appInfo: {
+                  name: 'MCPR Plot Viewer',
+                  version: '__MCPR_VERSION__'
+                },
+                appCapabilities: {
+                  availableDisplayModes: ['inline']
+                }
+              }
+            });
+            completeInitialization();
             break;
           case 'ui/notifications/tool-result':
-            handleToolResult(msg.params || {});
+            if (!initialized) {
+              pendingToolResult = msg.params || {};
+            } else {
+              renderToolResult(msg.params || {});
+            }
+            break;
+          case 'ui/notifications/host-context-changed':
+            scheduleSizeReport();
+            break;
+          case 'ui/resource-teardown':
+            sendToHost({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: {}
+            });
             break;
         }
       }
 
-      function handleInitialize(params) {
-        var toolResults = params.toolResults || [];
-        for (var i = 0; i < toolResults.length; i++) {
-          var result = toolResults[i];
-          if (result && result.content) {
-            renderContent(result.content);
-          }
+      function normalizeToolResult(params) {
+        if (params && params.toolResult && typeof params.toolResult === 'object') {
+          return params.toolResult;
         }
-        sendToHost({
-          jsonrpc: '2.0',
-          method: 'ui/notifications/initialized'
-        });
-        reportSize();
+        return params || {};
       }
 
-      function handleToolResult(params) {
-        var toolResult = params.toolResult;
-        if (toolResult && toolResult.content) {
-          renderContent(toolResult.content);
+      function renderToolResult(params) {
+        var toolResult = normalizeToolResult(params);
+
+        if (toolResult && Array.isArray(toolResult.content)) {
+          renderContent(toolResult.content, !!toolResult.isError);
+        } else if (Array.isArray(params && params.content)) {
+          renderContent(params.content, !!params.isError);
+        } else if (toolResult && toolResult.isError) {
+          renderText({ text: 'Tool returned an error.' }, true);
         }
-        reportSize();
+
+        scheduleSizeReport();
       }
 
       // --- Rendering ---
 
-      function renderContent(contentItems) {
-        if (!Array.isArray(contentItems)) return;
+      function renderContent(contentItems, isError) {
+        if (!Array.isArray(contentItems)) {
+          return;
+        }
+
+        contentEl.innerHTML = '';
+
         for (var i = 0; i < contentItems.length; i++) {
           var item = contentItems[i];
 
@@ -178,13 +294,16 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
           } else if (item.type === 'text' && isPlotlyContent(item.text)) {
             renderPlotly(item);
           } else if (item.type === 'text') {
-            renderText(item);
+            renderText(item, isError);
           }
         }
       }
 
       function isPlotlyContent(text) {
-        if (typeof text !== 'string') return false;
+        if (typeof text !== 'string') {
+          return false;
+        }
+
         try {
           var parsed = JSON.parse(text);
           return parsed && parsed._mcpr_plotly !== undefined;
@@ -237,14 +356,19 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         var layout = Object.assign({ autosize: true }, spec.layout || {});
         var config = Object.assign({ responsive: true }, spec.config || {});
 
-        Plotly.newPlot(chartDiv.id, data, layout, config).then(function () {
-          reportSize();
-        });
+        var maybePromise = Plotly.newPlot(chartDiv, data, layout, config);
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(function () {
+            scheduleSizeReport();
+          });
+        } else {
+          scheduleSizeReport();
+        }
       }
 
-      function renderText(item) {
+      function renderText(item, isError) {
         var div = document.createElement('div');
-        div.className = 'text-content';
+        div.className = isError ? 'error' : 'text-content';
         div.textContent = item.text || '';
         contentEl.appendChild(div);
       }
@@ -257,11 +381,38 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
 
       if (typeof ResizeObserver !== 'undefined') {
         new ResizeObserver(function () {
-          reportSize();
+          scheduleSizeReport();
         }).observe(contentEl);
       }
 
       initMessageListener();
+
+      // Prefer App-style startup: View initiates ui/initialize handshake.
+      sendToHost({
+        jsonrpc: '2.0',
+        id: initializeRequestId,
+        method: 'ui/initialize',
+        params: {
+          // MCP Apps UI protocol version per ext-apps specification
+          protocolVersion: '2026-01-26',
+          appInfo: {
+            name: 'MCPR Plot Viewer',
+            version: '__MCPR_VERSION__'
+          },
+          appCapabilities: {
+            availableDisplayModes: ['inline']
+          }
+        }
+      });
+
+      // Graceful fallback: if host never responds to initialize, still render results.
+      window.setTimeout(function () {
+        if (!initialized) {
+          completeInitialization();
+        }
+      }, 800);
+
+      scheduleSizeReport();
     })();
   </script>
 </body>

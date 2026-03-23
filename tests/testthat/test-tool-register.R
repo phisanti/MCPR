@@ -230,22 +230,7 @@ test_that("ToolRegistry handles non-existent directory gracefully", {
   expect_true(is.list(tools))
 })
 
-test_that("set_server_tools validates ToolRegistry parameter", {
-  # Test with valid ToolRegistry
-  registry <- ToolRegistry$new()
-  expect_no_error(MCPR:::set_server_tools(registry = registry))
-
-  # Test with invalid registry parameter
-  expect_error(
-    MCPR:::set_server_tools(registry = "not_a_registry"),
-    "registry must be a ToolRegistry instance"
-  )
-
-  expect_error(
-    MCPR:::set_server_tools(registry = list()),
-    "registry must be a ToolRegistry instance"
-  )
-})
+## set_server_tools validation tests live in test-mcpr-server-tools.R
 
 test_that("ToolRegistry precedence over tools parameter works correctly", {
   # Create a temporary directory for test tools
@@ -378,20 +363,26 @@ test_that("filter persists across search_tools(force_refresh = TRUE)", {
 
 # --- multi-directory discovery tests ---
 
-test_that("tools_dir vector discovers tools from multiple directories", {
+# Helper: create two temp dirs with auto-cleanup in the caller's scope
+make_two_tool_dirs <- function(env = parent.frame()) {
   dir1 <- tempfile("tools_dir1_")
   dir2 <- tempfile("tools_dir2_")
   dir.create(dir1)
   dir.create(dir2)
-  on.exit({
+  withr::defer({
     unlink(dir1, recursive = TRUE)
     unlink(dir2, recursive = TRUE)
-  }, add = TRUE)
+  }, envir = env)
+  list(dir1 = dir1, dir2 = dir2)
+}
 
-  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
-  writeLines(tool_code_sum, file.path(dir2, "tool-sum.R"))
+test_that("tools_dir vector discovers tools from multiple directories", {
+  dirs <- make_two_tool_dirs()
 
-  registry <- ToolRegistry$new(tools_dir = c(dir1, dir2))
+  writeLines(tool_code_mean, file.path(dirs$dir1, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(dirs$dir2, "tool-sum.R"))
+
+  registry <- ToolRegistry$new(tools_dir = c(dirs$dir1, dirs$dir2))
   tools <- registry$search_tools()
 
   expect_length(tools, 2)
@@ -401,14 +392,12 @@ test_that("tools_dir vector discovers tools from multiple directories", {
 })
 
 test_that("missing directory in multi-dir is skipped with warning", {
-  dir1 <- tempfile("tools_dir1_")
-  dir.create(dir1)
-  on.exit(unlink(dir1, recursive = TRUE), add = TRUE)
-  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
+  dirs <- make_two_tool_dirs()
+  writeLines(tool_code_mean, file.path(dirs$dir1, "tool-mean.R"))
 
   missing_dir <- file.path(tempdir(), "nonexistent_tools_dir_xyz")
 
-  registry <- ToolRegistry$new(tools_dir = c(dir1, missing_dir))
+  registry <- ToolRegistry$new(tools_dir = c(dirs$dir1, missing_dir))
   expect_warning(
     tools <- registry$search_tools(),
     "Skipping missing directory"
@@ -417,37 +406,23 @@ test_that("missing directory in multi-dir is skipped with warning", {
 })
 
 test_that("duplicate tool names across directories produce warning", {
-  dir1 <- tempfile("tools_dup1_")
-  dir2 <- tempfile("tools_dup2_")
-  dir.create(dir1)
-  dir.create(dir2)
-  on.exit({
-    unlink(dir1, recursive = TRUE)
-    unlink(dir2, recursive = TRUE)
-  }, add = TRUE)
+  dirs <- make_two_tool_dirs()
 
-  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
-  writeLines(tool_code_mean, file.path(dir2, "tool-mean.R"))
+  writeLines(tool_code_mean, file.path(dirs$dir1, "tool-mean.R"))
+  writeLines(tool_code_mean, file.path(dirs$dir2, "tool-mean.R"))
 
-  registry <- ToolRegistry$new(tools_dir = c(dir1, dir2))
+  registry <- ToolRegistry$new(tools_dir = c(dirs$dir1, dirs$dir2))
   expect_warning(registry$search_tools(), "Duplicate tool name")
 })
 
 test_that("configure(tools_dir = vector) works like constructor", {
-  dir1 <- tempfile("tools_cfg1_")
-  dir2 <- tempfile("tools_cfg2_")
-  dir.create(dir1)
-  dir.create(dir2)
-  on.exit({
-    unlink(dir1, recursive = TRUE)
-    unlink(dir2, recursive = TRUE)
-  }, add = TRUE)
+  dirs <- make_two_tool_dirs()
 
-  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
-  writeLines(tool_code_sum, file.path(dir2, "tool-sum.R"))
+  writeLines(tool_code_mean, file.path(dirs$dir1, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(dirs$dir2, "tool-sum.R"))
 
   registry <- ToolRegistry$new(tools_dir = tempdir())
-  registry$configure(tools_dir = c(dir1, dir2))
+  registry$configure(tools_dir = c(dirs$dir1, dirs$dir2))
   tools <- registry$search_tools()
 
   expect_length(tools, 2)
@@ -457,24 +432,17 @@ test_that("configure(tools_dir = vector) works like constructor", {
 })
 
 test_that("filters persist across configure() calls", {
-  dir1 <- tempfile("tools_fp1_")
-  dir2 <- tempfile("tools_fp2_")
-  dir.create(dir1)
-  dir.create(dir2)
-  on.exit({
-    unlink(dir1, recursive = TRUE)
-    unlink(dir2, recursive = TRUE)
-  }, add = TRUE)
+  dirs <- make_two_tool_dirs()
 
-  writeLines(tool_code_mean, file.path(dir1, "tool-mean.R"))
-  writeLines(tool_code_sum, file.path(dir2, "tool-sum.R"))
+  writeLines(tool_code_mean, file.path(dirs$dir1, "tool-mean.R"))
+  writeLines(tool_code_sum, file.path(dirs$dir2, "tool-sum.R"))
 
-  registry <- ToolRegistry$new(tools_dir = dir1)
+  registry <- ToolRegistry$new(tools_dir = dirs$dir1)
   registry$search_tools()
   registry$filter(exclude = "calculate_mean")
 
   # Reconfigure to include dir2 — filter should persist
-  registry$configure(tools_dir = c(dir1, dir2))
+  registry$configure(tools_dir = c(dirs$dir1, dirs$dir2))
   tools <- registry$search_tools()
 
   tool_names <- vapply(tools, function(x) x$name, character(1))

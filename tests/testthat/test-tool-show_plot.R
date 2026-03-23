@@ -5,27 +5,46 @@ library(testthat)
 library(ggplot2)
 library(jsonlite)
 
-get_local_or_installed_path <- function(...) {
-  candidates <- c(...)
+resolve_show_plot_tool_path <- function() {
+  candidates <- c(
+    "inst/tool-show_plot.R",
+    "../inst/tool-show_plot.R",
+    "../../inst/tool-show_plot.R",
+    system.file("tool-show_plot.R", package = "MCPR", mustWork = TRUE)
+  )
   existing <- candidates[file.exists(candidates)]
-  if (length(existing) > 0) existing[[1]] else NULL
+  if (length(existing) == 0) {
+    stop("Could not locate tool-show_plot.R for tests.")
+  }
+  existing[[1]]
+}
+
+load_show_plot_tool_env <- function() {
+  env <- new.env(parent = asNamespace("MCPR"))
+  source(resolve_show_plot_tool_path(), local = env)
+  env
+}
+
+# Capture MCPR namespace references BEFORE list2env injection, which can
+# shadow names and break MCPR::: resolution under test_check().
+.set_mcpr_ctx <- MCPR:::set_mcpr_request_context
+.clear_mcpr_ctx <- MCPR:::clear_mcpr_request_context
+
+set_test_request_context <- function(mcp_apps_supported, interface = "mcp_app", client_name = "claude-ai") {
+  .set_mcpr_ctx(list(
+    mcp_apps_supported = mcp_apps_supported,
+    mcpr_interface = interface,
+    mcpr_client_name = client_name
+  ))
+  invisible(NULL)
 }
 
 # Source the show_plot tool into a dedicated environment so helper functions
 # remain accessible in tests.
-.tool_env <- new.env(parent = asNamespace("MCPR"))
-.tool_path <- get_local_or_installed_path(
-  "inst/tool-show_plot.R",
-  "../inst/tool-show_plot.R",
-  "../../inst/tool-show_plot.R",
-  system.file("tool-show_plot.R", package = "MCPR", mustWork = TRUE)
-)
-source(.tool_path, local = .tool_env)
+.tool_env <- load_show_plot_tool_env()
 
 # Re-export all names into the test file scope for test_that blocks
-for (.name in ls(.tool_env, all.names = TRUE)) {
-  assign(.name, get(.name, envir = .tool_env), envir = environment())
-}
+list2env(as.list(.tool_env, all.names = TRUE), envir = environment())
 
 # --- Input validation ---
 
@@ -50,6 +69,10 @@ test_that("show_plot agent target validates format and dimensions", {
 test_that("show_plot defaults to target='user'", {
   formals_list <- formals(show_plot)
   expect_equal(formals_list$target, "user")
+})
+
+test_that("show_plot exposes tool-level MCP App annotations", {
+  expect_equal(.show_plot_annotations$`_meta`$ui$resourceUri, "ui://mcpr/plots")
 })
 
 test_that("show_plot agent defaults match optimized values", {
@@ -150,28 +173,31 @@ test_that("render-first approach function signature", {
 # --- MCP App channel ---
 
 test_that("detect_output_channel returns mcp_app when flag is set", {
-  # Simulate MCP Apps request context
-  the <- MCPR:::the
-  the$current_request <- list(mcp_apps_supported = TRUE)
-  on.exit(the$current_request <- NULL, add = TRUE)
+  set_test_request_context(TRUE)
+  on.exit(.clear_mcpr_ctx(), add = TRUE)
 
   channel <- detect_output_channel()
   expect_equal(channel, "mcp_app")
 })
 
+test_that(".mcp_apps_supported prioritizes direct request context", {
+  set_test_request_context(TRUE)
+  on.exit(.clear_mcpr_ctx(), add = TRUE)
+
+  expect_true(.mcp_apps_supported())
+})
+
 test_that("detect_output_channel ignores mcp_app flag when FALSE", {
-  the <- MCPR:::the
-  the$current_request <- list(mcp_apps_supported = FALSE)
-  on.exit(the$current_request <- NULL, add = TRUE)
+  set_test_request_context(FALSE, interface = "cli")
+  on.exit(.clear_mcpr_ctx(), add = TRUE)
 
   channel <- detect_output_channel()
   expect_true(channel %in% c("httpgd", "device", "file"))
 })
 
 test_that("show_plot_via_mcp_app returns a single image item with UI metadata", {
-  the <- MCPR:::the
-  the$current_request <- list(mcp_apps_supported = TRUE)
-  on.exit(the$current_request <- NULL, add = TRUE)
+  set_test_request_context(TRUE)
+  on.exit(.clear_mcpr_ctx(), add = TRUE)
 
   result <- show_plot_via_mcp_app("plot(1:10)")
 
@@ -189,9 +215,8 @@ test_that("show_plot_via_mcp_app handles ggplot objects", {
 })
 
 test_that("show_plot_via_mcp_app returns mcp_app channel result via show_plot", {
-  the <- MCPR:::the
-  the$current_request <- list(mcp_apps_supported = TRUE)
-  on.exit(the$current_request <- NULL, add = TRUE)
+  set_test_request_context(TRUE)
+  on.exit(.clear_mcpr_ctx(), add = TRUE)
 
   result <- show_plot("plot(1:10)", target = "user")
 
@@ -210,6 +235,75 @@ test_that("show_plot_via_mcp_app routes plotly widgets to viewer payloads", {
   expect_equal(result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
   parsed <- jsonlite::fromJSON(result$content)
   expect_true(!is.null(parsed$`_mcpr_plotly`))
+})
+
+# --- Wire-format integration: _meta propagation ---
+
+test_that("tool_as_json propagates _meta.ui.resourceUri from annotations", {
+  # Create a ToolDef with the same annotations as show_plot
+  tool <- MCPR:::ToolDef$new(
+    fun = function(expr) expr,
+    name = "test_tool",
+    description = "test",
+    annotations = .show_plot_annotations
+  )
+
+  json <- MCPR:::tool_as_json(tool)
+
+  expect_equal(json[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
+  # Legacy flat key should also be present
+
+  expect_equal(json[["_meta"]][["ui/resourceUri"]], "ui://mcpr/plots")
+})
+
+test_that("encode_tool_results propagates _meta for image results", {
+  data <- list(id = 42)
+  result <- list(
+    type = "image",
+    data = "iVBORw0KGgo=",
+    mimeType = "image/png",
+    `_meta` = list(ui = list(resourceUri = "ui://mcpr/plots"))
+  )
+
+  response <- MCPR:::encode_tool_results(data, result)
+
+  expect_equal(response$id, 42)
+  expect_equal(response$result[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
+  # Content item should have audience "user" when _meta is present
+  expect_equal(response$result$content[[1]]$annotations$audience, list("user"))
+  expect_equal(response$result$content[[1]]$type, "image")
+  expect_equal(response$result$content[[1]]$data, "iVBORw0KGgo=")
+})
+
+test_that("encode_tool_results propagates _meta for text results", {
+  data <- list(id = 99)
+  result <- list(
+    type = "text",
+    content = "some plotly json",
+    `_meta` = list(ui = list(resourceUri = "ui://mcpr/plots"))
+  )
+
+  response <- MCPR:::encode_tool_results(data, result)
+
+  expect_equal(response$id, 99)
+  expect_equal(response$result[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
+  # Content item should have audience "user" when _meta is present
+  expect_equal(response$result$content[[1]]$annotations$audience, list("user"))
+  expect_equal(response$result$content[[1]]$text, "some plotly json")
+})
+
+test_that("encode_tool_results defaults to assistant audience without _meta", {
+  data <- list(id = 7)
+  result <- list(
+    type = "image",
+    data = "iVBORw0KGgo=",
+    mimeType = "image/png"
+  )
+
+  response <- MCPR:::encode_tool_results(data, result)
+
+  expect_equal(response$result$content[[1]]$annotations$audience, list("assistant"))
+  expect_null(response$result[["_meta"]])
 })
 
 # --- Agent target (graphics device tests) ---

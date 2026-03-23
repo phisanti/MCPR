@@ -2,6 +2,9 @@
 # Core server class implementing Model Context Protocol for persistent R session management.
 # Handles JSON-RPC communication, tool discovery, and routing between MCP clients and R sessions.
 
+# MIME type for MCP App HTML resources
+MCPR_MCP_APP_MIME <- "text/html;profile=mcp-app"
+
 #' Detect MCP Apps support from client initialize params
 #'
 #' Checks capabilities.experimental.mcpApps first (spec-driven),
@@ -74,6 +77,7 @@ mcprServer <- R6::R6Class("mcprServer",
     #' @return A new mcprServer instance
     initialize = function(registry = NULL, .tools_dir = NULL) {
       self$initialize_base("SERVER")
+      private$.mcpr_version <- mcpr_package_version()
 
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         error_msg <- "registry must be a ToolRegistry instance"
@@ -193,7 +197,7 @@ mcprServer <- R6::R6Class("mcprServer",
       create_capabilities(
         version = version %||% max(SUPPORTED_VERSIONS),
         server_name = "R MCPR server",
-        server_version = "1.0.0"
+        server_version = private$.mcpr_version
       )
     },
 
@@ -209,6 +213,10 @@ mcprServer <- R6::R6Class("mcprServer",
     .running = FALSE,
     .protocol_version = NULL,  # Negotiated protocol version for this connection
     .mcp_apps_supported = FALSE,
+    .mcpr_version = "unknown",
+    .viewer_content_cache = NULL,
+    .client_name = "unknown",
+    .client_interface = "unknown",
 
     # Handle incoming messages from MCP clients
     handle_message_from_client = function(line) {
@@ -245,14 +253,23 @@ mcprServer <- R6::R6Class("mcprServer",
 
           # Log negotiation for debugging
           private$log_info(sprintf(
-            "Protocol negotiation: client=%s, negotiated=%s",
+            "Protocol negotiation: client=%s, negotiated=%s, mcpr_version=%s",
             client_version %||% "NULL",
-            negotiated
+            negotiated,
+            private$.mcpr_version
           ))
 
           # Detect MCP Apps support from client capabilities or name
+          private$.client_name <- as.character(data$params$clientInfo$name %||% "unknown")
           private$.mcp_apps_supported <- detect_mcp_apps_support(data$params)
-          private$log_info(sprintf("MCP Apps supported: %s", private$.mcp_apps_supported))
+          private$.client_interface <- if (private$.mcp_apps_supported) "mcp_app" else "cli"
+          private$log_info(sprintf(
+            "Client runtime: name=%s interface=%s mcp_apps_supported=%s mcpr_version=%s",
+            private$.client_name,
+            private$.client_interface,
+            private$.mcp_apps_supported,
+            private$.mcpr_version
+          ))
 
           # Return capabilities for negotiated version
           jsonrpc_response(data$id, self$get_capabilities(version = negotiated))
@@ -270,7 +287,7 @@ mcprServer <- R6::R6Class("mcprServer",
               uri = "ui://mcpr/plots",
               name = "MCPR Plot Viewer",
               description = "Interactive plot viewer for R visualizations",
-              mimeType = "text/html;profile=mcp-app"
+              mimeType = MCPR_MCP_APP_MIME
             ))
           }
           jsonrpc_response(data$id, list(resources = resources))
@@ -278,19 +295,24 @@ mcprServer <- R6::R6Class("mcprServer",
         "resources/read" = function(data) {
           uri <- data$params$uri
           if (identical(uri, "ui://mcpr/plots")) {
-            viewer_path <- system.file("mcp_app/plot-viewer.html", package = "MCPR")
-            if (!nzchar(viewer_path) || !file.exists(viewer_path)) {
-              return(jsonrpc_response(
-                data$id,
-                error = list(code = -32002, message = "Plot viewer resource not found")
-              ))
+            if (is.null(private$.viewer_content_cache)) {
+              viewer_path <- system.file("mcp_app/plot-viewer.html", package = "MCPR")
+              if (!nzchar(viewer_path) || !file.exists(viewer_path)) {
+                return(jsonrpc_response(
+                  data$id,
+                  error = list(code = -32002, message = "Plot viewer resource not found")
+                ))
+              }
+              viewer_content <- paste(readLines(viewer_path, warn = FALSE), collapse = "\n")
+              private$.viewer_content_cache <- gsub(
+                "__MCPR_VERSION__", private$.mcpr_version, viewer_content, fixed = TRUE
+              )
             }
-            viewer_content <- paste(readLines(viewer_path, warn = FALSE), collapse = "\n")
             jsonrpc_response(data$id, list(
               contents = list(list(
                 uri = uri,
-                mimeType = "text/html;profile=mcp-app",
-                text = viewer_content
+                mimeType = MCPR_MCP_APP_MIME,
+                text = private$.viewer_content_cache
               ))
             ))
           } else {
@@ -357,9 +379,12 @@ mcprServer <- R6::R6Class("mcprServer",
       result <- if (is.list(prepared) && !is.null(prepared$error)) {
         prepared
       } else {
-        # Propagate MCP Apps flag so server-local tools can query it
-        the$current_request <- list(mcp_apps_supported = private$.mcp_apps_supported)
-        on.exit(the$current_request <- NULL, add = TRUE)
+        set_mcpr_request_context(as_mcpr_request_context(
+          mcp_apps_supported = private$.mcp_apps_supported,
+          interface = private$.client_interface,
+          client_name = private$.client_name
+        ))
+        on.exit(clear_mcpr_request_context(), add = TRUE)
         execute_tool_call(prepared)
       }
       private$log_comm("FROM SERVER", to_json(result))
@@ -373,8 +398,11 @@ mcprServer <- R6::R6Class("mcprServer",
       if (is.list(prepared) && !is.null(prepared$error)) {
         return(cat_json(prepared))
       }
-      # Propagate MCP Apps flag so session-side tools can query it
-      prepared$mcp_apps_supported <- private$.mcp_apps_supported
+      prepared$mcpr_request_context <- as_mcpr_request_context(
+        mcp_apps_supported = private$.mcp_apps_supported,
+        interface = private$.client_interface,
+        client_name = private$.client_name
+      )
       server_socket <- self$state_get("server_socket")
       nanonext::send_aio(server_socket, prepared, mode = "serial")
     },

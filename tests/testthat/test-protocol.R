@@ -60,7 +60,7 @@ test_that("create_capabilities returns version-specific MCP capabilities", {
 
   # Test default server info
   expect_equal(caps_old$serverInfo$name, "R MCPR server")
-  expect_equal(caps_old$serverInfo$version, "1.0.0")
+  expect_equal(caps_old$serverInfo$version, MCPR:::mcpr_package_version())
 
   # Test custom server info
   caps_custom <- MCPR:::create_capabilities("2024-11-05", server_name = "Custom Server", server_version = "2.0.0")
@@ -72,6 +72,31 @@ test_that("create_capabilities returns version-specific MCP capabilities", {
     MCPR:::create_capabilities("2099-99-99"),
     "Unsupported protocol version"
   )
+})
+
+test_that("mcpr_package_version resolves the loaded MCPR namespace version", {
+  expect_equal(
+    MCPR:::mcpr_package_version(),
+    as.character(getNamespaceVersion("MCPR"))
+  )
+})
+
+test_that("request context helpers canonicalize and round-trip values", {
+  context <- MCPR:::as_mcpr_request_context(list(
+    mcp_apps_supported = TRUE,
+    mcpr_interface = "mcp_app",
+    mcpr_client_name = "claude-ai"
+  ))
+
+  expect_true(context$mcp_apps_supported)
+  expect_equal(context$mcpr_interface, "mcp_app")
+  expect_equal(context$mcpr_client_name, "claude-ai")
+
+  MCPR:::set_mcpr_request_context(context)
+  on.exit(MCPR:::clear_mcpr_request_context(), add = TRUE)
+
+  current <- MCPR:::get_mcpr_request_context()
+  expect_equal(current, context)
 })
 
 test_that("negotiate_protocol_version handles exact matches", {

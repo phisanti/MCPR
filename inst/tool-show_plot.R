@@ -225,6 +225,21 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
   show_plot_agent(expr, width, height, format, token_limit, warn_threshold)
 }
 
+# Tool-level MCP Apps binding so clients can discover the UI resource via tools/list.
+.show_plot_annotations <- list(
+  `_meta` = list(
+    ui = list(resourceUri = "ui://mcpr/plots")
+  )
+)
+
+#' Gather MCP App routing context for show_plot diagnostics
+#'
+#' @return Named list with request-scoped routing signals
+#' @noRd
+.show_plot_request_context <- function() {
+  MCPR:::get_mcpr_request_context()
+}
+
 #' Check if the current request originates from an MCP Apps-capable client
 #'
 #' Delegates to the package-level function when available, falling back to FALSE.
@@ -232,11 +247,8 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
 #' @return Logical
 #' @noRd
 .mcp_apps_supported <- function() {
-  fn <- tryCatch(
-    get("mcp_apps_supported", envir = asNamespace("MCPR"), inherits = FALSE),
-    error = function(e) NULL
-  )
-  if (is.function(fn)) fn() else FALSE
+  ctx <- .show_plot_request_context()
+  identical(ctx$mcpr_interface, "mcp_app") || isTRUE(ctx$mcp_apps_supported)
 }
 
 #' Detect the best available output channel for user-facing plots
@@ -248,17 +260,25 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
 #' @noRd
 detect_output_channel <- function() {
   # 0. MCP App client? Route to inline viewer
-  if (.mcp_apps_supported()) return("mcp_app")
+  if (.mcp_apps_supported()) {
+    return("mcp_app")
+  }
 
   # 1. httpgd already the active device?
   dev_name <- names(grDevices::dev.cur())
-  if (dev_name %in% c("httpgd", "unigd")) return("httpgd")
+  if (dev_name %in% c("httpgd", "unigd")) {
+    return("httpgd")
+  }
 
   # 2. httpgd available but not active? Start it.
-  if (requireNamespace("httpgd", quietly = TRUE)) return("httpgd")
+  if (requireNamespace("httpgd", quietly = TRUE)) {
+    return("httpgd")
+  }
 
   # 3. Interactive with a display?
-  if (interactive()) return("device")
+  if (interactive()) {
+    return("device")
+  }
 
   # 4. Headless fallback
   return("file")
@@ -561,6 +581,3 @@ show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
     }
   )
 }
-
-#' @export
-show_plot <- show_plot

@@ -159,7 +159,7 @@ test_that("mcprServer get_capabilities returns correct structure", {
   expect_true("capabilities" %in% names(capabilities))
   expect_true("serverInfo" %in% names(capabilities))
   expect_equal(capabilities$serverInfo$name, "R MCPR server")
-  expect_equal(capabilities$serverInfo$version, "1.0.0")
+  expect_equal(capabilities$serverInfo$version, MCPR:::mcpr_package_version())
 
   # Test specific version
   caps_old <- server$get_capabilities(version = "2024-11-05")

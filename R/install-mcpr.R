@@ -290,7 +290,7 @@ get_agent_specification <- function(agent) {
       restart_required = list(global = FALSE, local = FALSE, project = FALSE, ide = TRUE),
       extension_metadata = list(
         name = "mcpr",
-        version = "1.0.0"
+        version = mcpr_package_version()
       )
     ),
     copilot = list(

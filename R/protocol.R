@@ -149,12 +149,85 @@ create_tool_request <- function(id, tool, arguments = list()) {
 #'
 #' @param version Protocol version string (e.g., "2025-11-25"). Must be in SUPPORTED_VERSIONS.
 #' @param server_name Server name for serverInfo (default: "R MCPR server")
-#' @param server_version Server version for serverInfo (default: "1.0.0")
+#' @param server_version Server version for serverInfo (default: installed MCPR version)
+#' @return Capabilities list with protocol version and feature support
+#' @noRd
+mcpr_package_version <- function(default = "unknown") {
+  version <- tryCatch(
+    as.character(getNamespaceVersion("MCPR")),
+    error = function(e) NULL
+  )
+  if (!is.null(version) && nzchar(version)) {
+    return(version)
+  }
+
+  version <- tryCatch(
+    as.character(utils::packageDescription("MCPR", fields = "Version")),
+    error = function(e) NULL
+  )
+  if (!is.null(version) && nzchar(version) && !identical(version, "NA")) {
+    return(version)
+  }
+
+  default
+}
+
+#' Normalize MCPR request context
+#'
+#' @param context Optional list containing request-scoped metadata
+#' @param mcp_apps_supported Logical fallback value
+#' @param interface Character fallback interface
+#' @param client_name Character fallback client name
+#' @return Canonical request context list
+#' @noRd
+as_mcpr_request_context <- function(context = NULL,
+                                    mcp_apps_supported = FALSE,
+                                    interface = "unknown",
+                                    client_name = "unknown") {
+  context <- context %||% list()
+
+  list(
+    mcp_apps_supported = isTRUE(context$mcp_apps_supported %||% mcp_apps_supported),
+    mcpr_interface = as.character(context$mcpr_interface %||% interface),
+    mcpr_client_name = as.character(context$mcpr_client_name %||% client_name)
+  )
+}
+
+#' Get the current MCPR request context
+#'
+#' @return Canonical request context list
+#' @noRd
+get_mcpr_request_context <- function() {
+  as_mcpr_request_context(the$current_request)
+}
+
+#' Set the current MCPR request context
+#'
+#' @param context Canonical or partial request context
+#' @return Canonical request context list invisibly
+#' @noRd
+set_mcpr_request_context <- function(context) {
+  the$current_request <- as_mcpr_request_context(context)
+  invisible(the$current_request)
+}
+
+#' Clear the current MCPR request context
+#'
+#' @return NULL invisibly
+#' @noRd
+clear_mcpr_request_context <- function() {
+  the$current_request <- NULL
+  invisible(NULL)
+}
+
+#' @param version Protocol version string (e.g., "2025-11-25"). Must be in SUPPORTED_VERSIONS.
+#' @param server_name Server name for serverInfo (default: "R MCPR server")
+#' @param server_version Server version for serverInfo (default: installed MCPR version)
 #' @return Capabilities list with protocol version and feature support
 #' @noRd
 create_capabilities <- function(version,
                                 server_name = "R MCPR server",
-                                server_version = "1.0.0") {
+                                server_version = mcpr_package_version()) {
   # Validate version
   if (!version %in% names(VERSION_CAPABILITIES)) {
     cli::cli_abort(
