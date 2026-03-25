@@ -125,6 +125,20 @@ apply_default_audience <- function(item, default_audience = "assistant") {
 encode_tool_results <- function(data, result) {
   is_error <- FALSE
 
+  # structuredContent: tool returned list(content=<content-array>, structuredContent=...)
+
+  # content goes to model, structuredContent goes only to MCP App viewer
+  if (is.list(result) &&
+      !is.null(result$structuredContent) &&
+      is.list(result$content)) {
+    response_result <- list(
+      content = result$content,
+      structuredContent = result$structuredContent,
+      isError = is_error
+    )
+    return(jsonrpc_response(data$id, response_result))
+  }
+
   # Assistant-visible text with hidden UI metadata payload:
   # tool returned list(content="...", _meta=...)
   if (is.list(result) &&

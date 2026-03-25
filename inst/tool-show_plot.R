@@ -327,6 +327,7 @@ show_plot_via_mcp_app <- function(expr) {
     unlink(tmp)
   }, add = TRUE)
 
+  # Open device BEFORE eval so side-effect plots are captured
   grDevices::png(tmp, width = 800, height = 600)
   device_open <- TRUE
 
@@ -355,14 +356,11 @@ show_plot_via_mcp_app <- function(expr) {
   b64_data <- base64enc::base64encode(raw_data)
 
   list(
-    content = "This tool call rendered a plot in the viewer.",
-    `_meta` = list(
-      ui = list(resourceUri = "ui://mcpr/plots"),
-      mcpr_graph = list(
-        kind = "image",
-        mimeType = "image/png",
-        data = b64_data
-      )
+    content = list(list(type = "text", text = "This tool call rendered a plot in the viewer.")),
+    structuredContent = list(
+      kind = "image",
+      mimeType = "image/png",
+      data = b64_data
     )
   )
 }
@@ -389,13 +387,10 @@ show_plotly_via_mcp_app <- function(widget) {
   )
 
   list(
-    content = "This tool call rendered an interactive widget in the viewer.",
-    `_meta` = list(
-      ui = list(resourceUri = "ui://mcpr/plots"),
-      mcpr_graph = list(
-        kind = "plotly",
-        spec = spec
-      )
+    content = list(list(type = "text", text = "This tool call rendered an interactive widget in the viewer.")),
+    structuredContent = list(
+      kind = "plotly",
+      spec = spec
     )
   )
 }

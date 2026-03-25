@@ -195,24 +195,26 @@ test_that("detect_output_channel ignores mcp_app flag when FALSE", {
   expect_true(channel %in% c("httpgd", "device", "file"))
 })
 
-test_that("show_plot_via_mcp_app returns assistant text with hidden image payload", {
+test_that("show_plot_via_mcp_app returns content array with structuredContent image", {
   set_test_request_context(TRUE)
   on.exit(.clear_mcpr_ctx(), add = TRUE)
 
   result <- show_plot_via_mcp_app("plot(1:10)")
 
-  expect_equal(result$content, "This tool call rendered a plot in the viewer.")
-  expect_equal(result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
-  expect_equal(result$`_meta`$mcpr_graph$kind, "image")
-  expect_equal(result$`_meta`$mcpr_graph$mimeType, "image/png")
-  expect_true(nchar(result$`_meta`$mcpr_graph$data) > 0)
+  expect_equal(result$content[[1]]$type, "text")
+  expect_equal(result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
+  expect_equal(result$structuredContent$kind, "image")
+  expect_equal(result$structuredContent$mimeType, "image/png")
+  expect_true(nchar(result$structuredContent$data) > 0)
+  expect_null(result$`_meta`)
 })
 
 test_that("show_plot_via_mcp_app handles ggplot objects", {
   result <- show_plot_via_mcp_app("ggplot(mtcars, aes(mpg, hp)) + geom_point()")
 
-  expect_equal(result$`_meta`$mcpr_graph$kind, "image")
-  expect_equal(result$`_meta`$mcpr_graph$mimeType, "image/png")
+  expect_equal(result$structuredContent$kind, "image")
+  expect_equal(result$structuredContent$mimeType, "image/png")
+  expect_null(result$`_meta`)
 })
 
 test_that("show_plot_via_mcp_app returns mcp_app channel result via show_plot", {
@@ -221,9 +223,9 @@ test_that("show_plot_via_mcp_app returns mcp_app channel result via show_plot", 
 
   result <- show_plot("plot(1:10)", target = "user")
 
-  expect_equal(result$content, "This tool call rendered a plot in the viewer.")
-  expect_equal(result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
-  expect_equal(result$`_meta`$mcpr_graph$kind, "image")
+  expect_equal(result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
+  expect_equal(result$structuredContent$kind, "image")
+  expect_null(result$`_meta`)
 })
 
 test_that("show_plot_via_mcp_app routes plotly widgets to viewer payloads", {
@@ -233,10 +235,10 @@ test_that("show_plot_via_mcp_app routes plotly widgets to viewer payloads", {
     "plotly::plot_ly(mtcars, x = ~mpg, y = ~hp, type = 'scatter', mode = 'markers')"
   )
 
-  expect_equal(result$content, "This tool call rendered an interactive widget in the viewer.")
-  expect_equal(result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
-  expect_equal(result$`_meta`$mcpr_graph$kind, "plotly")
-  expect_true(!is.null(result$`_meta`$mcpr_graph$spec))
+  expect_equal(result$content[[1]]$text, "This tool call rendered an interactive widget in the viewer.")
+  expect_equal(result$structuredContent$kind, "plotly")
+  expect_true(!is.null(result$structuredContent$spec))
+  expect_null(result$`_meta`)
 })
 
 # --- Wire-format integration: _meta propagation ---
@@ -258,53 +260,47 @@ test_that("tool_as_json propagates _meta.ui.resourceUri from annotations", {
   expect_equal(json[["_meta"]][["ui/resourceUri"]], "ui://mcpr/plots")
 })
 
-test_that("encode_tool_results keeps hidden graph payload out of agent-visible content", {
+test_that("encode_tool_results passes structuredContent image alongside content array", {
   data <- list(id = 42)
   result <- list(
-    content = "This tool call rendered a plot in the viewer.",
-    `_meta` = list(
-      ui = list(resourceUri = "ui://mcpr/plots"),
-      mcpr_graph = list(
-        kind = "image",
-        mimeType = "image/png",
-        data = "iVBORw0KGgo="
-      )
+    content = list(list(type = "text", text = "This tool call rendered a plot in the viewer.")),
+    structuredContent = list(
+      kind = "image",
+      mimeType = "image/png",
+      data = "iVBORw0KGgo="
     )
   )
 
   response <- MCPR:::encode_tool_results(data, result)
 
   expect_equal(response$id, 42)
-  expect_equal(response$result[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
-  expect_equal(response$result[["_meta"]]$mcpr_graph$kind, "image")
-  expect_equal(response$result$content[[1]]$annotations$audience, list("assistant"))
+  expect_equal(response$result$structuredContent$kind, "image")
+  expect_equal(response$result$structuredContent$data, "iVBORw0KGgo=")
   expect_equal(response$result$content[[1]]$type, "text")
   expect_equal(response$result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
+  expect_null(response$result[["_meta"]])
 })
 
-test_that("encode_tool_results preserves hidden plotly payload metadata", {
+test_that("encode_tool_results passes structuredContent plotly alongside content array", {
   data <- list(id = 99)
   result <- list(
-    content = "This tool call rendered an interactive widget in the viewer.",
-    `_meta` = list(
-      ui = list(resourceUri = "ui://mcpr/plots"),
-      mcpr_graph = list(
-        kind = "plotly",
-        spec = list(data = list(), layout = list(), config = list())
-      )
+    content = list(list(type = "text", text = "This tool call rendered an interactive widget in the viewer.")),
+    structuredContent = list(
+      kind = "plotly",
+      spec = list(data = list(), layout = list(), config = list())
     )
   )
 
   response <- MCPR:::encode_tool_results(data, result)
 
   expect_equal(response$id, 99)
-  expect_equal(response$result[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
-  expect_equal(response$result[["_meta"]]$mcpr_graph$kind, "plotly")
-  expect_equal(response$result$content[[1]]$annotations$audience, list("assistant"))
+  expect_equal(response$result$structuredContent$kind, "plotly")
+  expect_true(!is.null(response$result$structuredContent$spec))
   expect_equal(
     response$result$content[[1]]$text,
     "This tool call rendered an interactive widget in the viewer."
   )
+  expect_null(response$result[["_meta"]])
 })
 
 test_that("encode_tool_results defaults to assistant audience without _meta", {

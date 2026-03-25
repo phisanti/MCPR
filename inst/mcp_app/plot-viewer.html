@@ -430,7 +430,16 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         return params || {};
       }
 
-      function normalizeGraphPayload(toolResult) {
+      function normalizeGraphPayload(toolResult, params) {
+        // structuredContent at params level (host may deliver here)
+        if (params && params.structuredContent) {
+          return params.structuredContent;
+        }
+        // structuredContent inside toolResult
+        if (toolResult && toolResult.structuredContent) {
+          return toolResult.structuredContent;
+        }
+        // Legacy _meta.mcpr_graph fallback
         if (toolResult && toolResult._meta && toolResult._meta.mcpr_graph) {
           return toolResult._meta.mcpr_graph;
         }
@@ -439,7 +448,7 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
 
       function renderToolResult(params) {
         var toolResult = normalizeToolResult(params);
-        var graphPayload = normalizeGraphPayload(toolResult);
+        var graphPayload = normalizeGraphPayload(toolResult, params);
 
         if (graphPayload) {
           renderGraphPayload(graphPayload, !!toolResult.isError);

@@ -181,7 +181,7 @@ test_that("encode_tool_results handles text content with metadata", {
   expect_equal(output$result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
 })
 
-test_that("encode_tool_results keeps hidden graph metadata behind assistant text", {
+test_that("encode_tool_results keeps hidden graph metadata behind assistant text (legacy _meta)", {
   test_data <- list(id = 81)
   text_result <- list(
     content = "This tool call rendered a plot in the viewer.",
@@ -203,6 +203,70 @@ test_that("encode_tool_results keeps hidden graph metadata behind assistant text
   expect_equal(output$result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
   expect_equal(output$result$`_meta`$mcpr_graph$kind, "image")
   expect_equal(output$result$`_meta`$mcpr_graph$data, "base64data")
+})
+
+test_that("encode_tool_results passes structuredContent image alongside content array", {
+  test_data <- list(id = 82)
+  result <- list(
+    content = list(list(type = "text", text = "Plot rendered.")),
+    structuredContent = list(
+      kind = "image",
+      mimeType = "image/png",
+      data = "iVBORw0KGgo="
+    )
+  )
+
+  output <- .client_tools_env$encode_tool_results(test_data, result)
+
+  expect_equal(output$id, 82)
+  expect_equal(output$result$content[[1]]$type, "text")
+  expect_equal(output$result$content[[1]]$text, "Plot rendered.")
+  expect_equal(output$result$structuredContent$kind, "image")
+  expect_equal(output$result$structuredContent$data, "iVBORw0KGgo=")
+  expect_null(output$result[["_meta"]])
+})
+
+test_that("encode_tool_results passes structuredContent plotly alongside content array", {
+  test_data <- list(id = 83)
+  result <- list(
+    content = list(list(type = "text", text = "Widget rendered.")),
+    structuredContent = list(
+      kind = "plotly",
+      spec = list(data = list(), layout = list(), config = list())
+    )
+  )
+
+  output <- .client_tools_env$encode_tool_results(test_data, result)
+
+  expect_equal(output$id, 83)
+  expect_equal(output$result$content[[1]]$text, "Widget rendered.")
+  expect_equal(output$result$structuredContent$kind, "plotly")
+  expect_true(!is.null(output$result$structuredContent$spec))
+  expect_null(output$result[["_meta"]])
+})
+
+test_that("encode_tool_results structuredContent serializes correctly with auto_unbox", {
+  test_data <- list(id = 84)
+  result <- list(
+    content = list(list(type = "text", text = "ok")),
+    structuredContent = list(
+      kind = "image",
+      mimeType = "image/png",
+      data = "abc123"
+    )
+  )
+
+  output <- .client_tools_env$encode_tool_results(test_data, result)
+
+  # Round-trip via jsonlite to verify serialization
+  json_str <- jsonlite::toJSON(output, auto_unbox = TRUE, null = "null")
+  parsed <- jsonlite::fromJSON(json_str, simplifyVector = FALSE)
+
+  expect_equal(parsed$result$structuredContent$kind, "image")
+  expect_equal(parsed$result$structuredContent$mimeType, "image/png")
+  expect_equal(parsed$result$structuredContent$data, "abc123")
+  expect_equal(parsed$result$content[[1]]$type, "text")
+  expect_equal(parsed$result$content[[1]]$text, "ok")
 })
 
 test_that("encode_tool_results preserves _meta passthrough for image", {
