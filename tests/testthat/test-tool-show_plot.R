@@ -39,6 +39,27 @@ set_test_request_context <- function(mcp_apps_supported, interface = "mcp_app", 
   invisible(NULL)
 }
 
+with_graphics_cleanup <- function() {
+  start_device <- grDevices::dev.cur()
+  start_name <- names(start_device)
+
+  function() {
+    repeat {
+      current_device <- grDevices::dev.cur()
+      current_name <- names(current_device)
+      if (identical(current_device, start_device) || identical(current_name, start_name) || current_device == 1) {
+        break
+      }
+      try(grDevices::dev.off(), silent = TRUE)
+    }
+
+    current_name <- names(grDevices::dev.cur())
+    if (current_name %in% c("httpgd", "unigd")) {
+      try(grDevices::dev.off(), silent = TRUE)
+    }
+  }
+}
+
 # Source the show_plot tool into a dedicated environment so helper functions
 # remain accessible in tests.
 .tool_env <- load_show_plot_tool_env()
@@ -100,18 +121,21 @@ test_that("detect_output_channel prefers httpgd when available", {
 # --- User target ---
 
 test_that("show_plot user target returns text confirmation", {
+  on.exit(with_graphics_cleanup()(), add = TRUE)
   result <- show_plot("plot(1:10)", target = "user")
   expect_equal(result$type, "text")
   expect_true(grepl("Plot displayed to user|Plot saved to file", result$content))
 })
 
 test_that("show_plot user target does not return base64 image", {
+  on.exit(with_graphics_cleanup()(), add = TRUE)
   result <- show_plot("plot(1:10)", target = "user")
   expect_false(grepl("^data:", result$content))
   expect_false(result$type == "image")
 })
 
 test_that("show_plot user target handles ggplot objects", {
+  on.exit(with_graphics_cleanup()(), add = TRUE)
   result <- show_plot("ggplot(mtcars, aes(mpg, hp)) + geom_point()", target = "user")
   expect_equal(result$type, "text")
 })
@@ -124,19 +148,17 @@ test_that("show_plot user target reports errors", {
 
 test_that("show_plot_via_httpgd returns url in confirmation", {
   skip_if_not(requireNamespace("httpgd", quietly = TRUE), "httpgd not available")
+  on.exit(with_graphics_cleanup()(), add = TRUE)
   result <- show_plot_via_httpgd("plot(1:10)")
   expect_equal(result$type, "text")
   expect_true(grepl("httpgd", result$content))
   expect_true(grepl("http", result$content))
-  # Clean up httpgd device
-  if (names(grDevices::dev.cur()) %in% c("httpgd", "unigd")) {
-    grDevices::dev.off()
-  }
 })
 
 # --- File fallback ---
 
 test_that("show_plot_via_file saves png and returns path", {
+  on.exit(with_graphics_cleanup()(), add = TRUE)
   result <- show_plot_via_file("plot(1:10)")
   expect_equal(result$type, "text")
   expect_true(grepl("Plot saved to file", result$content))
@@ -198,11 +220,13 @@ test_that("detect_output_channel ignores mcp_app flag when FALSE", {
 test_that("show_plot_via_mcp_app returns content array with structuredContent image", {
   set_test_request_context(TRUE)
   on.exit(.clear_mcpr_ctx(), add = TRUE)
+  on.exit(with_graphics_cleanup()(), add = TRUE)
 
   result <- show_plot_via_mcp_app("plot(1:10)")
 
   expect_equal(result$content[[1]]$type, "text")
   expect_equal(result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
+  expect_equal(result$content[[1]]$annotations$audience, list("assistant"))
   expect_equal(result$structuredContent$kind, "image")
   expect_equal(result$structuredContent$mimeType, "image/png")
   expect_true(nchar(result$structuredContent$data) > 0)
@@ -210,6 +234,7 @@ test_that("show_plot_via_mcp_app returns content array with structuredContent im
 })
 
 test_that("show_plot_via_mcp_app handles ggplot objects", {
+  on.exit(with_graphics_cleanup()(), add = TRUE)
   result <- show_plot_via_mcp_app("ggplot(mtcars, aes(mpg, hp)) + geom_point()")
 
   expect_equal(result$structuredContent$kind, "image")
@@ -220,6 +245,7 @@ test_that("show_plot_via_mcp_app handles ggplot objects", {
 test_that("show_plot_via_mcp_app returns mcp_app channel result via show_plot", {
   set_test_request_context(TRUE)
   on.exit(.clear_mcpr_ctx(), add = TRUE)
+  on.exit(with_graphics_cleanup()(), add = TRUE)
 
   result <- show_plot("plot(1:10)", target = "user")
 
@@ -230,15 +256,41 @@ test_that("show_plot_via_mcp_app returns mcp_app channel result via show_plot", 
 
 test_that("show_plot_via_mcp_app routes plotly widgets to viewer payloads", {
   skip_if_not_installed("plotly")
+  on.exit(with_graphics_cleanup()(), add = TRUE)
 
   result <- show_plot_via_mcp_app(
     "plotly::plot_ly(mtcars, x = ~mpg, y = ~hp, type = 'scatter', mode = 'markers')"
   )
 
   expect_equal(result$content[[1]]$text, "This tool call rendered an interactive widget in the viewer.")
+  expect_equal(result$content[[1]]$annotations$audience, list("assistant"))
   expect_equal(result$structuredContent$kind, "plotly")
   expect_true(!is.null(result$structuredContent$spec))
   expect_null(result$`_meta`)
+})
+
+test_that("show_plot_via_mcp_app aborts on empty plot output", {
+  on.exit(with_graphics_cleanup()(), add = TRUE)
+  expect_error(
+    show_plot_via_mcp_app("invisible(NULL)"),
+    "empty image file"
+  )
+})
+
+test_that("encode_tool_results preserves audience annotation from structuredContent result", {
+  data <- list(id = 50)
+  result <- list(
+    content = list(list(
+      type = "text",
+      text = "Rendered.",
+      annotations = list(audience = list("assistant"))
+    )),
+    structuredContent = list(kind = "image", mimeType = "image/png", data = "abc")
+  )
+
+  response <- MCPR:::encode_tool_results(data, result)
+
+  expect_equal(response$result$content[[1]]$annotations$audience, list("assistant"))
 })
 
 # --- Wire-format integration: _meta propagation ---

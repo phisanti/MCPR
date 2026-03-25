@@ -439,10 +439,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         if (toolResult && toolResult.structuredContent) {
           return toolResult.structuredContent;
         }
-        // Legacy _meta.mcpr_graph fallback
-        if (toolResult && toolResult._meta && toolResult._meta.mcpr_graph) {
-          return toolResult._meta.mcpr_graph;
-        }
         return null;
       }
 
@@ -451,7 +447,8 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         var graphPayload = normalizeGraphPayload(toolResult, params);
 
         if (graphPayload) {
-          renderGraphPayload(graphPayload, !!toolResult.isError);
+          var isError = !!(toolResult && toolResult.isError) || !!params.isError;
+          renderGraphPayload(graphPayload, isError);
         } else if (toolResult && Array.isArray(toolResult.content)) {
           renderContent(toolResult.content, !!toolResult.isError);
         } else if (Array.isArray(params && params.content)) {
@@ -602,11 +599,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         return 'Interactive Plotly chart';
       }
 
-      function extractPlotlySpec(text) {
-        var wrapper = JSON.parse(text);
-        return wrapper._mcpr_plotly;
-      }
-
       function renderContent(contentItems, isError) {
         if (!Array.isArray(contentItems)) {
           return;
@@ -619,8 +611,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
 
           if (item.type === 'image') {
             renderImageCard(item);
-          } else if (item.type === 'text' && isPlotlyContent(item.text)) {
-            renderPlotlyCard(item);
           } else if (item.type === 'text') {
             renderTextCard(item, isError);
           }
@@ -649,18 +639,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         );
       }
 
-      function isPlotlyContent(text) {
-        if (typeof text !== 'string') {
-          return false;
-        }
-
-        try {
-          var parsed = JSON.parse(text);
-          return parsed && parsed._mcpr_plotly !== undefined;
-        } catch (e) {
-          return false;
-        }
-      }
 
       function renderPlaceholderCard(title, subtitle) {
         clearContent();
@@ -706,42 +684,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         media.appendChild(img);
         card.body.appendChild(media);
         appendCard(card);
-      }
-
-      function renderPlotlyCard(item) {
-        var spec;
-        var card = createGraphCard({
-          eyebrow: 'Interactive plot',
-          title: 'Interactive plot',
-          subtitle: 'Plotly chart rendered inside the shared graph card shell.',
-          status: 'Rendering',
-          meta: ['Plotly', 'Interactive', 'Updated ' + formatTimestamp()]
-        });
-        card.setStatus('Rendering', 'neutral');
-
-        if (typeof Plotly === 'undefined') {
-          var loadErrDiv = document.createElement('div');
-          loadErrDiv.className = 'graph-card__error';
-          loadErrDiv.textContent = 'Plotly library not loaded. Cannot render interactive chart.';
-          card.body.appendChild(loadErrDiv);
-          card.setStatus('Unavailable', 'error');
-          appendCard(card);
-          return;
-        }
-
-        try {
-          spec = extractPlotlySpec(item.text);
-        } catch (e) {
-          var parseErrDiv = document.createElement('div');
-          parseErrDiv.className = 'graph-card__error';
-          parseErrDiv.textContent = 'Failed to parse plotly data: ' + e.message;
-          card.body.appendChild(parseErrDiv);
-          card.setStatus('Error', 'error');
-          appendCard(card);
-          return;
-        }
-
-        renderPlotlySpecIntoCard(card, spec);
       }
 
       function renderPlotlySpecCard(spec, isError) {

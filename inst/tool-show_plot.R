@@ -318,6 +318,7 @@ show_plot_user <- function(expr) {
 #' @return A single content item descriptor for encode_tool_results()
 #' @noRd
 show_plot_via_mcp_app <- function(expr) {
+  # tmp needed before eval because PNG device must be open to capture side-effect plots
   tmp <- tempfile(fileext = ".png")
   device_open <- FALSE
   on.exit({
@@ -351,12 +352,20 @@ show_plot_via_mcp_app <- function(expr) {
   grDevices::dev.off()
   device_open <- FALSE
 
-  # Base64-encode the PNG
-  raw_data <- readBin(tmp, "raw", file.info(tmp)$size)
+  # Base64-encode the PNG — guard against empty/partial files
+  file_size <- file.info(tmp)$size
+  if (is.na(file_size) || file_size == 0) {
+    cli::cli_abort("Plot produced an empty image file — the expression may not generate visible output.")
+  }
+  raw_data <- readBin(tmp, "raw", file_size)
   b64_data <- base64enc::base64encode(raw_data)
 
   list(
-    content = list(list(type = "text", text = "This tool call rendered a plot in the viewer.")),
+    content = list(list(
+      type = "text",
+      text = "This tool call rendered a plot in the viewer.",
+      annotations = list(audience = list("assistant"))
+    )),
     structuredContent = list(
       kind = "image",
       mimeType = "image/png",
@@ -367,7 +376,7 @@ show_plot_via_mcp_app <- function(expr) {
 
 #' Display a plotly/htmlwidget via MCP App inline viewer
 #'
-#' Builds the plotly spec and returns it as _mcpr_plotly JSON for the MCP App
+#' Builds the plotly spec and returns it in `structuredContent` for the MCP App
 #' viewer to render interactively.
 #'
 #' @param widget A plotly or htmlwidget object
@@ -387,7 +396,11 @@ show_plotly_via_mcp_app <- function(widget) {
   )
 
   list(
-    content = list(list(type = "text", text = "This tool call rendered an interactive widget in the viewer.")),
+    content = list(list(
+      type = "text",
+      text = "This tool call rendered an interactive widget in the viewer.",
+      annotations = list(audience = list("assistant"))
+    )),
     structuredContent = list(
       kind = "plotly",
       spec = spec
@@ -464,7 +477,7 @@ show_plot_via_device <- function(expr) {
 show_plot_via_file <- function(expr) {
   tmp <- tempfile(fileext = ".png")
   grDevices::png(tmp, width = 800, height = 600)
-  on.exit(grDevices::dev.off())
+  on.exit(grDevices::dev.off(), add = TRUE)
 
   result <- eval(parse(text = expr), envir = .GlobalEnv)
   if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "htmlwidget", "plotly"))) {

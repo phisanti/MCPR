@@ -130,29 +130,15 @@ encode_tool_results <- function(data, result) {
   # content goes to model, structuredContent goes only to MCP App viewer
   if (is.list(result) &&
       !is.null(result$structuredContent) &&
+      is.list(result$structuredContent) &&
+      length(result$structuredContent) > 0 &&
+      length(names(result$structuredContent)) > 0 &&
+      all(nzchar(names(result$structuredContent))) &&
       is.list(result$content)) {
     response_result <- list(
       content = result$content,
       structuredContent = result$structuredContent,
       isError = is_error
-    )
-    return(jsonrpc_response(data$id, response_result))
-  }
-
-  # Assistant-visible text with hidden UI metadata payload:
-  # tool returned list(content="...", _meta=...)
-  if (is.list(result) &&
-      is.null(result$type) &&
-      is.character(result$content) &&
-      length(result$content) == 1 &&
-      !is.null(result$`_meta`)) {
-    item <- list(type = "text", text = result$content)
-    if (!is.null(result$annotations)) item$annotations <- result$annotations
-    item <- apply_default_audience(item, "assistant")
-    response_result <- list(
-      content = list(item),
-      isError = is_error,
-      `_meta` = result$`_meta`
     )
     return(jsonrpc_response(data$id, response_result))
   }
