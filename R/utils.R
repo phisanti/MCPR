@@ -4,6 +4,7 @@
 
 #' Drop NULL Values from Vector or List
 #'
+#' @include aaa.R
 #' @title Drop NULL Values from Vector or List
 #' @description Removes all NULL elements from vector or list through logical filtering.
 #' Provides clean data structure processing by eliminating NULL entries for consistent

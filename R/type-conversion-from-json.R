@@ -4,6 +4,7 @@
 
 #' Convert JSON Data Back to R Objects
 #'
+#' @include utils.R
 #' @title Convert JSON Data Back to R Objects
 #' @description Reconstructs R objects from JSON data created with to_mcpr_json function.
 #' Preserves comprehensive type information including dates, factors, matrices, and

@@ -2,6 +2,11 @@
 # Comprehensive R object to JSON conversion with type preservation for MCP protocol.
 # Handles diverse R types including special values, dates, factors, matrices, and custom objects.
 
+#' @include type-conversion-serializers.R
+#' @include utils.R
+#' @noRd
+NULL
+
 # Helper functions for type conversion ----------------------------------------
 
 # Handle NULL values

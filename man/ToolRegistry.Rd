@@ -4,22 +4,25 @@
 \alias{ToolRegistry}
 \title{Tool Registry}
 \description{
-Discovers and registers R functions as MCP tools through roxygen2 parsing.
-Scans one or more directories for functions tagged with the mcpr_tool keyword,
-converts documentation into structured tool specifications, and supports
-post-discovery filtering for composable tool surfaces.
+Discovers and registers R functions as MCP tools through
+roxygen2 parsing. Scans one or more directories for functions tagged
+with the mcpr_tool keyword, converts documentation into structured
+tool specifications, and supports post-discovery filtering.
 }
 \details{
-Tool Registry for MCPR Framework
-
 Provides comprehensive tool management:
 \itemize{
-\item \strong{Multi-Directory Discovery}: Scans one or more directories for tagged functions
-\item \strong{Documentation Parsing}: Converts roxygen2 comments to tool specs
-\item \strong{Type Mapping}: Maps parameter types to MCPR specifications
-\item \strong{Filtering}: Include/exclude tools by name for tailored server profiles
+\item \strong{Multi-Directory Discovery}: Scans directories for
+tagged functions
+\item \strong{Documentation Parsing}: Converts roxygen2 comments to
+tool specs
+\item \strong{Type Mapping}: Maps parameter types to MCPR
+specifications
+\item \strong{Filtering}: Include/exclude tools by name for tailored
+server profiles
 \item \strong{Provenance}: Tracks which directory contributed each tool
-\item \strong{Validation}: Checks for naming conflicts and protocol compliance
+\item \strong{Validation}: Checks for naming conflicts and protocol
+compliance
 }
 }
 \examples{
@@ -68,7 +71,8 @@ registry$get_tool_summary()
 \if{html}{\out{<a id="method-ToolRegistry-new"></a>}}
 \if{latex}{\out{\hypertarget{method-ToolRegistry-new}{}}}
 \subsection{Method \code{new()}}{
-Create a new ToolRegistry instance with specified configuration
+Create a new ToolRegistry instance with specified
+configuration
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ToolRegistry$new(
   tools_dir = "inst",
@@ -81,8 +85,9 @@ Create a new ToolRegistry instance with specified configuration
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{tools_dir}}{Character vector of directory paths to scan for tool files (default: "inst").
-Each path is scanned independently; missing directories are skipped with a warning.}
+\item{\code{tools_dir}}{Character vector of directory paths to scan for
+tool files (default: "inst"). Each path is scanned independently;
+missing directories are skipped with a warning.}
 
 \item{\code{pattern}}{File pattern to match (regex) (default: "tool-.*\\.R$")}
 
@@ -100,8 +105,9 @@ New ToolRegistry instance
 \if{html}{\out{<a id="method-ToolRegistry-search_tools"></a>}}
 \if{latex}{\out{\hypertarget{method-ToolRegistry-search_tools}{}}}
 \subsection{Method \code{search_tools()}}{
-Scan configured directories for functions tagged with mcpr_tool keyword.
-Applies any active include/exclude filters before returning results.
+Scan configured directories for functions tagged with
+mcpr_tool keyword. Applies any active include/exclude filters
+before returning results.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ToolRegistry$search_tools(force_refresh = FALSE)}\if{html}{\out{</div>}}
 }
@@ -109,7 +115,8 @@ Applies any active include/exclude filters before returning results.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{force_refresh}}{Force re-scanning even if tools are cached (default: FALSE)}
+\item{\code{force_refresh}}{Force re-scanning even if tools are cached
+(default: FALSE)}
 }
 \if{html}{\out{</div>}}
 }
@@ -121,7 +128,8 @@ List of MCPR tool objects (filtered if filters are active)
 \if{html}{\out{<a id="method-ToolRegistry-get_tools"></a>}}
 \if{latex}{\out{\hypertarget{method-ToolRegistry-get_tools}{}}}
 \subsection{Method \code{get_tools()}}{
-Return currently loaded tools (after filtering) without re-scanning
+Return currently loaded tools (after filtering)
+without re-scanning
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ToolRegistry$get_tools()}\if{html}{\out{</div>}}
 }
@@ -134,13 +142,15 @@ List of MCPR tool objects
 \if{html}{\out{<a id="method-ToolRegistry-get_tool_summary"></a>}}
 \if{latex}{\out{\hypertarget{method-ToolRegistry-get_tool_summary}{}}}
 \subsection{Method \code{get_tool_summary()}}{
-Generate data.frame summary of loaded tools with metadata
+Generate data.frame summary of loaded tools with
+metadata
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ToolRegistry$get_tool_summary()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
-Data.frame with columns: name, description, parameters, source_dir
+Data.frame with columns: name, description, parameters,
+source_dir
 }
 }
 \if{html}{\out{<hr>}}
@@ -188,7 +198,9 @@ MCPR tool object or NULL if not found
 \if{latex}{\out{\hypertarget{method-ToolRegistry-configure}{}}}
 \subsection{Method \code{configure()}}{
 Update search configuration and reset cached tools.
-Accepts a character vector for tools_dir to enable multi-directory discovery.
+Accepts a character vector for tools_dir to enable
+multi-directory discovery. Filters set via \code{filter()} are
+preserved across \code{configure()} calls.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ToolRegistry$configure(tools_dir = NULL, pattern = NULL, recursive = NULL)}\if{html}{\out{</div>}}
 }
@@ -213,8 +225,8 @@ Self (invisibly) for method chaining
 \if{latex}{\out{\hypertarget{method-ToolRegistry-filter}{}}}
 \subsection{Method \code{filter()}}{
 Set include/exclude filters for tool names.
-Filters are applied immediately to already-discovered tools and persist
-across subsequent \code{search_tools()} calls.
+Filters are applied immediately to already-discovered tools and
+persist across subsequent \code{search_tools()} calls.
 Call with no arguments to clear all filters.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ToolRegistry$filter(include = NULL, exclude = NULL)}\if{html}{\out{</div>}}
@@ -223,11 +235,12 @@ Call with no arguments to clear all filters.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{include}}{Character vector of tool names to keep (allowlist). When set,
-only tools whose names appear in this vector are retained.}
+\item{\code{include}}{Character vector of tool names to keep (allowlist).
+When set, only tools whose names appear in this vector are
+retained.}
 
-\item{\code{exclude}}{Character vector of tool names to drop (denylist). Applied
-after include. Cannot overlap with include.}
+\item{\code{exclude}}{Character vector of tool names to drop (denylist).
+Applied after include. Cannot overlap with include.}
 }
 \if{html}{\out{</div>}}
 }
@@ -259,7 +272,8 @@ Self (invisibly) for method chaining
 \if{html}{\out{<a id="method-ToolRegistry-print"></a>}}
 \if{latex}{\out{\hypertarget{method-ToolRegistry-print}{}}}
 \subsection{Method \code{print()}}{
-Print summary of ToolRegistry with directory, filter, and tool information
+Print summary of ToolRegistry with directory, filter,
+and tool information
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ToolRegistry$print()}\if{html}{\out{</div>}}
 }

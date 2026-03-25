@@ -2,7 +2,6 @@
 # Deep analysis of R objects in the current workspace.
 # Auto-detects object type and provides structured inspection for AI agents.
 
-#* @mcp_tool
 #' Inspect an R object in the current workspace
 #'
 #' @description Deep analysis of a specific R object. Auto-detects the object type (data frame, vector, list, factor, matrix, function, S3/S4/R6, formula, date/time, environment) and returns a detailed structural and statistical summary. Use this for understanding data structures, examining function definitions, analyzing models, or inspecting any named R object. For session state, errors, terminal output, packages, or help docs, use the view tool instead.

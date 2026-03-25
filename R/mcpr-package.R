@@ -1,12 +1,14 @@
-# nocov start
-
 # MCPR Package Configuration
 # Package-level documentation and initialization for Model Context Protocol in R.
 # Configures MCP server settings and provides package overview.
 
+# nocov start
+
 #' Model Context Protocol for R
 #'
 #' @title MCPR Package
+#' @include aaa.R
+#' @include logger.R
 #' @description Configures platform-specific socket URLs when package loads into R session
 #'
 #' @importFrom base64enc dataURI

@@ -4,6 +4,9 @@
 
 #' Create Tool from Roxygen Block
 #'
+#' @include tool-definition.R
+#' @include type-conversion-utilities.R
+#' @include utils.R
 #' @title Create Tool from Roxygen Block
 #' @description Constructs ToolDef object from parsed roxygen block and associated function.
 #' Extracts function metadata, validates function existence, and converts roxygen2

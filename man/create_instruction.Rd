@@ -20,9 +20,6 @@ Creates a .mcpr_instructions directory if not present and generates a template
 instruction markdown file with proper YAML frontmatter and guidance sections.
 Provides scaffolding for users to create domain-specific instruction files.
 }
-\details{
-Create Instruction Template File
-}
 \examples{
 \dontrun{
 # Create default template

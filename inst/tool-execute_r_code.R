@@ -1,11 +1,7 @@
-#' Execute R Code Tool for MCPR
-#'
-#' This file defines the execute_r_code tool that allows AI agents to execute
-#' arbitrary R code within the current R session. This enables stateful,
-#' interactive programming where the agent can build upon previous commands
-#' and maintain workspace state.
+# Execute R Code Tool
+# Runs arbitrary R code inside the current session with persistent workspace state.
+# Captures results, output, warnings, and errors for iterative agent workflows.
 
-#* @mcp_tool
 #' Execute R code in the current session
 #'
 #' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only - invisible to the user. Note that cat() and message() calls also have no visible side-effect to the user; their output is captured and returned to the agent only. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat.

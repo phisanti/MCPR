@@ -1,6 +1,10 @@
-#' Tool Registry for MCPR Framework
-#'
+# Tool Registry
+# Discovers MCP tool definitions from roxygen-tagged files across one or more directories.
+# Converts tagged functions into validated `ToolDef` objects for server registration.
+
 #' @title Tool Registry
+#' @include tool-registry-helpers.R
+#' @include utils.R
 #' @description Discovers and registers R functions as MCP tools through
 #'   roxygen2 parsing. Scans one or more directories for functions tagged
 #'   with the mcpr_tool keyword, converts documentation into structured

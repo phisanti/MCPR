@@ -1,6 +1,9 @@
-#' Create Instruction Template File
-#'
+# Instruction Template Creation
+# Scaffolds `.mcpr_instructions` files with YAML frontmatter and guidance sections.
+# Provides a small user-facing helper for creating instruction modules consistently.
+
 #' @title Create Instruction Template File
+#' @include utils.R
 #' @description Creates a .mcpr_instructions directory if not present and generates a template
 #' instruction markdown file with proper YAML frontmatter and guidance sections.
 #' Provides scaffolding for users to create domain-specific instruction files.

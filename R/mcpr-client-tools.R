@@ -3,6 +3,8 @@
 # Handles JSON argument decoding, type reconstruction, and tool call execution.
 
 #' @title Decode Tool Arguments
+#' @include type-conversion-from-json.R
+#' @include utils.R
 #'
 #' @description
 #' Processes JSON arguments from MCP clients, reconstructing R object types

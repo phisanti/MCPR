@@ -3,6 +3,11 @@
 # Handles JSON-RPC communication, session management, and server interaction.
 
 #' @title MCP Client
+#' @include mcpr-base.R
+#' @include protocol.R
+#' @include tool-definition.R
+#' @include type-conversion-utilities.R
+#' @include utils.R
 #' @description
 #' Persistent interface for managing Model Context Protocol servers within R sessions.
 #' • **Server connections**: Establishes and maintains connections to MCP servers

@@ -5,6 +5,7 @@
 # ---- Session Information ----
 
 #' View R session information including objects and session details
+#' @include view-utils.R
 #' @param max_lines Maximum lines to display
 #' @return Formatted session information
 #' @noRd

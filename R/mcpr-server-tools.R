@@ -2,12 +2,13 @@
 # Functions for defining, managing, and executing tools on the MCP server side.
 # Handles tool registration, discovery, and server-side execution coordination.
 
-# MCP Server Tools Management
-# Functions for managing server-side tool registration and JSON conversion.
-# Handles tool discovery, registration, and MCP protocol serialization.
-
 #' Set MCP Server Tools
 #'
+#' @include aaa.R
+#' @include logger.R
+#' @include tool-definition.R
+#' @include tool-register.R
+#' @include utils.R
 #' @param registry A ToolRegistry instance to use for tool discovery. If NULL,
 #'   an empty tools list is set.
 #' @param call The calling environment.

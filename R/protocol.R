@@ -5,6 +5,8 @@
 
 #' Supported MCP Protocol Versions
 #'
+#' @include type-conversion-from-json.R
+#' @include utils.R
 #' Vector of MCP protocol versions supported by this server, in chronological order.
 #' New versions should be appended to maintain version history.
 #' @noRd

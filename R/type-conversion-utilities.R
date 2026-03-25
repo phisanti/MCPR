@@ -4,6 +4,9 @@
 
 #' Serialize R Object to JSON for MCP
 #'
+#' @include type-conversion-from-json.R
+#' @include type-conversion-to-json.R
+#' @include utils.R
 #' @title Serialize R Object to JSON for MCP
 #' @description Converts R objects to JSON string format for MCP protocol transmission.
 #' Handles type preservation, object size management, and custom serialization through

@@ -2,7 +2,6 @@
 # Provides access to user-defined instruction files for domain-specific R analysis guidance.
 # Enables custom workflows without modifying MCPR code through structured instruction files.
 
-#* @mcp_tool
 #' Read User-Provided Instruction Files
 #'
 #' @description Read user-provided instruction files for domain-specific R analysis guidance. Two-call pattern: (1) Call without parameters to list available instruction files with their keywords and descriptions. (2) Call with instruction_type to retrieve the full content of a specific instruction file. Searches relative to the current R session's working directory (.mcpr_instructions/). For multi-session environments, use manage_r_sessions() to view and switch between sessions.

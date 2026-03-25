@@ -1,7 +1,6 @@
-# Show Plot Tool for MCPR
-# Unified plotting tool with target-based routing.
-# target="user" (default): prints the plot to the active graphics device for the user to see.
-# target="agent": renders to base64 for agent analysis, with token management.
+# Show Plot Tool
+# Routes plotting requests to user-facing or agent-facing rendering paths.
+# Supports active-device display, MCP App delivery, and token-aware image export.
 
 #' Create an image response in base64 format
 #'

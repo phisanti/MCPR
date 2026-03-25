@@ -2,7 +2,6 @@
 # Main dispatcher for viewing R session state, terminal output, and workspace information.
 # Provides focused inspection of specific aspects of the current R environment.
 
-#* @mcp_tool
 #' View R session information and workspace state
 #'
 #' @description View specific aspects of your R session including session info, terminal output, errors, packages, workspace files, search path, warnings, last computed value, and help documentation. This tool provides focused inspection of different components of your R environment. Use this for system and session state. For deep analysis of specific R objects (data frames, functions, models, lists), use inspect_object instead.

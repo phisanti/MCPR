@@ -4,6 +4,7 @@
 
 #' Validate Tool Arguments
 #'
+#' @include utils.R
 #' @title Validate Tool Arguments
 #' @description Validates arguments parameter for ToolDef construction ensuring proper list
 #' structure and mcpr_type compliance. Validates each argument specification for proper

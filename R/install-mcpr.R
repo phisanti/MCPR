@@ -4,6 +4,9 @@
 
 #' Install MCPR for AI Agents
 #'
+#' @include install-mcpr-toml.R
+#' @include protocol.R
+#' @include utils.R
 #' @title Install MCPR for AI Agents
 #' @description Configures MCPR MCP server for specified AI agents with cross-platform support.
 #' Automatically detects configuration file locations, safely modifies existing configurations,

@@ -1,5 +1,7 @@
-#' Global Environment for MCPR State Management
-#'
+# Global State Container
+# Dedicated environment for package-level MCPR state and shared registries.
+# Keeps server/session state isolated from user workspaces while remaining package-wide.
+
 #' @title Global State Container
 #' @description Creates a dedicated environment for managing MCPR package state.
 #' Provides centralized storage for server processes, tools registry, and

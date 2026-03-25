@@ -4,6 +4,9 @@
 
 #' MCP Session Management Class
 #'
+#' @include mcpr-base.R
+#' @include protocol.R
+#' @include utils.R
 #' @title MCP Session
 #' @description R6 class for managing MCP session communication with timeout management.
 #' Encapsulates session state while maintaining compatibility with existing global state

@@ -63,7 +63,6 @@ format_sessions_table <- function(session_data) {
   MCPR:::format_table_for_agent(sessions_df, "No parseable session data found.")
 }
 
-#* @mcp_tool
 #' @description Manage R sessions - list available sessions with detailed status, join a specific session. Use action="list" to see all available sessions with working directory and timestamp. Use action="join" with session parameter to connect to a specific session. Do not use this tool unless specifically asked to manage R sessions.
 #' @param action character The action to perform: "list" or "join"
 #' @param session integer Optional. The R session number to join (required when action="join")

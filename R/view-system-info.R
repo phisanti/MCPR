@@ -5,6 +5,7 @@
 # ---- Package Information ----
 
 #' View installed packages with metadata
+#' @include view-utils.R
 #' @param max_lines Maximum lines to display
 #' @return Formatted installed packages information
 #' @noRd

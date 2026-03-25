@@ -4,6 +4,10 @@
 
 #' Define Tool for MCP Framework
 #'
+#' @include aaa.R
+#' @include tool-definition-validators.R
+#' @include type-conversion-utilities.R
+#' @include utils.R
 #' @title Define Tool for MCP Framework
 #' @description Creates ToolDef object with name, description, and argument
 #' specifications for MCP protocol integration. Simplified version for initial integration.

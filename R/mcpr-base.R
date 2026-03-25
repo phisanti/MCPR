@@ -3,6 +3,9 @@
 # Implements controlled global state management, logging, and resource cleanup patterns.
 
 #' @title BaseMCPR - Foundation Class for MCPR Components
+#' @include aaa.R
+#' @include logger.R
+#' @include utils.R
 #' @description
 #' Base R6 class providing common functionality for all MCPR components including
 #' controlled global state management, standardized logging, and automatic resource

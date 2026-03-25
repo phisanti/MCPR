@@ -54,6 +54,7 @@ mcpr_server(registry = registry)
 \item \href{#method-mcprServer-is_running}{\code{mcprServer$is_running()}}
 \item \href{#method-mcprServer-get_tools}{\code{mcprServer$get_tools()}}
 \item \href{#method-mcprServer-get_capabilities}{\code{mcprServer$get_capabilities()}}
+\item \href{#method-mcprServer-mcp_apps_supported}{\code{mcprServer$mcp_apps_supported()}}
 \item \href{#method-mcprServer-clone}{\code{mcprServer$clone()}}
 }
 }
@@ -181,6 +182,19 @@ Get server capabilities for MCP protocol
 }
 \subsection{Returns}{
 List of server capabilities
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-mcprServer-mcp_apps_supported"></a>}}
+\if{latex}{\out{\hypertarget{method-mcprServer-mcp_apps_supported}{}}}
+\subsection{Method \code{mcp_apps_supported()}}{
+Check if the connected client supports MCP Apps
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{mcprServer$mcp_apps_supported()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Logical indicating MCP Apps support
 }
 }
 \if{html}{\out{<hr>}}

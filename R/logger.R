@@ -3,6 +3,7 @@
 # Provides flexible log levels and output formatting for development workflows.
 
 #' @title MCPRLogger - Minimal Flexible Logging
+#' @include utils.R
 #' @description Ultra-compact R6 logger focused on efficiency and flexibility
 #' @noRd
 MCPRLogger <- R6::R6Class("MCPRLogger",

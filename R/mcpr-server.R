@@ -7,6 +7,11 @@ MCPR_MCP_APP_MIME <- "text/html;profile=mcp-app"
 
 #' Detect MCP Apps support from client initialize params
 #'
+#' @include mcpr-base.R
+#' @include mcpr-server-tools.R
+#' @include protocol.R
+#' @include tool-register.R
+#' @include utils.R
 #' Checks capabilities.experimental.mcpApps first (spec-driven),
 #' then falls back to clientInfo.name matching known UI hosts.
 #'
