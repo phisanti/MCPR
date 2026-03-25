@@ -181,6 +181,30 @@ test_that("encode_tool_results handles text content with metadata", {
   expect_equal(output$result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
 })
 
+test_that("encode_tool_results keeps hidden graph metadata behind assistant text", {
+  test_data <- list(id = 81)
+  text_result <- list(
+    content = "This tool call rendered a plot in the viewer.",
+    `_meta` = list(
+      ui = list(resourceUri = "ui://mcpr/plots"),
+      mcpr_graph = list(
+        kind = "image",
+        mimeType = "image/png",
+        data = "base64data"
+      )
+    )
+  )
+
+  output <- .client_tools_env$encode_tool_results(test_data, text_result)
+
+  expect_equal(output$result$content[[1]]$type, "text")
+  expect_equal(output$result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
+  expect_equal(output$result$content[[1]]$annotations$audience, list("assistant"))
+  expect_equal(output$result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
+  expect_equal(output$result$`_meta`$mcpr_graph$kind, "image")
+  expect_equal(output$result$`_meta`$mcpr_graph$data, "base64data")
+})
+
 test_that("encode_tool_results preserves _meta passthrough for image", {
   test_data <- list(id = 9)
   image_result <- list(

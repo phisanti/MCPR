@@ -355,10 +355,15 @@ show_plot_via_mcp_app <- function(expr) {
   b64_data <- base64enc::base64encode(raw_data)
 
   list(
-    type = "image",
-    data = b64_data,
-    mimeType = "image/png",
-    `_meta` = list(ui = list(resourceUri = "ui://mcpr/plots"))
+    content = "This tool call rendered a plot in the viewer.",
+    `_meta` = list(
+      ui = list(resourceUri = "ui://mcpr/plots"),
+      mcpr_graph = list(
+        kind = "image",
+        mimeType = "image/png",
+        data = b64_data
+      )
+    )
   )
 }
 
@@ -383,17 +388,15 @@ show_plotly_via_mcp_app <- function(widget) {
     config = built$x$config
   )
 
-  plotly_json <- jsonlite::toJSON(
-    list(`_mcpr_plotly` = spec),
-    auto_unbox = TRUE,
-    null = "null",
-    force = TRUE
-  )
-
   list(
-    type = "text",
-    content = as.character(plotly_json),
-    `_meta` = list(ui = list(resourceUri = "ui://mcpr/plots"))
+    content = "This tool call rendered an interactive widget in the viewer.",
+    `_meta` = list(
+      ui = list(resourceUri = "ui://mcpr/plots"),
+      mcpr_graph = list(
+        kind = "plotly",
+        spec = spec
+      )
+    )
   )
 }
 
