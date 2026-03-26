@@ -161,6 +161,48 @@ test_that("ToolRegistry discovers tools correctly", {
   expect_equal(tools[[1]]$name, "test_function")
 })
 
+test_that("ToolRegistry marks defaulted formals as optional in JSON schema", {
+  temp_dir <- tempfile()
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  tool_file <- file.path(temp_dir, "tool-optional_args.R")
+  writeLines(c(
+    "#' Optional Args Tool",
+    "#' @description Tool with one required and one optional parameter",
+    "#' @param required_arg string Required input",
+    "#' @param optional_arg integer Optional input with default",
+    "#' @keywords mcpr_tool",
+    "optional_args_tool <- function(required_arg, optional_arg = 20L) {",
+    "  paste(required_arg, optional_arg)",
+    "}"
+  ), tool_file)
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir, verbose = FALSE)
+  registry$search_tools()
+
+  tool_json <- MCPR:::tool_as_json(registry$get_tool("optional_args_tool"))
+  json <- MCPR:::to_json(tool_json$inputSchema)
+  parsed <- jsonlite::fromJSON(json, simplifyVector = FALSE)
+
+  expect_equal(parsed$required, list("required_arg"))
+})
+
+test_that("explicit tool schemas keep author-declared requiredness", {
+  explicit_tool <- tool(
+    function(optional_arg = 20L) optional_arg,
+    name = "explicit_required_tool",
+    description = "Explicit schema should win over inferred defaults",
+    arguments = list(optional_arg = MCPR:::type_integer(description = "Arg", required = TRUE))
+  )
+
+  tool_json <- MCPR:::tool_as_json(explicit_tool)
+  json <- MCPR:::to_json(tool_json$inputSchema)
+  parsed <- jsonlite::fromJSON(json, simplifyVector = FALSE)
+
+  expect_equal(parsed$required, list("optional_arg"))
+})
+
 test_that("ToolRegistry integration with mcpServer provides tools", {
   # Create a temporary directory for test tools
   temp_dir <- tempfile()

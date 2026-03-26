@@ -275,14 +275,15 @@ map_type_schema <- function(type_str, description = NULL, input_type = "definiti
         type_array(items_type, description = description, required = required)
       },
       "object" = {
+        additional <- isTRUE(schema$additionalProperties)
         if (!is.null(schema$properties)) {
           props <- list()
           for (prop_name in names(schema$properties)) {
             props[[prop_name]] <- map_type_schema(schema$properties[[prop_name]], input_type = "json")
           }
-          do.call(type_object, c(list(.description = description, .required = required), props))
+          do.call(type_object, c(list(.description = description, .required = required, .additional_properties = additional), props))
         } else {
-          type_object(.description = description, .required = required)
+          type_object(.description = description, .required = required, .additional_properties = additional)
         }
       },
       # Default fallback
@@ -296,20 +297,14 @@ map_type_schema <- function(type_str, description = NULL, input_type = "definiti
       "character" = ,
       "string" = type_string(description = description),
       "numeric" = ,
-      "number" = {
-        # If description mentions "vector" or "array", create an array type
-        if (grepl("vector|array", description, ignore.case = TRUE)) {
-          type_array(description = description, items = type_number())
-        } else {
-          type_number(description = description)
-        }
-      },
+      "number" = type_number(description = description),
       "integer" = ,
       "int" = type_integer(description = description),
       "logical" = ,
       "boolean" = ,
       "bool" = type_boolean(description = description),
       "list" = ,
+      "object" = type_object(.description = description, .additional_properties = TRUE),
       "array" = type_array(description = description, items = type_string()),
       type_string(description = description)
     )

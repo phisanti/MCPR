@@ -242,6 +242,47 @@ The key elements:
 2. **`@param`** tags with type annotations — converted to JSON Schema for MCP clients
 3. **`@description`** — becomes the tool description that LLMs see
 
+### Required vs Optional Parameters
+
+MCPR now follows two different patterns depending on how the tool is defined:
+
+- **Roxygen auto-discovery (`ToolRegistry`)** infers the JSON Schema `required`
+  array from the function signature. Parameters **without** a default value are
+  emitted as required; parameters **with** a default value are emitted as
+  optional. This matches the signature-driven pattern used by the official MCP
+  Python SDK.
+- **Explicit `tool()` definitions** keep the declared `mcpr_type`
+  `required = TRUE/FALSE` setting as the source of truth. MCPR does not
+  override manually declared schemas based on function defaults. This matches
+  the schema-first pattern used by the official MCP TypeScript SDK.
+
+For package authors using `inst/tools/` wrappers, the practical rule is simple:
+
+```{r}
+# Required in schema: no default in the wrapper
+#' @param contrast character Contrast name (required).
+query_de <- function(contrast, direction = "both", top_n = 50L) {
+  omicspgxmcp::query_de(contrast = contrast, direction = direction, top_n = top_n)
+}
+
+# Optional in schema: defaulted in the wrapper
+#' @param include_primer logical Include primer text (default: TRUE).
+list_analyses <- function(include_primer = TRUE) {
+  omicspgxmcp::list_analyses(include_primer = include_primer)
+}
+```
+
+Two important caveats:
+
+1. **Nullability is not the same as optionality.** A parameter like
+   `contrast = NULL` is optional because the caller may omit it. Whether `NULL`
+   is also a meaningful value is a separate concern handled by the tool
+   implementation, not by the JSON Schema `required` array.
+2. **Conditional requirements must still be documented in prose.** JSON Schema
+   can express "always required" well, but many tools need rules like "required
+   only when `what = \"help\"`" or "required for most plot types". Keep those
+   constraints in the `@param` description and enforce them at runtime.
+
 Place your tool files in `inst/tools/` (or any subdirectory convention you prefer) and point `ToolRegistry` at it. That's it — MCPR handles roxygen parsing, schema generation, JSON-RPC dispatch, and session routing.
 
 **Note on paths:** `system.file(package = "pkg")` returns the *installed* package root, where `inst/` contents are lifted to the top level. During development with `devtools::load_all()`, tool files remain under `inst/` — use the source path directly in that case.

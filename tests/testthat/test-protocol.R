@@ -159,19 +159,6 @@ test_that("jsonrpc_response validates mutual exclusivity", {
   )
 })
 
-test_that("convert_json_types handles complex structures", {
-  # Test with nested structure
-  complex_args <- list(
-    simple = "text",
-    nested = list(inner = 123),
-    array = c(1, 2, 3)
-  )
-
-  result <- MCPR:::convert_json_types(complex_args)
-  expect_equal(result$simple, "text")
-  expect_equal(result$nested$inner, 123)
-  expect_equal(result$array, c(1, 2, 3))
-})
 
 test_that("create_initialize_request creates proper initialization", {
   # Test with default parameters

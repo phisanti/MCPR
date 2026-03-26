@@ -77,37 +77,84 @@ tool_as_json <- function(tool) {
   result
 }
 
-#' Convert tool arguments to JSON schema format
-#' @param arguments Named list of argument specifications
-#' @return JSON schema object
+#' Convert mcpr_type to JSON Schema
+#'
+#' Faithfully serializes an mcpr_type object to its JSON Schema equivalent,
+#' including nested properties, items, additionalProperties, and enum values.
+#'
+#' @param spec An mcpr_type object or fallback value
+#' @return A JSON Schema list
+#' @noRd
+mcpr_type_to_json_schema <- function(spec) {
+  if (!inherits(spec, "mcpr_type")) {
+    return(list(type = "string", description = as.character(spec %||% "")))
+  }
+
+  base <- compact(list(
+    type = spec$type,
+    description = spec$description
+  ))
+
+  switch(spec$type,
+    "object" = {
+      if (length(spec$properties) > 0) {
+        base$properties <- lapply(spec$properties, mcpr_type_to_json_schema)
+      }
+      if (isTRUE(spec$additional_properties)) {
+        base$additionalProperties <- TRUE
+      }
+      base
+    },
+    "array" = {
+      if (!is.null(spec$items)) {
+        base$items <- mcpr_type_to_json_schema(spec$items)
+      }
+      base
+    },
+    "enum" = {
+      compact(list(type = "string", enum = spec$values, description = spec$description))
+    },
+    base
+  )
+}
+
+#' Convert tool arguments to JSON Schema format
+#'
+#' Converts a named list of mcpr_type argument specs into a JSON Schema
+#' object suitable for MCP tools/list inputSchema.
+#'
+#' @param arguments Named list of mcpr_type argument specifications
+#' @return JSON Schema object with type, properties, and required fields
+#'
+#' @details Required properties are wrapped with `I()` before JSON
+#' serialization. MCPR uses `jsonlite::toJSON(auto_unbox = TRUE)` globally for
+#' protocol messages, and plain length-1 character vectors would otherwise be
+#' serialized as invalid JSON Schema scalars instead of `required` arrays.
 #' @noRd
 convert_arguments_to_schema <- function(arguments) {
   if (length(arguments) == 0) {
     return(list(
       type = "object",
-      properties = named_list() # Use named_list for empty properties
+      properties = named_list()
     ))
   }
 
-  properties <- named_list() # Start with named list
+  properties <- named_list()
+  required_args <- character()
+
   for (arg_name in names(arguments)) {
     arg_spec <- arguments[[arg_name]]
-    if (is.list(arg_spec) && !is.null(arg_spec$type)) {
-      properties[[arg_name]] <- list(
-        type = arg_spec$type,
-        description = arg_spec$description %||% ""
-      )
-    } else {
-      # Fallback for simple specifications
-      properties[[arg_name]] <- list(
-        type = "string",
-        description = as.character(arg_spec %||% "")
-      )
+    properties[[arg_name]] <- mcpr_type_to_json_schema(arg_spec)
+    if (isTRUE(arg_spec$required)) {
+      required_args <- c(required_args, arg_name)
     }
   }
 
-  list(
+  compact(list(
     type = "object",
-    properties = properties
-  )
+    properties = properties,
+    # Prevent jsonlite::toJSON(auto_unbox = TRUE) from collapsing
+    # single-element required vectors into invalid scalar JSON.
+    required = if (length(required_args) > 0) I(required_args)
+  ))
 }

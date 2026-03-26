@@ -85,6 +85,8 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
 #' @return A text confirmation message or MCP App structured response
 #' @noRd
 show_plot_user <- function(expr) {
+  # Two-level routing: first split on client type, then on plot type.
+  # MCP App clients get structuredContent; local clients get device rendering.
   if (.mcp_apps_supported()) {
     return(show_plot_via_mcp_app(expr))
   }
@@ -106,7 +108,9 @@ show_plot_user <- function(expr) {
 #' @return A text confirmation message
 #' @noRd
 show_plot_local <- function(expr) {
-  # First, eval to check if it's a widget
+  # Eval once up front for type detection: widgets go to the browser,
+  # everything else routes to a graphics device via render_static_plot().
+  # We pass the result through so printable objects (gg, grob) aren't re-evaluated.
   result <- MCPR:::eval_plot_expr(expr)
 
   if (inherits(result, c("htmlwidget", "plotly"))) {
@@ -117,9 +121,8 @@ show_plot_local <- function(expr) {
     ))
   }
 
-  # Static plot — re-render on the right device
   device_channel <- MCPR:::detect_local_device()
-  render_result <- MCPR:::render_static_plot(expr, device_channel)
+  render_result <- MCPR:::render_static_plot(expr, device_channel, result = result)
 
   list(
     type = "text",

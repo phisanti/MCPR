@@ -303,35 +303,6 @@ jsonrpc_response <- function(id, result = NULL, error = NULL) {
   ))
 }
 
-#' Convert JSON Types to R Objects
-#'
-#' @title Convert JSON Types to R Objects
-#' @description Simple wrapper around from_mcpr_json for compatibility with ToolDef
-#' @param args Named list of arguments from JSON
-#' @return List with converted R objects
-#' @noRd
-convert_json_types <- function(args) {
-  # Simple pass-through for now - could be enhanced later
-  if (is.list(args)) {
-    lapply(args, function(x) {
-      if (is.character(x) && length(x) == 1) {
-        # Try to parse as JSON, but fallback to original value
-        tryCatch(
-          {
-            from_mcpr_json(x)
-          },
-          error = function(e) {
-            x
-          }
-        )
-      } else {
-        x
-      }
-    })
-  } else {
-    args
-  }
-}
 
 #' Create MCP Initialization Request
 #'

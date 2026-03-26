@@ -36,9 +36,12 @@ create_tool_from_block <- function(block, env, file_path) {
   # Extract description
   description <- extract_description(block)
 
-  # Extract parameters
+  # Roxygen auto-discovery infers types from documentation and requiredness
+  # from the callable interface. This mirrors Python SDK-style signature
+  # inference while leaving explicit tool() schemas authoritative.
   param_tags <- Filter(function(tag) inherits(tag, "roxy_tag_param"), block$tags)
   mcpr_args <- convert_to_schema(param_tags)
+  mcpr_args <- apply_formal_requiredness(mcpr_args, formals(func))
 
   # Check for companion annotations variable (.{func_name}_annotations)
   annotations_var <- paste0(".", func_name, "_annotations")
@@ -64,6 +67,38 @@ create_tool_from_block <- function(block, env, file_path) {
       NULL
     }
   )
+}
+
+#' Apply Requiredness from Function Formals
+#'
+#' @title Apply Requiredness from Function Formals
+#' @description Updates roxygen-derived mcpr_type argument specs so parameters
+#' with default values are not emitted as JSON Schema required properties.
+#' This helper is intentionally limited to the auto-discovery path used by
+#' `ToolRegistry`. Explicit schemas constructed with `tool()` remain the source
+#' of truth for requiredness, matching the schema-first pattern used by the
+#' official TypeScript SDK. For roxygen-discovered wrappers, requiredness is
+#' inferred from R formals, matching the signature-first pattern used by the
+#' official Python SDK.
+#'
+#' @param arguments Named list of mcpr_type argument definitions
+#' @param formals Function formals pairlist
+#' @return Updated named list of mcpr_type argument definitions
+#' @noRd
+apply_formal_requiredness <- function(arguments, formals) {
+  if (!is.list(arguments) || length(arguments) == 0 || is.null(formals)) {
+    return(arguments)
+  }
+
+  for (arg_name in intersect(names(arguments), names(formals))) {
+    # In R, any formal with a default value can be omitted by the caller.
+    # JSON Schema expresses that by excluding the parameter from `required`.
+    if (!rlang::is_missing(formals[[arg_name]])) {
+      arguments[[arg_name]]$required <- FALSE
+    }
+  }
+
+  arguments
 }
 
 #' Extract Description from Roxygen Block
@@ -121,7 +156,7 @@ convert_to_schema <- function(param_tags) {
     type_and_desc <- paste(val_parts[-1], collapse = " ")
 
     # Extract type from beginning of type_and_desc
-    type_pattern <- "^(character|string|numeric|number|integer|int|logical|boolean|bool|list|array)\\s+"
+    type_pattern <- "^(character|string|numeric|number|integer|int|logical|boolean|bool|object|list|array)\\s+"
     type_match <- regexpr(type_pattern, type_and_desc, ignore.case = TRUE)
 
     if (type_match != -1) {

@@ -12,44 +12,84 @@ get_local_or_installed_path <- function(...) {
 )
 source(.client_tools_path, local = .client_tools_env)
 
-test_that("decode_tool_args handles basic arguments", {
-  # Test basic argument passthrough
-  basic_args <- list(x = 42, y = "test", z = TRUE)
-  result <- .client_tools_env$decode_tool_args(basic_args)
-  expect_equal(result, basic_args)
-
-  # Test non-list input
-  expect_equal(.client_tools_env$decode_tool_args("not a list"), "not a list")
-  expect_equal(.client_tools_env$decode_tool_args(42), 42)
-})
-
-test_that("decode_tool_args detects MCP type markers", {
-  # Test arguments with MCP type markers
-  mcp_args <- list(
-    simple = 42,
-    complex = list(
-      "_mcp_type" = "numeric",
-      "value" = list(1, 2, "Inf")
-    )
+test_that("coerce_args_by_schema parses stringified objects when schema says object", {
+  schema <- list(
+    config = structure(list(type = "object"), class = "mcpr_type"),
+    name = structure(list(type = "string"), class = "mcpr_type")
   )
 
-  # Should trigger from_mcp_json processing
-  result <- .client_tools_env$decode_tool_args(mcp_args)
-  expect_true(is.list(result))
-  # The exact structure depends on from_mcpr_json implementation
-  expect_true(!is.null(result))
+  args <- list(config = '{"key": "value"}', name = "test")
+  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+
+  expect_type(result$config, "list")
+  expect_equal(result$config$key, "value")
+  expect_equal(result$name, "test") # string left alone
 })
 
-test_that("decode_tool_args handles empty and NULL inputs", {
-  # Test NULL
-  expect_null(.client_tools_env$decode_tool_args(NULL))
+test_that("coerce_args_by_schema parses stringified arrays when schema says array", {
+  schema <- list(
+    items = structure(list(type = "array"), class = "mcpr_type")
+  )
 
-  # Test empty list
-  expect_equal(.client_tools_env$decode_tool_args(list()), list())
+  args <- list(items = '[1, 2, 3]')
+  result <- .client_tools_env$coerce_args_by_schema(args, schema)
 
-  # Test list without MCP markers
-  no_markers <- list(a = 1, b = list(x = 2, y = 3))
-  expect_equal(.client_tools_env$decode_tool_args(no_markers), no_markers)
+  expect_type(result$items, "list")
+  expect_equal(result$items, list(1, 2, 3))
+})
+
+test_that("coerce_args_by_schema unlists unnamed lists for scalar types", {
+  schema <- list(
+    x = structure(list(type = "number"), class = "mcpr_type")
+  )
+
+  args <- list(x = list(1, 2, 3))
+  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+
+  expect_equal(result$x, c(1, 2, 3))
+})
+
+test_that("coerce_args_by_schema leaves correct types untouched", {
+  schema <- list(
+    config = structure(list(type = "object"), class = "mcpr_type"),
+    name = structure(list(type = "string"), class = "mcpr_type")
+  )
+
+  # Already correct types
+  args <- list(config = list(key = "value"), name = "test")
+  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+  expect_equal(result, args)
+})
+
+test_that("coerce_args_by_schema handles missing schema gracefully", {
+  schema <- list(
+    known = structure(list(type = "string"), class = "mcpr_type")
+  )
+
+  # Extra arg not in schema — left untouched
+  args <- list(known = "hello", unknown = list(1, 2))
+  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+  expect_equal(result$unknown, list(1, 2))
+})
+
+test_that("coerce_args_by_schema does not parse strings for string schema", {
+  schema <- list(
+    data = structure(list(type = "string"), class = "mcpr_type")
+  )
+
+  # A string that happens to be valid JSON — should NOT be parsed
+  args <- list(data = '{"key": "value"}')
+  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+  expect_equal(result$data, '{"key": "value"}')
+})
+
+test_that("coerce_args_by_schema passes through when schema has non-mcpr_type entries", {
+  # Simulates ToolDef$call with string-shorthand arguments (e.g. arguments = list(x = "number"))
+  schema <- list(x = "number", y = "string")
+
+  args <- list(x = 42, y = "hello")
+  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+  expect_equal(result, args) # no coercion, safe passthrough
 })
 
 test_that("encode_tool_results handles simple text results", {

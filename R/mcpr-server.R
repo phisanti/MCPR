@@ -440,7 +440,9 @@ mcprServer <- R6::R6Class("mcprServer",
           error = list(code = -32601, message = "Method not found")
         ))
       }
-      data$tool <- get_mcptools_tools()[[tool_name]]$fun
+      tooldef <- get_mcptools_tools()[[tool_name]]
+      data$tool <- tooldef$fun
+      data$arg_schema <- tooldef$arguments
       data
     }
   )

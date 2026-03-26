@@ -1,69 +1,38 @@
 # MCP Client Tool Processing
 # Tool argument processing and execution functions for MCP client operations.
-# Handles JSON argument decoding, type reconstruction, and tool call execution.
+# Handles schema-targeted argument coercion and tool call execution.
 
-#' @title Decode Tool Arguments
 #' @include type-conversion-from-json.R
 #' @include utils.R
-#'
-#' @description
-#' Processes JSON arguments from MCP clients, reconstructing R object types
-#' that may have been serialized during transmission. Handles both legacy
-#' argument formats and enhanced type-aware arguments.
-#'
-#' @details
-#' This function addresses the challenge of maintaining R object types when
-#' arguments are transmitted via JSON-RPC. It detects MCP type markers
-#' (\_mcp_type) and reconstructs original R objects accordingly. For legacy
-#' compatibility, it falls back to the original argument structure when no
-#' type markers are present.
-#'
-#' @param arguments Named list of function arguments from JSON-RPC request
-#'
-#' @return Reconstructed R objects with proper types, or original arguments
-#'   if no type reconstruction is needed
-#'
-#' @examples
-#' \dontrun{
-#' # Arguments with MCP type markers
-#' args_with_types <- list(
-#'   data = list(
-#'     `_mcp_type` = "numeric",
-#'     value = c(1, 2, 3, 4, 5)
-#'   ),
-#'   method = "mean"
-#' )
-#'
-#' processed <- decode_tool_args(args_with_types)
-#' # Returns: list(data = c(1, 2, 3, 4, 5), method = "mean")
-#'
-#' # Legacy arguments without type markers
-#' legacy_args <- list(
-#'   data = list(1, 2, 3, 4, 5), # unnamed list
-#'   method = "mean"
-#' )
-#'
-#' processed <- decode_tool_args(legacy_args)
-#' # Applies legacy coercion for unnamed lists
-#' }
-#'
-#' @keywords internal
-#' @seealso \code{\link{from_mcpr_json}} for type reconstruction details
-#' @noRd
-decode_tool_args <- function(arguments) {
-  if (is.list(arguments)) {
-    # Check if any arguments have MCP type markers
-    has_mcp_types <- any(sapply(arguments, function(x) {
-      is.list(x) && !is.null(x[["_mcp_type"]])
-    }))
 
-    if (has_mcp_types) {
-      return(from_mcpr_json(arguments))
+#' Coerce Tool Arguments by Schema
+#'
+#' Targeted safety net for arguments that arrive as the wrong JSON type.
+#' Only coerces arguments whose declared schema type disagrees with the
+#' received R type. Not a general-purpose JSON decoder.
+#'
+#' @param args Named list of arguments from JSON-RPC request
+#' @param schema Named list of mcpr_type objects (from ToolDef$arguments)
+#' @return args with targeted coercions applied
+#' @noRd
+coerce_args_by_schema <- function(args, schema) {
+  for (name in intersect(names(args), names(schema))) {
+    spec <- schema[[name]]
+    if (!inherits(spec, "mcpr_type")) next
+    val <- args[[name]]
+
+    # String that should be an object or array — parse it
+    if (is.character(val) && length(val) == 1 && spec$type %in% c("object", "array")) {
+      parsed <- tryCatch(jsonlite::fromJSON(val, simplifyVector = FALSE), error = function(e) val)
+      if (!identical(parsed, val)) args[[name]] <- parsed
+    }
+
+    # Unnamed list that should be a scalar vector — unlist it
+    if (is.list(val) && is.null(names(val)) && spec$type %in% c("string", "number", "integer", "boolean")) {
+      args[[name]] <- unlist(val, use.names = FALSE)
     }
   }
-
-  # Fallback
-  return(arguments)
+  args
 }
 
 #' @title Encode Tool Results
@@ -276,20 +245,10 @@ encode_tool_results <- function(data, result) {
 #' @seealso \code{\link{encode_tool_results}} for result formatting
 #' @noRd
 execute_tool_call <- function(data) {
-  tool_name <- data$params$name
+  args <- data$params$arguments %||% list()
 
-  # Enhanced argument processing with type reconstruction
-  args <- decode_tool_args(data$params$arguments)
-
-  # Legacy fallback for compatibility
-  if (identical(args, data$params$arguments)) {
-    args <- lapply(args, function(x) {
-      if (is.list(x) && is.null(names(x))) {
-        unlist(x, use.names = FALSE)
-      } else {
-        x
-      }
-    })
+  if (!is.null(data$arg_schema)) {
+    args <- coerce_args_by_schema(args, data$arg_schema)
   }
 
   tryCatch(

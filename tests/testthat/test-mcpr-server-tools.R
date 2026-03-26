@@ -312,3 +312,104 @@ test_that("tool_as_json handles annotations without _meta", {
   expect_equal(json_result$annotations$title, "My Tool")
   expect_true(json_result$annotations$read_only_hint)
 })
+
+# --- mcpr_type_to_json_schema ---
+
+test_that("mcpr_type_to_json_schema emits additionalProperties for object types", {
+  spec <- MCPR:::type_object(.description = "Config", .additional_properties = TRUE)
+  result <- MCPR:::mcpr_type_to_json_schema(spec)
+
+  expect_equal(result$type, "object")
+  expect_true(result$additionalProperties)
+  expect_equal(result$description, "Config")
+})
+
+test_that("mcpr_type_to_json_schema omits additionalProperties when FALSE", {
+  spec <- MCPR:::type_object(.description = "Strict object")
+  result <- MCPR:::mcpr_type_to_json_schema(spec)
+
+  expect_equal(result$type, "object")
+  expect_null(result$additionalProperties)
+})
+
+test_that("mcpr_type_to_json_schema serializes nested object properties", {
+  spec <- MCPR:::type_object(
+    .description = "Nested",
+    x = MCPR:::type_string(description = "A string"),
+    y = MCPR:::type_number(description = "A number")
+  )
+  result <- MCPR:::mcpr_type_to_json_schema(spec)
+
+  expect_equal(result$properties$x$type, "string")
+  expect_equal(result$properties$y$type, "number")
+})
+
+test_that("mcpr_type_to_json_schema serializes array items", {
+  spec <- MCPR:::type_array(items = MCPR:::type_number(), description = "Numbers")
+  result <- MCPR:::mcpr_type_to_json_schema(spec)
+
+  expect_equal(result$type, "array")
+  expect_equal(result$items$type, "number")
+})
+
+test_that("mcpr_type_to_json_schema handles enum types", {
+  spec <- MCPR:::type_enum(c("a", "b", "c"), description = "Choices")
+  result <- MCPR:::mcpr_type_to_json_schema(spec)
+
+  expect_equal(result$type, "string")
+  expect_equal(result$enum, c("a", "b", "c"))
+})
+
+# --- convert_arguments_to_schema with list/object types ---
+
+test_that("convert_arguments_to_schema emits object schema for list-typed args", {
+  args <- list(
+    config = MCPR:::type_object(.description = "User config", .additional_properties = TRUE),
+    name = MCPR:::type_string(description = "User name")
+  )
+  result <- MCPR:::convert_arguments_to_schema(args)
+
+  expect_equal(result$properties$config$type, "object")
+  expect_true(result$properties$config$additionalProperties)
+  expect_equal(result$properties$name$type, "string")
+})
+
+test_that("convert_arguments_to_schema preserves single required fields as JSON arrays", {
+  args <- list(
+    include_primer = MCPR:::type_boolean(description = "Primer flag", required = TRUE)
+  )
+
+  schema <- MCPR:::convert_arguments_to_schema(args)
+  json <- MCPR:::to_json(schema)
+  parsed <- jsonlite::fromJSON(json, simplifyVector = FALSE)
+
+  expect_equal(parsed$required, list("include_primer"))
+})
+
+test_that("convert_arguments_to_schema preserves multi-required fields as JSON arrays", {
+  args <- list(
+    x = MCPR:::type_string(description = "X", required = TRUE),
+    y = MCPR:::type_number(description = "Y", required = TRUE)
+  )
+
+  schema <- MCPR:::convert_arguments_to_schema(args)
+  json <- MCPR:::to_json(schema)
+  parsed <- jsonlite::fromJSON(json, simplifyVector = FALSE)
+
+  expect_equal(parsed$required, list("x", "y"))
+})
+
+test_that("tool_as_json emits object schema for list param from roxygen", {
+  test_tool <- tool(
+    function(config) config,
+    name = "config_tool",
+    description = "Tool with named map param",
+    arguments = list(config = "list")
+  )
+
+  json_result <- MCPR:::tool_as_json(test_tool)
+  schema <- json_result$inputSchema
+
+  expect_equal(schema$properties$config$type, "object")
+  expect_true(schema$properties$config$additionalProperties)
+})

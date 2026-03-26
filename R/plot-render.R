@@ -1,6 +1,6 @@
 # Plot Rendering Primitives
 # Pure rendering functions for plot device management, widget display, and static plot capture.
-# Called from inst/tool-show_plot.R via MCPR::: — no MCP awareness or cli messaging.
+# Called from inst/tool-show_plot.R via MCPR::: — no MCP awareness; uses cli only for errors.
 
 #' Detect the best available local graphics device
 #'
@@ -52,7 +52,7 @@ eval_plot_expr <- function(expr) {
 #' @noRd
 show_widget_in_browser <- function(widget) {
   if (!requireNamespace("htmlwidgets", quietly = TRUE)) {
-    stop("htmlwidgets package is required to display interactive widgets")
+    cli::cli_abort("htmlwidgets package is required to display interactive widgets")
   }
 
   tmp <- tempfile(fileext = ".html")
@@ -64,14 +64,26 @@ show_widget_in_browser <- function(widget) {
 #' Render a static plot on a local device
 #'
 #' Encapsulates the prepare/eval/print/finalize cycle for static plots.
-#' Handles httpgd, native device, and file export paths.
+#' Handles httpgd, native device, and file export paths. When `result` is
+#' provided (pre-evaluated), reuses it for printable objects (gg, grob, etc.)
+#' to avoid double evaluation. Side-effect-only plots (base R) are re-evaluated
+#' on the target device since the side effect IS the plot.
 #'
 #' @param expr Character string containing the plot expression
 #' @param device_channel One of "httpgd", "device", or "file"
+#' @param result Optional pre-evaluated result from a prior eval_plot_expr() call.
+#'   If a printable object, it will be printed on the target device without re-eval.
+#'   If NULL (default), the expression is evaluated fresh.
 #' @return A list with `channel` (character) and `info` (URL, path, or confirmation)
 #' @noRd
-render_static_plot <- function(expr, device_channel) {
+render_static_plot <- function(expr, device_channel, result = NULL) {
   printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot")
+
+  # show_plot_local() evals once for type detection (widget vs static), then
+  # passes the result here. Printable objects (gg, grob, etc.) are reused via
+  # print() — no re-eval needed. Side-effect-only plots (base R plot() returns
+  # NULL) must be re-evaluated on the target device since the draw IS the side effect.
+  needs_eval <- !inherits(result, printable_classes)
 
   switch(device_channel,
     httpgd = {
@@ -82,7 +94,9 @@ render_static_plot <- function(expr, device_channel) {
         httpgd::hgd(silent = TRUE)
       }
 
-      result <- eval_plot_expr(expr)
+      if (needs_eval) {
+        result <- eval_plot_expr(expr)
+      }
       if (inherits(result, printable_classes)) {
         print(result)
       }
@@ -96,7 +110,9 @@ render_static_plot <- function(expr, device_channel) {
     },
 
     device = {
-      result <- eval_plot_expr(expr)
+      if (needs_eval) {
+        result <- eval_plot_expr(expr)
+      }
       if (inherits(result, printable_classes)) {
         print(result)
       }
@@ -109,7 +125,9 @@ render_static_plot <- function(expr, device_channel) {
       grDevices::png(tmp, width = 800, height = 600)
       on.exit(grDevices::dev.off(), add = TRUE)
 
-      result <- eval_plot_expr(expr)
+      if (needs_eval) {
+        result <- eval_plot_expr(expr)
+      }
       if (inherits(result, printable_classes)) {
         print(result)
       }
@@ -164,6 +182,10 @@ setup_graphics_device <- function(format = "png", width = 800, height = 600) {
 #' @return Image response with base64 encoded plot and token count
 #' @noRd
 get_plot_data <- function(device_info, format = "png", width = 800, height = 600) {
+  # Register cleanup first so the temp file is always removed, even if
+  # response_image() or base64 encoding throws before we reach the end.
+  on.exit(unlink(device_info$file), add = TRUE)
+
   if (device_info$type == "httpgd") {
     tryCatch(
       {
@@ -213,8 +235,6 @@ get_plot_data <- function(device_info, format = "png", width = 800, height = 600
   actual_tokens <- ceiling(nchar(base64_content) / 4)
 
   image_response$tokens <- actual_tokens
-
-  on.exit(unlink(device_info$file))
 
   image_response
 }
@@ -270,7 +290,7 @@ generate_optimization_suggestions <- function(current_width, current_height, cur
 #' @noRd
 response_image <- function(file, mime_type = "image/png") {
   if (!file.exists(file)) {
-    stop(paste0("Image file does not exist: ", file))
+    cli::cli_abort("Image file does not exist: {file}")
   }
 
   list(
