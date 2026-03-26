@@ -105,16 +105,16 @@ test_that("show_plot agent defaults match optimized values", {
   expect_equal(formals_list$warn_threshold, 20000)
 })
 
-# --- Channel detection ---
+# --- Local device detection (via MCPR::: shared primitive) ---
 
-test_that("detect_output_channel returns valid channel", {
-  channel <- detect_output_channel()
-  expect_true(channel %in% c("mcp_app", "httpgd", "device", "file"))
+test_that("detect_local_device returns valid channel", {
+  channel <- MCPR:::detect_local_device()
+  expect_true(channel %in% c("httpgd", "device", "file"))
 })
 
-test_that("detect_output_channel prefers httpgd when available", {
+test_that("detect_local_device prefers httpgd when available", {
   skip_if_not(requireNamespace("httpgd", quietly = TRUE), "httpgd not available")
-  channel <- detect_output_channel()
+  channel <- MCPR:::detect_local_device()
   expect_equal(channel, "httpgd")
 })
 
@@ -124,7 +124,7 @@ test_that("show_plot user target returns text confirmation", {
   on.exit(with_graphics_cleanup()(), add = TRUE)
   result <- show_plot("plot(1:10)", target = "user")
   expect_equal(result$type, "text")
-  expect_true(grepl("Plot displayed to user|Plot saved to file", result$content))
+  expect_true(grepl("Plot displayed to user|Plot saved to file|Plot displayed on active", result$content))
 })
 
 test_that("show_plot user target does not return base64 image", {
@@ -144,41 +144,29 @@ test_that("show_plot user target reports errors", {
   expect_error(show_plot("nonexistent_var + 1", target = "user"), "Error displaying plot")
 })
 
-# --- httpgd channel ---
+# --- Local rendering (show_plot_local) ---
 
-test_that("show_plot_via_httpgd returns url in confirmation", {
-  skip_if_not(requireNamespace("httpgd", quietly = TRUE), "httpgd not available")
+test_that("show_plot_local renders static plots via local device", {
   on.exit(with_graphics_cleanup()(), add = TRUE)
-  result <- show_plot_via_httpgd("plot(1:10)")
+  result <- show_plot_local("plot(1:10)")
   expect_equal(result$type, "text")
-  expect_true(grepl("httpgd", result$content))
-  expect_true(grepl("http", result$content))
+  expect_true(grepl("Plot displayed to user|Plot saved to file|Plot displayed on active", result$content))
 })
 
-# --- File fallback ---
-
-test_that("show_plot_via_file saves png and returns path", {
-  on.exit(with_graphics_cleanup()(), add = TRUE)
-  result <- show_plot_via_file("plot(1:10)")
-  expect_equal(result$type, "text")
-  expect_true(grepl("Plot saved to file", result$content))
-  expect_true(grepl("\\.png", result$content))
-})
-
-# --- Optimization suggestions (shared helper) ---
+# --- Optimization suggestions (now in MCPR::: shared primitives) ---
 
 test_that("generate_optimization_suggestions works", {
-  suggestions <- generate_optimization_suggestions(1200, 900, 50000, 25000, "png")
+  suggestions <- MCPR:::generate_optimization_suggestions(1200, 900, 50000, 25000, "png")
   expect_true(length(suggestions) > 0)
   expect_true(any(grepl("400x300|600x450", suggestions)))
   expect_true(any(grepl("%", suggestions)))
 
   # Test format-specific suggestions
-  suggestions_png <- generate_optimization_suggestions(600, 450, 22000, 25000, "png")
+  suggestions_png <- MCPR:::generate_optimization_suggestions(600, 450, 22000, 25000, "png")
   expect_true(any(grepl("JPEG", suggestions_png)))
 
   # Test different reduction levels
-  suggestions_minor <- generate_optimization_suggestions(700, 525, 27000, 25000, "png")
+  suggestions_minor <- MCPR:::generate_optimization_suggestions(700, 525, 27000, 25000, "png")
   expect_true(any(grepl("20%", suggestions_minor)))
 })
 
@@ -186,20 +174,19 @@ test_that("render-first approach function signature", {
   # Verify that estimate_plot_tokens function no longer exists
   expect_false(exists("estimate_plot_tokens", mode = "function"))
 
-  # Verify generate_optimization_suggestions has updated signature
-  formals_suggestions <- formals(generate_optimization_suggestions)
+  # Verify generate_optimization_suggestions has updated signature (now in MCPR:::)
+  formals_suggestions <- formals(MCPR:::generate_optimization_suggestions)
   expect_true("current_format" %in% names(formals_suggestions))
   expect_equal(formals_suggestions$current_format, "png")
 })
 
 # --- MCP App channel ---
 
-test_that("detect_output_channel returns mcp_app when flag is set", {
+test_that(".mcp_apps_supported returns TRUE when mcp_app context is set", {
   set_test_request_context(TRUE)
   on.exit(.clear_mcpr_ctx(), add = TRUE)
 
-  channel <- detect_output_channel()
-  expect_equal(channel, "mcp_app")
+  expect_true(.mcp_apps_supported())
 })
 
 test_that(".mcp_apps_supported prioritizes direct request context", {
@@ -209,12 +196,11 @@ test_that(".mcp_apps_supported prioritizes direct request context", {
   expect_true(.mcp_apps_supported())
 })
 
-test_that("detect_output_channel ignores mcp_app flag when FALSE", {
+test_that(".mcp_apps_supported returns FALSE when context is not mcp_app", {
   set_test_request_context(FALSE, interface = "cli")
   on.exit(.clear_mcpr_ctx(), add = TRUE)
 
-  channel <- detect_output_channel()
-  expect_true(channel %in% c("httpgd", "device", "file"))
+  expect_false(.mcp_apps_supported())
 })
 
 test_that("show_plot_via_mcp_app returns content array with structuredContent image", {

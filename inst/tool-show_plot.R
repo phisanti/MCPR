@@ -1,180 +1,6 @@
 # Show Plot Tool
 # Routes plotting requests to user-facing or agent-facing rendering paths.
-# Supports active-device display, MCP App delivery, and token-aware image export.
-
-#' Create an image response in base64 format
-#'
-#' @param file Path to the image file
-#' @param mime_type MIME type of the image (default: "image/png")
-#' @return A list with image content in base64 format
-#' @noRd
-response_image <- function(file, mime_type = "image/png") {
-  if (!file.exists(file)) {
-    cli::cli_abort("Image file does not exist: {file}")
-  }
-
-  list(
-    type = "image",
-    content = base64enc::dataURI(file = file, mime = mime_type)
-  )
-}
-
-#' Create graphics device for plot generation
-#'
-#' Uses httpgd if available, otherwise falls back to standard R graphics devices
-#'
-#' @param format Output format: 'png', 'jpeg', 'pdf', or 'svg'
-#' @param width Width for the device
-#' @param height Height for the device
-#' @return Temporary file path where plot will be saved
-#' @noRd
-setup_graphics_device <- function(format = "png", width = 800, height = 600) {
-  # Create temporary file
-  file_ext <- switch(format,
-    "png" = ".png",
-    "jpeg" = ".jpg",
-    "pdf" = ".pdf",
-    "svg" = ".svg"
-  )
-
-  tmp <- tempfile(fileext = file_ext)
-
-  # Try httpgd first, fallback to standard devices
-  if (requireNamespace("httpgd", quietly = TRUE)) {
-    # Use httpgd if available
-    httpgd::hgd(width = width, height = height, silent = TRUE)
-    return(list(type = "httpgd", file = tmp))
-  } else {
-    # Fallback to standard R graphics devices
-    switch(format,
-      "png" = grDevices::png(tmp, width = width, height = height),
-      "jpeg" = grDevices::jpeg(tmp, width = width, height = height, quality = 90),
-      "pdf" = grDevices::pdf(tmp, width = width / 100, height = height / 100), # PDF uses inches
-      "svg" = grDevices::svg(tmp, width = width / 100, height = height / 100) # SVG uses inches
-    )
-    return(list(type = "standard", file = tmp))
-  }
-}
-
-#' Get plot data using appropriate method with token calculation
-#'
-#' @param device_info Device information from setup_graphics_device
-#' @param format Output format
-#' @param width Width in pixels
-#' @param height Height in pixels
-#' @return Image response with base64 encoded plot and token count
-#' @noRd
-get_plot_data <- function(device_info, format = "png", width = 800, height = 600) {
-  if (device_info$type == "httpgd") {
-    # Use httpgd rendering
-    tryCatch(
-      {
-        plot_data <- httpgd::ugd_render(
-          width = width,
-          height = height,
-          renderer = format
-        )
-
-        writeBin(plot_data, device_info$file)
-      },
-      error = function(e) {
-        # Fallback: copy httpgd device to file using dev.copy
-        switch(format,
-          "png" = {
-            grDevices::dev.copy(grDevices::png, device_info$file, width = width, height = height)
-            grDevices::dev.off()
-          },
-          "jpeg" = {
-            grDevices::dev.copy(grDevices::jpeg, device_info$file, width = width, height = height, quality = 90)
-            grDevices::dev.off()
-          },
-          "pdf" = {
-            grDevices::dev.copy(grDevices::pdf, device_info$file, width = width / 100, height = height / 100)
-            grDevices::dev.off()
-          },
-          "svg" = {
-            grDevices::dev.copy(grDevices::svg, device_info$file, width = width / 100, height = height / 100)
-            grDevices::dev.off()
-          }
-        )
-      }
-    )
-  } else {
-    # Standard device - just close it
-    grDevices::dev.off()
-  }
-
-  # Determine MIME type
-  mime_type <- switch(format,
-    "png" = "image/png",
-    "jpeg" = "image/jpeg",
-    "pdf" = "application/pdf",
-    "svg" = "image/svg+xml"
-  )
-
-  # Create response with token calculation
-  image_response <- response_image(device_info$file, mime_type)
-
-  # Calculate actual tokens from base64 content
-  # Extract base64 content from dataURI (format: "data:image/png;base64,ACTUALDATA")
-  base64_content <- sub("^data:[^,]*,", "", image_response$content)
-  actual_tokens <- ceiling(nchar(base64_content) / 4)
-
-  # Add token information to response
-  image_response$tokens <- actual_tokens
-
-  # Clean up
-  on.exit(unlink(device_info$file))
-
-  return(image_response)
-}
-
-
-#' Generate Optimization Suggestions
-#'
-#' Provides specific recommendations to reduce token consumption
-#'
-#' @param current_width Current plot width
-#' @param current_height Current plot height
-#' @param current_tokens Actual current token count
-#' @param target_tokens Target token limit
-#' @param current_format Current format used
-#' @return Character vector of suggestions
-#' @noRd
-generate_optimization_suggestions <- function(current_width, current_height, current_tokens, target_tokens, current_format = "png") {
-  suggestions <- character()
-
-  reduction_needed <- (current_tokens - target_tokens) / current_tokens
-
-  if (reduction_needed > 0.5) {
-    # Need major reduction
-    suggestions <- c(
-      suggestions,
-      sprintf("Reduce resolution to 400x300 (saves ~70%% tokens)")
-    )
-  } else if (reduction_needed > 0.3) {
-    # Need moderate reduction
-    suggestions <- c(
-      suggestions,
-      sprintf("Reduce resolution to 600x450 (saves ~40%% tokens)")
-    )
-  } else {
-    # Need minor reduction
-    new_width <- round(current_width * 0.9)
-    new_height <- round(current_height * 0.9)
-    suggestions <- c(
-      suggestions,
-      sprintf("Reduce resolution to %dx%d (saves ~20%% tokens)", new_width, new_height)
-    )
-  }
-
-  # Suggest format optimization if using PNG and tokens are high
-  if (current_format == "png" && current_tokens > target_tokens * 0.8) {
-    suggestions <- c(suggestions, "Consider JPEG format for ~20% token savings (slightly lower quality)")
-  }
-
-  return(suggestions)
-}
+# User path delegates to R/plot-render.R primitives; agent path uses shared device/encoding helpers.
 
 #' Create and display R plots
 #'
@@ -250,60 +76,58 @@ show_plot <- function(expr, target = "user", width = 600, height = 450, format =
   identical(ctx$mcpr_interface, "mcp_app") || isTRUE(ctx$mcp_apps_supported)
 }
 
-#' Detect the best available output channel for user-facing plots
-#'
-#' Checks for MCP Apps support first, then httpgd availability, interactive
-#' sessions with displays, and falls back to file export for headless environments.
-#'
-#' @return Character string: "mcp_app", "httpgd", "device", or "file"
-#' @noRd
-detect_output_channel <- function() {
-  # 0. MCP App client? Route to inline viewer
-  if (.mcp_apps_supported()) {
-    return("mcp_app")
-  }
-
-  # 1. httpgd already the active device?
-  dev_name <- names(grDevices::dev.cur())
-  if (dev_name %in% c("httpgd", "unigd")) {
-    return("httpgd")
-  }
-
-  # 2. httpgd available but not active? Start it.
-  if (requireNamespace("httpgd", quietly = TRUE)) {
-    return("httpgd")
-  }
-
-  # 3. Interactive with a display?
-  if (interactive()) {
-    return("device")
-  }
-
-  # 4. Headless fallback
-  return("file")
-}
-
 #' Display a plot to the user via the best available channel
 #'
-#' Routes through httpgd (with browser), active graphics device, or
-#' file export depending on the environment.
+#' Routes through MCP App (structuredContent) when supported, otherwise
+#' delegates to local device rendering via R/plot-render.R primitives.
+#'
+#' @param expr R code expression to generate the plot
+#' @return A text confirmation message or MCP App structured response
+#' @noRd
+show_plot_user <- function(expr) {
+  if (.mcp_apps_supported()) {
+    return(show_plot_via_mcp_app(expr))
+  }
+
+  tryCatch(
+    show_plot_local(expr),
+    error = function(e) {
+      cli::cli_abort("Error displaying plot: {e$message}")
+    }
+  )
+}
+
+#' Display a plot via local device rendering
+#'
+#' Evaluates the expression, checks for htmlwidgets, and delegates
+#' static plots to MCPR:::render_static_plot().
 #'
 #' @param expr R code expression to generate the plot
 #' @return A text confirmation message
 #' @noRd
-show_plot_user <- function(expr) {
-  channel <- detect_output_channel()
+show_plot_local <- function(expr) {
+  # First, eval to check if it's a widget
+  result <- MCPR:::eval_plot_expr(expr)
 
-  tryCatch(
-    switch(channel,
-      mcp_app = show_plot_via_mcp_app(expr),
-      httpgd  = show_plot_via_httpgd(expr),
-      device  = show_plot_via_device(expr),
-      file    = show_plot_via_file(expr)
-    ),
-    error = function(e) {
-      cli::cli_abort("Error displaying plot: {e$message}")
-    }
+  if (inherits(result, c("htmlwidget", "plotly"))) {
+    path <- MCPR:::show_widget_in_browser(result)
+    return(list(
+      type = "text",
+      content = sprintf("Interactive widget opened in browser: %s", path)
+    ))
+  }
+
+  # Static plot — re-render on the right device
+  device_channel <- MCPR:::detect_local_device()
+  render_result <- MCPR:::render_static_plot(expr, device_channel)
+
+  list(
+    type = "text",
+    content = switch(render_result$channel,
+      httpgd = sprintf("Plot displayed to user via httpgd at %s", render_result$info),
+      device = render_result$info,
+      file = sprintf("Plot saved to file: %s (headless environment, no display available).", render_result$info)
+    )
   )
 }
 
@@ -332,7 +156,7 @@ show_plot_via_mcp_app <- function(expr) {
   device_open <- TRUE
 
   result <- tryCatch(
-    eval(parse(text = expr), envir = .GlobalEnv),
+    MCPR:::eval_plot_expr(expr),
     error = function(e) {
       cli::cli_abort("Error evaluating plot expression: {e$message}")
     }
@@ -407,88 +231,6 @@ show_plotly_via_mcp_app <- function(widget) {
   )
 }
 
-#' Display a plot via httpgd and open in the browser
-#'
-#' Starts an httpgd device if needed, evaluates the plot expression,
-#' and opens the httpgd viewer in the user's default browser.
-#' If httpgd fails to start (e.g., memory constraints in MCP sessions),
-#' falls back to device or file output.
-#'
-#' @param expr R code expression to generate the plot
-#' @return A text confirmation message
-#' @noRd
-show_plot_via_httpgd <- function(expr) {
-  dev_name <- names(grDevices::dev.cur())
-  already_active <- dev_name %in% c("httpgd", "unigd")
-
-  if (!already_active) {
-    started <- tryCatch(
-      { httpgd::hgd(silent = TRUE); TRUE },
-      error = function(e) FALSE
-    )
-    if (!started) {
-      # httpgd failed to start — fall back
-      if (interactive()) return(show_plot_via_device(expr))
-      return(show_plot_via_file(expr))
-    }
-  }
-
-  result <- eval(parse(text = expr), envir = .GlobalEnv)
-  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "htmlwidget", "plotly"))) {
-    print(result)
-  }
-
-  url <- httpgd::hgd_url()
-
-  # Open in browser so the user can see it
-  if (!already_active) {
-    httpgd::hgd_browse()
-  }
-
-  list(
-    type = "text",
-    content = sprintf("Plot displayed to user via httpgd at %s", url)
-  )
-}
-
-#' Display a plot via the active graphics device (print)
-#'
-#' @param expr R code expression to generate the plot
-#' @return A text confirmation message
-#' @noRd
-show_plot_via_device <- function(expr) {
-  result <- eval(parse(text = expr), envir = .GlobalEnv)
-  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "htmlwidget", "plotly"))) {
-    print(result)
-  }
-
-  list(
-    type = "text",
-    content = "Plot displayed to user via active graphics device."
-  )
-}
-
-#' Save a plot to a temp file for headless environments
-#'
-#' @param expr R code expression to generate the plot
-#' @return A text confirmation with the file path
-#' @noRd
-show_plot_via_file <- function(expr) {
-  tmp <- tempfile(fileext = ".png")
-  grDevices::png(tmp, width = 800, height = 600)
-  on.exit(grDevices::dev.off(), add = TRUE)
-
-  result <- eval(parse(text = expr), envir = .GlobalEnv)
-  if (inherits(result, c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "htmlwidget", "plotly"))) {
-    print(result)
-  }
-
-  list(
-    type = "text",
-    content = sprintf("Plot saved to file: %s (headless environment, no display available).", tmp)
-  )
-}
-
 #' Render a plot for agent analysis as base64-encoded image
 #'
 #' @param expr R code expression to generate the plot
@@ -522,18 +264,18 @@ show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
   tryCatch(
     {
       # Set up graphics device (httpgd if available, standard otherwise)
-      device_info <- setup_graphics_device(format, width, height)
+      device_info <- MCPR:::setup_graphics_device(format, width, height)
 
       # Execute the plotting code
-      result <- eval(parse(text = expr), envir = .GlobalEnv)
+      result <- MCPR:::eval_plot_expr(expr)
 
       # Get the plot data with actual token count
-      image_response <- get_plot_data(device_info, format, width, height)
+      image_response <- MCPR:::get_plot_data(device_info, format, width, height)
       actual_tokens <- image_response$tokens
 
       # Check if plot exceeds token limits
       if (actual_tokens > token_limit) {
-        suggestions <- generate_optimization_suggestions(width, height, actual_tokens, token_limit, format)
+        suggestions <- MCPR:::generate_optimization_suggestions(width, height, actual_tokens, token_limit, format)
 
         error_msg <- sprintf(
           "Plot too large for agent analysis: %s tokens exceeds %s token limit.
@@ -551,7 +293,7 @@ show_plot_agent <- function(expr, width = 600, height = 450, format = "png",
       # Generate warning for high token usage
       optimization_warning <- NULL
       if (actual_tokens > warn_threshold) {
-        suggestions <- generate_optimization_suggestions(width, height, actual_tokens, warn_threshold, format)
+        suggestions <- MCPR:::generate_optimization_suggestions(width, height, actual_tokens, warn_threshold, format)
 
         optimization_warning <- sprintf(
           "WARNING: HIGH TOKEN USAGE: %s tokens (%.1f%% of limit)

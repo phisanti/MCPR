@@ -1,7 +1,7 @@
 Package: MCPR
 Type: Package
 Title: MCPR: Model Context Protocol Implementation for R Session Integration
-Version: 0.9.6
+Version: 0.9.72
 Authors@R: 
     person("Santiago", "Cano-Muniz", , "tisalon@outlook.com", role = c("aut", "cre"))
 Author: Santiago Cano-Muniz [aut, cre]
@@ -79,6 +79,7 @@ Collate:
     'mcpr-server-tools.R'
     'mcpr-server.R'
     'mcpr-session.R'
+    'plot-render.R'
     'view-utils.R'
     'view-session-state.R'
     'view-system-info.R'
