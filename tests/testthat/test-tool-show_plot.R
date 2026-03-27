@@ -1,5 +1,5 @@
 # Unit Tests for Show Plot Tool
-# Tests the show_plot tool with target-based routing (user/agent)
+# Tests the show_plot tool with new variable-name-based interface and channel_plot delegation
 
 library(testthat)
 library(ggplot2)
@@ -69,20 +69,45 @@ list2env(as.list(.tool_env, all.names = TRUE), envir = environment())
 
 # --- Input validation ---
 
-test_that("show_plot validates expr", {
-  expect_error(show_plot(123), "Expression must be a single character string")
-  expect_error(show_plot(c("a", "b")), "Expression must be a single character string")
-  expect_error(show_plot("   "), "Expression cannot be empty")
+test_that("show_plot validates plot argument type", {
+  expect_error(show_plot(123), "`plot` must be a non-empty variable name string")
+  expect_error(show_plot(c("a", "b")), "`plot` must be a non-empty variable name string")
+  expect_error(show_plot("   "), "`plot` must be a non-empty variable name string")
 })
 
 test_that("show_plot validates target", {
-  expect_error(show_plot("plot(1)", target = "nobody"), "Target must be one of")
+  # Create a valid plot variable first
+  .GlobalEnv$.test_plot_obj <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  on.exit(rm(".test_plot_obj", envir = .GlobalEnv), add = TRUE)
+
+  expect_error(show_plot(".test_plot_obj", target = "nobody"), "Target must be one of")
 })
 
-test_that("show_plot agent target validates format and dimensions", {
-  expect_error(show_plot("plot(1)", target = "agent", format = "gif"), "Format must be one of")
-  expect_error(show_plot("plot(1)", target = "agent", width = -100), "Width must be a positive number")
-  expect_error(show_plot("plot(1)", target = "agent", height = 0), "Height must be a positive number")
+test_that("show_plot returns guidance when passed an expression string", {
+  result <- show_plot("ggplot(mtcars, aes(x, y))")
+  expect_equal(result$type, "text")
+  expect_true(grepl("variable name", result$content))
+  expect_true(grepl("execute_r_code", result$content))
+  expect_true(grepl("capture_plot", result$content))
+})
+
+test_that("show_plot returns guidance for various expression patterns", {
+  # Contains +
+  r1 <- show_plot("p + geom_point()")
+  expect_equal(r1$type, "text")
+  expect_true(grepl("variable name", r1$content))
+
+  # Contains <-
+  r2 <- show_plot("p <- ggplot(mtcars)")
+  expect_equal(r2$type, "text")
+  expect_true(grepl("variable name", r2$content))
+})
+
+test_that("show_plot errors for non-existent variable", {
+  expect_error(
+    show_plot("this_var_does_not_exist_xyz_abc"),
+    "not found in the R session"
+  )
 })
 
 # --- Defaults ---
@@ -94,15 +119,6 @@ test_that("show_plot defaults to target='user'", {
 
 test_that("show_plot exposes tool-level MCP App annotations", {
   expect_equal(.show_plot_annotations$`_meta`$ui$resourceUri, "ui://mcpr/plots")
-})
-
-test_that("show_plot agent defaults match optimized values", {
-  formals_list <- formals(show_plot)
-  expect_equal(formals_list$width, 600)
-  expect_equal(formals_list$height, 450)
-  expect_equal(formals_list$format, "png")
-  expect_equal(formals_list$token_limit, 25000)
-  expect_equal(formals_list$warn_threshold, 20000)
 })
 
 # --- Local device detection (via MCPR::: shared primitive) ---
@@ -118,37 +134,37 @@ test_that("detect_local_device prefers httpgd when available", {
   expect_equal(channel, "httpgd")
 })
 
-# --- User target ---
+# --- User target via variable name ---
 
 test_that("show_plot user target returns text confirmation", {
   on.exit(with_graphics_cleanup()(), add = TRUE)
-  result <- show_plot("plot(1:10)", target = "user")
+
+  .GlobalEnv$.test_plot_var <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  on.exit(rm(".test_plot_var", envir = .GlobalEnv), add = TRUE)
+
+  result <- show_plot(".test_plot_var", target = "user")
   expect_equal(result$type, "text")
   expect_true(grepl("Plot displayed to user|Plot saved to file|Plot displayed on active", result$content))
 })
 
 test_that("show_plot user target does not return base64 image", {
   on.exit(with_graphics_cleanup()(), add = TRUE)
-  result <- show_plot("plot(1:10)", target = "user")
+
+  .GlobalEnv$.test_plot_var2 <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  on.exit(rm(".test_plot_var2", envir = .GlobalEnv), add = TRUE)
+
+  result <- show_plot(".test_plot_var2", target = "user")
   expect_false(grepl("^data:", result$content))
   expect_false(result$type == "image")
 })
 
-test_that("show_plot user target handles ggplot objects", {
+test_that("show_plot displays captured base graphics via variable name", {
   on.exit(with_graphics_cleanup()(), add = TRUE)
-  result <- show_plot("ggplot(mtcars, aes(mpg, hp)) + geom_point()", target = "user")
-  expect_equal(result$type, "text")
-})
 
-test_that("show_plot user target reports errors", {
-  expect_error(show_plot("nonexistent_var + 1", target = "user"), "Error displaying plot")
-})
+  .GlobalEnv$.test_base_plot <- MCPR::capture_plot(plot(cars))
+  on.exit(rm(".test_base_plot", envir = .GlobalEnv), add = TRUE)
 
-# --- Local rendering (show_plot_local) ---
-
-test_that("show_plot_local renders static plots via local device", {
-  on.exit(with_graphics_cleanup()(), add = TRUE)
-  result <- show_plot_local("plot(1:10)")
+  result <- show_plot(".test_base_plot", target = "user")
   expect_equal(result$type, "text")
   expect_true(grepl("Plot displayed to user|Plot saved to file|Plot displayed on active", result$content))
 })
@@ -203,64 +219,55 @@ test_that(".mcp_apps_supported returns FALSE when context is not mcp_app", {
   expect_false(.mcp_apps_supported())
 })
 
-test_that("show_plot_via_mcp_app returns content array with structuredContent image", {
+test_that("show_plot routes to structuredContent when mcp_app context is set", {
   set_test_request_context(TRUE)
   on.exit(.clear_mcpr_ctx(), add = TRUE)
   on.exit(with_graphics_cleanup()(), add = TRUE)
 
-  result <- show_plot_via_mcp_app("plot(1:10)")
+  .GlobalEnv$.test_mcp_plot <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  on.exit(rm(".test_mcp_plot", envir = .GlobalEnv), add = TRUE)
 
-  expect_equal(result$content[[1]]$type, "text")
-  expect_equal(result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
-  expect_equal(result$content[[1]]$annotations$audience, list("assistant"))
-  expect_equal(result$structuredContent$kind, "image")
-  expect_equal(result$structuredContent$mimeType, "image/png")
-  expect_true(nchar(result$structuredContent$data) > 0)
-  expect_null(result$`_meta`)
-})
-
-test_that("show_plot_via_mcp_app handles ggplot objects", {
-  on.exit(with_graphics_cleanup()(), add = TRUE)
-  result <- show_plot_via_mcp_app("ggplot(mtcars, aes(mpg, hp)) + geom_point()")
-
-  expect_equal(result$structuredContent$kind, "image")
-  expect_equal(result$structuredContent$mimeType, "image/png")
-  expect_null(result$`_meta`)
-})
-
-test_that("show_plot_via_mcp_app returns mcp_app channel result via show_plot", {
-  set_test_request_context(TRUE)
-  on.exit(.clear_mcpr_ctx(), add = TRUE)
-  on.exit(with_graphics_cleanup()(), add = TRUE)
-
-  result <- show_plot("plot(1:10)", target = "user")
+  result <- show_plot(".test_mcp_plot", target = "user")
 
   expect_equal(result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
   expect_equal(result$structuredContent$kind, "image")
   expect_null(result$`_meta`)
 })
 
-test_that("show_plot_via_mcp_app routes plotly widgets to viewer payloads", {
+test_that("show_plot routes captured side-effect plots to structuredContent when mcp_app context is set", {
+  set_test_request_context(TRUE)
+  on.exit(.clear_mcpr_ctx(), add = TRUE)
+  on.exit(with_graphics_cleanup()(), add = TRUE)
+
+  .GlobalEnv$.test_model_plot <- MCPR::capture_plot({
+    model <- lm(dist ~ speed, data = cars)
+    plot(model)
+  })
+  on.exit(rm(".test_model_plot", envir = .GlobalEnv), add = TRUE)
+
+  result <- show_plot(".test_model_plot", target = "user")
+
+  expect_equal(result$content[[1]]$text, "This tool call rendered a plot in the viewer.")
+  expect_equal(result$structuredContent$kind, "image")
+  expect_null(result$`_meta`)
+})
+
+test_that("show_plot routes plotly widget to plotly structuredContent", {
   skip_if_not_installed("plotly")
+  set_test_request_context(TRUE)
+  on.exit(.clear_mcpr_ctx(), add = TRUE)
   on.exit(with_graphics_cleanup()(), add = TRUE)
 
-  result <- show_plot_via_mcp_app(
-    "plotly::plot_ly(mtcars, x = ~mpg, y = ~hp, type = 'scatter', mode = 'markers')"
-  )
+  .GlobalEnv$.test_plotly_obj <- plotly::plot_ly(mtcars, x = ~mpg, y = ~hp, type = "scatter", mode = "markers")
+  on.exit(rm(".test_plotly_obj", envir = .GlobalEnv), add = TRUE)
+
+  result <- show_plot(".test_plotly_obj", target = "user")
 
   expect_equal(result$content[[1]]$text, "This tool call rendered an interactive widget in the viewer.")
   expect_equal(result$content[[1]]$annotations$audience, list("assistant"))
   expect_equal(result$structuredContent$kind, "plotly")
-  expect_true(!is.null(result$structuredContent$spec))
+  expect_false(is.null(result$structuredContent$spec))
   expect_null(result$`_meta`)
-})
-
-test_that("show_plot_via_mcp_app aborts on empty plot output", {
-  on.exit(with_graphics_cleanup()(), add = TRUE)
-  expect_error(
-    show_plot_via_mcp_app("invisible(NULL)"),
-    "empty image file"
-  )
 })
 
 test_that("encode_tool_results preserves audience annotation from structuredContent result", {
@@ -284,7 +291,7 @@ test_that("encode_tool_results preserves audience annotation from structuredCont
 test_that("tool_as_json propagates _meta.ui.resourceUri from annotations", {
   # Create a ToolDef with the same annotations as show_plot
   tool <- MCPR:::ToolDef$new(
-    fun = function(expr) expr,
+    fun = function(plot) plot,
     name = "test_tool",
     description = "test",
     annotations = .show_plot_annotations
@@ -294,7 +301,6 @@ test_that("tool_as_json propagates _meta.ui.resourceUri from annotations", {
 
   expect_equal(json[["_meta"]]$ui$resourceUri, "ui://mcpr/plots")
   # Legacy flat key should also be present
-
   expect_equal(json[["_meta"]][["ui/resourceUri"]], "ui://mcpr/plots")
 })
 

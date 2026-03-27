@@ -1,6 +1,6 @@
-# Plot Rendering Primitives
-# Pure rendering functions for plot device management, widget display, and static plot capture.
-# Called from inst/tool-show_plot.R via MCPR::: — no MCP awareness; uses cli only for errors.
+# Plot Rendering Primitives and Public Routing API
+# Pure rendering functions plus deferred capture helpers for side-effect plotting workflows.
+# Exports channel_plot() and capture_plot() to keep plot routing device-agnostic.
 
 #' Detect the best available local graphics device
 #'
@@ -30,16 +30,43 @@ detect_local_device <- function() {
   "file"
 }
 
-#' Evaluate an R expression string in .GlobalEnv
+#' Capture a plotting expression for deferred display
 #'
-#' Shared evaluator used by both MCP App and local rendering paths.
-#' Returns the result object so callers can inspect its class.
+#' @description Capture an unevaluated plotting expression for later display on
+#' the active graphics device. This is intended for base R graphics and other
+#' side-effect plotting workflows that do not naturally return a reusable plot
+#' object, such as `plot(cars)` or `{ model <- lm(dist ~ speed, data = cars);
+#' plot(model) }`.
 #'
-#' @param expr Character string containing an R expression
-#' @return The result of evaluating the expression
-#' @noRd
-eval_plot_expr <- function(expr) {
-  eval(parse(text = expr), envir = .GlobalEnv)
+#' The expression is not evaluated when captured. Instead, `print()` re-runs it
+#' in the original calling environment when the plot is displayed through
+#' `show_plot()` or `channel_plot()`.
+#'
+#' @param expr A plotting expression to defer for later rendering.
+#' @return An object of class `captured_plot`.
+#' @export
+capture_plot <- function(expr) {
+  if (missing(expr)) {
+    cli::cli_abort("`expr` must be supplied")
+  }
+
+  structure(
+    list(
+      expr = substitute(expr),
+      env = parent.frame()
+    ),
+    class = "captured_plot"
+  )
+}
+
+#' @export
+print.captured_plot <- function(x, ...) {
+  if (!is.list(x) || is.null(x$expr) || is.null(x$env)) {
+    cli::cli_abort("Invalid `captured_plot` object", .internal = TRUE)
+  }
+
+  eval(x$expr, envir = x$env)
+  invisible(x)
 }
 
 #' Display an htmlwidget in the user's default browser
@@ -61,29 +88,19 @@ show_widget_in_browser <- function(widget) {
   tmp
 }
 
-#' Render a static plot on a local device
+#' Render a static plot object on a local device
 #'
-#' Encapsulates the prepare/eval/print/finalize cycle for static plots.
-#' Handles httpgd, native device, and file export paths. When `result` is
-#' provided (pre-evaluated), reuses it for printable objects (gg, grob, etc.)
-#' to avoid double evaluation. Side-effect-only plots (base R) are re-evaluated
-#' on the target device since the side effect IS the plot.
+#' Encapsulates the prepare/print/finalize cycle for static plot objects.
+#' Handles httpgd, native device, and file export paths. Always receives a
+#' real plot object — no expression evaluation happens here.
 #'
-#' @param expr Character string containing the plot expression
+#' @param plot_obj A plot object (ggplot, recordedplot, grob, gtable, trellis,
+#'   or captured_plot)
 #' @param device_channel One of "httpgd", "device", or "file"
-#' @param result Optional pre-evaluated result from a prior eval_plot_expr() call.
-#'   If a printable object, it will be printed on the target device without re-eval.
-#'   If NULL (default), the expression is evaluated fresh.
 #' @return A list with `channel` (character) and `info` (URL, path, or confirmation)
 #' @noRd
-render_static_plot <- function(expr, device_channel, result = NULL) {
-  printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot")
-
-  # show_plot_local() evals once for type detection (widget vs static), then
-  # passes the result here. Printable objects (gg, grob, etc.) are reused via
-  # print() — no re-eval needed. Side-effect-only plots (base R plot() returns
-  # NULL) must be re-evaluated on the target device since the draw IS the side effect.
-  needs_eval <- !inherits(result, printable_classes)
+render_static_plot <- function(plot_obj, device_channel) {
+  printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot")
 
   switch(device_channel,
     httpgd = {
@@ -94,11 +111,8 @@ render_static_plot <- function(expr, device_channel, result = NULL) {
         httpgd::hgd(silent = TRUE)
       }
 
-      if (needs_eval) {
-        result <- eval_plot_expr(expr)
-      }
-      if (inherits(result, printable_classes)) {
-        print(result)
+      if (inherits(plot_obj, printable_classes)) {
+        print(plot_obj)
       }
 
       url <- httpgd::hgd_url()
@@ -110,11 +124,8 @@ render_static_plot <- function(expr, device_channel, result = NULL) {
     },
 
     device = {
-      if (needs_eval) {
-        result <- eval_plot_expr(expr)
-      }
-      if (inherits(result, printable_classes)) {
-        print(result)
+      if (inherits(plot_obj, printable_classes)) {
+        print(plot_obj)
       }
 
       list(channel = "device", info = "Plot displayed on active graphics device.")
@@ -125,15 +136,105 @@ render_static_plot <- function(expr, device_channel, result = NULL) {
       grDevices::png(tmp, width = 800, height = 600)
       on.exit(grDevices::dev.off(), add = TRUE)
 
-      if (needs_eval) {
-        result <- eval_plot_expr(expr)
-      }
-      if (inherits(result, printable_classes)) {
-        print(result)
+      if (inherits(plot_obj, printable_classes)) {
+        print(plot_obj)
       }
 
       list(channel = "file", info = tmp)
     }
+  )
+}
+
+#' Display a static plot via MCP App inline viewer
+#'
+#' Captures the plot object as PNG and returns a single MCP content item with
+#' structuredContent for the MCP App viewer. If the object is an htmlwidget or
+#' plotly, delegates to show_plotly_via_mcp_app() for interactive rendering.
+#'
+#' @param plot_obj A plot object (ggplot, recordedplot, grob, gtable, trellis,
+#'   plotly, htmlwidget, or captured_plot)
+#' @return A single content item descriptor for encode_tool_results()
+#' @noRd
+show_plot_via_mcp_app <- function(plot_obj) {
+  # Delegate interactive plots to the plotly path
+  if (inherits(plot_obj, c("htmlwidget", "plotly"))) {
+    return(show_plotly_via_mcp_app(plot_obj))
+  }
+
+  tmp <- tempfile(fileext = ".png")
+  device_open <- FALSE
+  on.exit({
+    if (device_open && grDevices::dev.cur() != 1) {
+      try(grDevices::dev.off(), silent = TRUE)
+    }
+    unlink(tmp)
+  }, add = TRUE)
+
+  # Open device BEFORE printing so side-effect plots (recordedplot) are captured
+  grDevices::png(tmp, width = 800, height = 600)
+  device_open <- TRUE
+
+  printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot")
+  if (inherits(plot_obj, printable_classes)) {
+    print(plot_obj)
+  }
+
+  grDevices::dev.off()
+  device_open <- FALSE
+
+  # Base64-encode the PNG — guard against empty/partial files
+  file_size <- file.info(tmp)$size
+  if (is.na(file_size) || file_size == 0) {
+    cli::cli_abort("Plot produced an empty image file — the plot object may not generate visible output.")
+  }
+  raw_data <- readBin(tmp, "raw", file_size)
+  b64_data <- base64enc::base64encode(raw_data)
+
+  list(
+    content = list(list(
+      type = "text",
+      text = "This tool call rendered a plot in the viewer.",
+      annotations = list(audience = list("assistant"))
+    )),
+    structuredContent = list(
+      kind = "image",
+      mimeType = "image/png",
+      data = b64_data
+    )
+  )
+}
+
+#' Display a plotly/htmlwidget via MCP App inline viewer
+#'
+#' Builds the plotly spec and returns it in `structuredContent` for the MCP App
+#' viewer to render interactively.
+#'
+#' @param widget A plotly or htmlwidget object
+#' @return A single content item descriptor for encode_tool_results()
+#' @noRd
+show_plotly_via_mcp_app <- function(widget) {
+  if (!requireNamespace("plotly", quietly = TRUE)) {
+    cli::cli_abort("plotly package is required for interactive chart rendering")
+  }
+
+  built <- plotly::plotly_build(widget)
+
+  spec <- list(
+    data   = built$x$data,
+    layout = built$x$layout,
+    config = built$x$config
+  )
+
+  list(
+    content = list(list(
+      type = "text",
+      text = "This tool call rendered an interactive widget in the viewer.",
+      annotations = list(audience = list("assistant"))
+    )),
+    structuredContent = list(
+      kind = "plotly",
+      spec = spec
+    )
   )
 }
 
@@ -296,5 +397,135 @@ response_image <- function(file, mime_type = "image/png") {
   list(
     type = "image",
     content = base64enc::dataURI(file = file, mime = mime_type)
+  )
+}
+
+#' Route a plot object to the appropriate display channel
+#'
+#' @description Central routing function for displaying R plot objects.
+#' Validates the plot object class, then routes to the appropriate
+#' rendering path based on target audience and MCP App support.
+#'
+#' @param plot_obj A plot object (ggplot, plotly, htmlwidget, recordedplot,
+#'   grob, gtable, trellis, or captured_plot)
+#' @param mcp_apps_supported Logical; whether the client supports MCP App structuredContent
+#' @param target Character; who sees the plot: "user" (display) or "agent" (base64 for analysis)
+#' @return Varies by path — text confirmation, structuredContent list, or image response
+#' @export
+channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
+                         target = c("user", "agent")) {
+  target <- match.arg(target)
+
+  # Validate plot_obj class
+  valid_classes <- c("gg", "ggplot", "plotly", "htmlwidget", "recordedplot", "grob", "gtable", "trellis", "captured_plot")
+  if (!inherits(plot_obj, valid_classes)) {
+    cli::cli_abort(
+      "Expected a plot object ({paste(valid_classes, collapse = ', ')}), got {paste(class(plot_obj), collapse = '/')}"
+    )
+  }
+
+  is_interactive <- inherits(plot_obj, c("htmlwidget", "plotly"))
+
+  if (target == "agent") {
+    return(.channel_plot_agent(plot_obj))
+  }
+
+  # target == "user"
+  if (mcp_apps_supported) {
+    if (is_interactive) {
+      return(show_plotly_via_mcp_app(plot_obj))
+    }
+    return(show_plot_via_mcp_app(plot_obj))
+  }
+
+  # Local rendering
+  if (is_interactive) {
+    path <- show_widget_in_browser(plot_obj)
+    return(list(type = "text", content = sprintf("Interactive widget opened in browser: %s", path)))
+  }
+
+  device_channel <- detect_local_device()
+  render_result <- render_static_plot(plot_obj, device_channel)
+  list(
+    type = "text",
+    content = switch(render_result$channel,
+      httpgd = sprintf("Plot displayed to user via httpgd at %s", render_result$info),
+      device = render_result$info,
+      file = sprintf("Plot saved to file: %s (headless environment, no display available).", render_result$info)
+    )
+  )
+}
+
+#' Render a plot for agent analysis as base64-encoded image
+#'
+#' Internal helper called by channel_plot() for agent target. Uses hardcoded
+#' defaults (600x450, png, 25000 token limit, 20000 warn threshold).
+#'
+#' @param plot_obj A plot object
+#' @return Image response with base64-encoded plot and optimization metadata
+#' @noRd
+.channel_plot_agent <- function(plot_obj) {
+  width <- 600L
+  height <- 450L
+  format <- "png"
+  token_limit <- 25000
+  warn_threshold <- 20000
+
+  tryCatch(
+    {
+      device_info <- setup_graphics_device(format, width, height)
+
+      # Print the plot object to the open device
+      printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot")
+      if (inherits(plot_obj, printable_classes)) {
+        print(plot_obj)
+      }
+
+      image_response <- get_plot_data(device_info, format, width, height)
+      actual_tokens <- image_response$tokens
+
+      if (actual_tokens > token_limit) {
+        suggestions <- generate_optimization_suggestions(width, height, actual_tokens, token_limit, format)
+        error_msg <- sprintf(
+          "Plot too large for agent analysis: %s tokens exceeds %s token limit.\nTry these optimizations:\n- %s\nOr use show_plot with target='user' to display directly to the user instead.",
+          format(actual_tokens, big.mark = ","),
+          format(token_limit, big.mark = ","),
+          paste(suggestions, collapse = "\n- ")
+        )
+        cli::cli_abort(error_msg)
+      }
+
+      optimization_warning <- NULL
+      if (actual_tokens > warn_threshold) {
+        suggestions <- generate_optimization_suggestions(width, height, actual_tokens, warn_threshold, format)
+        optimization_warning <- sprintf(
+          "WARNING: HIGH TOKEN USAGE: %s tokens (%.1f%% of limit)\nConsider optimizing for better efficiency:\n- %s\nOr use show_plot with target='user' to display directly to the user instead.",
+          format(actual_tokens, big.mark = ","),
+          (actual_tokens / token_limit) * 100,
+          paste(suggestions, collapse = "\n- ")
+        )
+        cli::cli_warn(optimization_warning)
+      }
+
+      image_response$metadata <- list(
+        actual_tokens = actual_tokens,
+        dimensions = paste0(width, "x", height),
+        format = format,
+        optimization_applied = if (!is.null(optimization_warning)) "Warning issued" else "None",
+        token_efficiency = sprintf("%.1f%% of limit used", (actual_tokens / token_limit) * 100)
+      )
+
+      if (!is.null(optimization_warning)) {
+        image_response$optimization_warning <- optimization_warning
+      }
+
+      image_response
+    },
+    error = function(e) {
+      if (grDevices::dev.cur() != 1) {
+        try(grDevices::dev.off(), silent = TRUE)
+      }
+      cli::cli_abort("Error creating plot: {e$message}")
+    }
   )
 }

@@ -145,6 +145,31 @@ test_that("mcprSession private handle_message handles non-running state", {
   expect_identical(result, session)
 })
 
+test_that("mcprSession serialize_log_data handles forwarded arg_schema", {
+  session <- create_test_session(session_id = 1)
+
+  payload <- list(
+    method = "tools/call",
+    id = 7,
+    params = list(
+      name = "execute_r_code",
+      arguments = list(code = "exists(\"my_vec\")")
+    ),
+    tool = function(code) code,
+    arg_schema = list(
+      code = MCPR:::type_string(description = "Code to execute")
+    )
+  )
+
+  serialized <- session$.__enclos_env__$private$serialize_log_data(payload)
+  parsed <- jsonlite::fromJSON(serialized, simplifyVector = FALSE)
+
+  expect_equal(parsed$tool, "<function: execute_r_code>")
+  expect_false("arg_schema" %in% names(parsed))
+  expect_equal(parsed$params$name, "execute_r_code")
+  expect_equal(parsed$params$arguments$code, "exists(\"my_vec\")")
+})
+
 test_that("mcprSession private handle_message processes discovery ping", {
   skip("Complex socket mocking required")
 })

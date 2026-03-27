@@ -26,25 +26,6 @@ test_that("detect_local_device returns 'file' in non-interactive without httpgd"
   expect_equal(result, "file")
 })
 
-# ---- eval_plot_expr ----
-
-test_that("eval_plot_expr evaluates arithmetic expressions", {
-  result <- MCPR:::eval_plot_expr("1 + 2")
-  expect_equal(result, 3)
-})
-
-test_that("eval_plot_expr returns gg object for ggplot expressions", {
-  skip_if_not_installed("ggplot2")
-  result <- MCPR:::eval_plot_expr("ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()")
-  expect_true(inherits(result, "gg"))
-})
-
-test_that("eval_plot_expr returns NULL for base plot side-effects", {
-  # base plot() returns NULL invisibly
-  result <- MCPR:::eval_plot_expr("plot(1:10)")
-  expect_null(result)
-})
-
 # ---- show_widget_in_browser ----
 
 test_that("show_widget_in_browser creates an HTML file", {
@@ -83,27 +64,46 @@ test_that("show_widget_in_browser errors without htmlwidgets package", {
   )
 })
 
+# ---- capture_plot ----
+
+test_that("capture_plot returns a deferred plotting object", {
+  captured <- MCPR::capture_plot(plot(cars))
+
+  expect_s3_class(captured, "captured_plot")
+  expect_true(is.call(captured$expr))
+  expect_true(is.environment(captured$env))
+})
+
 # ---- render_static_plot ----
 
 test_that("render_static_plot with 'file' channel produces a PNG file", {
-  result <- MCPR:::render_static_plot("plot(1:10)", "file")
+  skip_if_not_installed("ggplot2")
+  plot_obj <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  result <- MCPR:::render_static_plot(plot_obj, "file")
   expect_true(is.list(result))
   expect_equal(result$channel, "file")
   expect_true(file.exists(result$info))
   expect_match(result$info, "\\.png$")
-  # File should have content
   expect_true(file.info(result$info)$size > 0)
 
-  # Clean up
   unlink(result$info)
 })
 
-test_that("render_static_plot with 'file' channel handles ggplot", {
+test_that("render_static_plot with 'file' channel handles ggplot objects", {
   skip_if_not_installed("ggplot2")
-  result <- MCPR:::render_static_plot(
-    "ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()",
-    "file"
-  )
+  plot_obj <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  result <- MCPR:::render_static_plot(plot_obj, "file")
+  expect_equal(result$channel, "file")
+  expect_true(file.exists(result$info))
+  expect_true(file.info(result$info)$size > 0)
+
+  unlink(result$info)
+})
+
+test_that("render_static_plot with 'file' channel handles captured_plot objects", {
+  captured <- MCPR::capture_plot(plot(cars))
+  result <- MCPR:::render_static_plot(captured, "file")
+
   expect_equal(result$channel, "file")
   expect_true(file.exists(result$info))
   expect_true(file.info(result$info)$size > 0)
@@ -112,9 +112,109 @@ test_that("render_static_plot with 'file' channel handles ggplot", {
 })
 
 test_that("render_static_plot with 'device' channel returns confirmation", {
-  result <- MCPR:::render_static_plot("plot(1:10)", "device")
+  skip_if_not_installed("ggplot2")
+  plot_obj <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+  result <- MCPR:::render_static_plot(plot_obj, "device")
   expect_equal(result$channel, "device")
   expect_true(is.character(result$info))
+})
+
+# ---- channel_plot ----
+
+test_that("channel_plot rejects non-plot objects", {
+  expect_error(
+    MCPR::channel_plot(list(a = 1)),
+    "Expected a plot object"
+  )
+  expect_error(
+    MCPR::channel_plot("not a plot"),
+    "Expected a plot object"
+  )
+  expect_error(
+    MCPR::channel_plot(42L),
+    "Expected a plot object"
+  )
+})
+
+test_that("channel_plot accepts valid ggplot objects", {
+  skip_if_not_installed("ggplot2")
+  plot_obj <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+
+  # Use file channel path (headless) — mcp_apps_supported=FALSE, target="user"
+  on.exit({
+    if (grDevices::dev.cur() != 1) try(grDevices::dev.off(), silent = TRUE)
+  }, add = TRUE)
+
+  result <- MCPR::channel_plot(plot_obj, mcp_apps_supported = FALSE, target = "user")
+  expect_equal(result$type, "text")
+  expect_true(grepl("Plot displayed|Plot saved", result$content))
+})
+
+test_that("channel_plot accepts captured side-effect plot objects", {
+  captured <- MCPR::capture_plot({
+    model <- lm(dist ~ speed, data = cars)
+    plot(model)
+  })
+
+  result <- MCPR::channel_plot(captured, mcp_apps_supported = TRUE, target = "user")
+
+  expect_equal(result$structuredContent$kind, "image")
+  expect_equal(result$structuredContent$mimeType, "image/png")
+  expect_true(nchar(result$structuredContent$data) > 0)
+})
+
+test_that("channel_plot target='user' mcp_apps_supported=TRUE returns structuredContent for ggplot", {
+  skip_if_not_installed("ggplot2")
+  plot_obj <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+
+  on.exit({
+    if (grDevices::dev.cur() != 1) try(grDevices::dev.off(), silent = TRUE)
+  }, add = TRUE)
+
+  result <- MCPR::channel_plot(plot_obj, mcp_apps_supported = TRUE, target = "user")
+  expect_equal(result$structuredContent$kind, "image")
+  expect_equal(result$structuredContent$mimeType, "image/png")
+  expect_true(nchar(result$structuredContent$data) > 0)
+})
+
+test_that("channel_plot target='user' mcp_apps_supported=TRUE routes plotly to plotly viewer", {
+  skip_if_not_installed("plotly")
+  widget <- plotly::plot_ly(mtcars, x = ~mpg, y = ~hp, type = "scatter", mode = "markers")
+
+  result <- MCPR::channel_plot(widget, mcp_apps_supported = TRUE, target = "user")
+  expect_equal(result$structuredContent$kind, "plotly")
+  expect_false(is.null(result$structuredContent$spec))
+})
+
+test_that("channel_plot target='user' mcp_apps_supported=FALSE routes interactive to browser", {
+  skip_if_not_installed("plotly")
+  skip_if_not_installed("htmlwidgets")
+  skip_if_not_installed("mockery")
+
+  widget <- plotly::plot_ly(mtcars, x = ~mpg, y = ~hp, type = "scatter", mode = "markers")
+
+  # Mock browseURL and saveWidget so we don't open a browser
+  mockery::stub(MCPR:::show_widget_in_browser, "utils::browseURL", function(url) invisible(NULL))
+
+  result <- MCPR::channel_plot(widget, mcp_apps_supported = FALSE, target = "user")
+  expect_equal(result$type, "text")
+  expect_true(grepl("Interactive widget opened in browser", result$content))
+})
+
+test_that("channel_plot target='agent' returns image response for ggplot", {
+  skip_if_not_installed("ggplot2")
+  plot_obj <- ggplot2::ggplot(mtcars, ggplot2::aes(mpg, wt)) + ggplot2::geom_point()
+
+  on.exit({
+    if (grDevices::dev.cur() != 1) try(grDevices::dev.off(), silent = TRUE)
+  }, add = TRUE)
+
+  result <- MCPR::channel_plot(plot_obj, target = "agent")
+  expect_equal(result$type, "image")
+  expect_match(result$content, "^data:image/png;base64,")
+  expect_true(!is.null(result$metadata))
+  expect_equal(result$metadata$format, "png")
+  expect_equal(result$metadata$dimensions, "600x450")
 })
 
 # ---- setup_graphics_device ----

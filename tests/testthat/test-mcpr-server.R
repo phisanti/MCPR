@@ -207,6 +207,58 @@ test_that("mcprServer private method handle_message_from_session handles non-cha
   expect_no_error(server$.__enclos_env__$private$handle_message_from_session(list()))
 })
 
+test_that("mcprServer only refreshes the session listener for join requests", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  join_request <- list(
+    method = "tools/call",
+    params = list(
+      name = "manage_r_sessions",
+      arguments = list(action = "join", session = 1L)
+    )
+  )
+  list_request <- list(
+    method = "tools/call",
+    params = list(
+      name = "manage_r_sessions",
+      arguments = list(action = "list")
+    )
+  )
+
+  expect_true(server$.__enclos_env__$private$should_refresh_session_listener(join_request))
+  expect_false(server$.__enclos_env__$private$should_refresh_session_listener(list_request))
+})
+
+test_that("mcprServer re-arms the session listener after join refresh", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  fake_socket <- nanonext::socket("poly")
+  fake_cv <- nanonext::cv()
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+
+  server$state_set("server_socket", fake_socket)
+  server$.__enclos_env__$private$.cv <- fake_cv
+  stale_reader <- server$.__enclos_env__$private$arm_session_listener()
+  rearmed <- server$.__enclos_env__$private$arm_session_listener(previous = stale_reader)
+
+  expect_false(identical(rearmed, stale_reader))
+  expect_true(nanonext::unresolved(rearmed))
+})
+
+test_that("mcprServer arm_session_listener stops the previous reader", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  fake_socket <- nanonext::socket("poly")
+  fake_cv <- nanonext::cv()
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+
+  server$state_set("server_socket", fake_socket)
+  server$.__enclos_env__$private$.cv <- fake_cv
+
+  stale_reader <- server$.__enclos_env__$private$arm_session_listener()
+  replacement <- server$.__enclos_env__$private$arm_session_listener(previous = stale_reader)
+
+  expect_false(nanonext::unresolved(stale_reader))
+  expect_true(nanonext::unresolved(replacement))
+})
+
 test_that("mcprServer private method route_message handles unknown methods", {
   server <- mcprServer$new(.tools_dir = tools_dir)
 

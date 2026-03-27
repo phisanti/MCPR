@@ -129,14 +129,13 @@ mcprServer <- R6::R6Class("mcprServer",
       ))
 
       client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
-      server_socket <- self$state_get("server_socket")
-      session <- nanonext::recv_aio(server_socket, mode = "string", cv = private$.cv)
+      private$.session_reader <- private$arm_session_listener()
 
       private$.running <- TRUE
       while (nanonext::wait(private$.cv)) {
-        if (!nanonext::unresolved(session)) {
-          private$handle_message_from_session(session$data)
-          session <- nanonext::recv_aio(the$server_socket, mode = "string", cv = private$.cv)
+        if (!nanonext::unresolved(private$.session_reader)) {
+          private$handle_message_from_session(private$.session_reader$data)
+          private$.session_reader <- private$arm_session_listener(previous = private$.session_reader)
         }
         if (!nanonext::unresolved(client)) {
           private$handle_message_from_client(client$data)
@@ -168,6 +167,7 @@ mcprServer <- R6::R6Class("mcprServer",
 
       # Reset condition variable
       private$.cv <- NULL
+      private$.session_reader <- NULL
 
       invisible(self)
     },
@@ -222,6 +222,35 @@ mcprServer <- R6::R6Class("mcprServer",
     .viewer_content_cache = NULL,
     .client_name = "unknown",
     .client_interface = "unknown",
+    .session_reader = NULL,
+
+    arm_session_listener = function(previous = NULL) {
+      if (!is.null(previous) && nanonext::is_aio(previous)) {
+        nanonext::stop_aio(previous)
+      }
+
+      nanonext::recv_aio(
+        self$state_get("server_socket"),
+        mode = "string",
+        cv = private$.cv
+      )
+    },
+
+    should_refresh_session_listener = function(data) {
+      if (!identical(data$method, "tools/call")) {
+        return(FALSE)
+      }
+
+      tool_name <- data$params$name %||% ""
+      if (identical(tool_name, "select_r_session")) {
+        return(TRUE)
+      }
+      if (!identical(tool_name, "manage_r_sessions")) {
+        return(FALSE)
+      }
+
+      identical(as.character(data$params$arguments$action %||% ""), "join")
+    },
 
     # Handle incoming messages from MCP clients
     handle_message_from_client = function(line) {
@@ -339,8 +368,9 @@ mcprServer <- R6::R6Class("mcprServer",
             !nanonext::stat(the$server_socket, "pipes")) {
             private$handle_request(data)
 
-            # Log socket state AFTER tool execution for socket-changing tools
-            if (tool_name %in% c("select_r_session", "manage_r_sessions")) {
+            if (private$should_refresh_session_listener(data)) {
+              private$log_debug(sprintf("Refreshing session listener after %s", tool_name))
+              private$.session_reader <- private$arm_session_listener(previous = private$.session_reader)
               socket_info <- check_session_socket(verbose = FALSE)
               private$log_info(sprintf(
                 "Socket state after %s - Socket: %s, Interactive: %s, Has Session: %s",

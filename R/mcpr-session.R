@@ -175,6 +175,38 @@ mcprSession <- R6::R6Class("mcprSession",
       }
     },
 
+    serialize_log_data = function(data) {
+      log_data <- data
+
+      if (!is.null(log_data$tool)) {
+        log_data$tool <- paste0("<function: ", data$params$name %||% "unknown", ">")
+      }
+      if (!is.null(log_data$arg_schema)) {
+        log_data$arg_schema <- NULL
+      }
+
+      tryCatch(
+        jsonlite::toJSON(log_data, auto_unbox = TRUE),
+        error = function(e) {
+          private$log_warn(sprintf(
+            "LOG_SERIALIZATION_FAILED - Session: %s | ID: %s | Message: %s",
+            private$.session_id %||% "unknown",
+            data$id %||% "unknown",
+            conditionMessage(e)
+          ))
+          jsonlite::toJSON(
+            list(
+              method = data$method %||% "unknown",
+              id = data$id %||% "unknown",
+              params = list(name = data$params$name %||% "unknown"),
+              log_serialization_error = conditionMessage(e)
+            ),
+            auto_unbox = TRUE
+          )
+        }
+      )
+    },
+
     # Start async message reception loop
     start_listening = function() {
       if (!private$.is_running) {
@@ -219,13 +251,15 @@ mcprSession <- R6::R6Class("mcprSession",
         return(invisible(self))
       }
 
-      # Log incoming message (exclude tool function to prevent log pollution)
-      # Create clean data for logging (remove tool function)
-      log_data <- data
-      if (!is.null(log_data$tool)) {
-        log_data$tool <- paste0("<function: ", data$params$name %||% "unknown", ">")
-      }
-      private$log_comm("FROM SERVER", paste("Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Tool:", data$params$name %||% "unknown", "| Data:", jsonlite::toJSON(log_data, auto_unbox = TRUE)))
+      private$log_comm(
+        "FROM SERVER",
+        paste(
+          "Session:", private$.session_id,
+          "| ID:", data$id %||% "unknown",
+          "| Tool:", data$params$name %||% "unknown",
+          "| Data:", private$serialize_log_data(data)
+        )
+      )
 
       # TODO(Phase 3): Remove legacy flat-field fallback once all servers use mcpr_request_context
       context <- as_mcpr_request_context(
