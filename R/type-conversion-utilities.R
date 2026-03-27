@@ -113,6 +113,44 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 
 # Type definitions for MCPR - now using simpler R structures instead of S7
 
+mcpr_supported_definition_types <- function(include_aliases = TRUE) {
+  canonical <- c(
+    "string", "number", "integer", "boolean",
+    "object", "array", "json_object", "json_array"
+  )
+
+  if (!include_aliases) {
+    return(canonical)
+  }
+
+  c(canonical, "character", "numeric", "int", "logical", "bool", "list", "named_list")
+}
+
+#' @noRd
+abort_unsupported_mcpr_definition_type <- function(type_str,
+                                                   parameter_name = NULL,
+                                                   function_name = NULL,
+                                                   file_path = NULL) {
+  supported <- mcpr_supported_definition_types(include_aliases = FALSE)
+  details <- c(
+    if (!is.null(parameter_name)) paste("parameter =", parameter_name),
+    if (!is.null(function_name)) paste("function =", function_name),
+    if (!is.null(file_path)) paste("file =", file_path)
+  )
+  details_text <- if (length(details) > 0) {
+    paste0(" (", paste(details, collapse = ", "), ")")
+  } else {
+    ""
+  }
+
+  cli::cli_abort(c(
+    "Unsupported MCPR type declaration {.val {type_str}}{details_text}.",
+    "i" = "Use one of the supported MCPR types in the first token of the declaration.",
+    "i" = "Supported types: {.val {supported}}",
+    "i" = "For arbitrary named-list / JSON payloads, use {.val json_object}. For arbitrary arrays, use {.val json_array}."
+  ), .subclass = "mcpr_unsupported_type_error")
+}
+
 #' Type Specifications for MCP Protocol
 #'
 #' @title Type Specifications for MCP Protocol
@@ -141,6 +179,14 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 #'   `type_object(a = type_string(), b = type_array(type_integer()))` is
 #'   equivalent to a list with an element called `a` that is a string and
 #'   an element called `b` that is an integer vector.
+#'
+#' * `type_json_object()` is equivalent to an arbitrary JSON object / named list.
+#'   Use it when the tool should receive flexible key-value data as a named list
+#'   instead of a fixed schema declared with `type_object()`.
+#'
+#' * `type_json_array()` is equivalent to an arbitrary JSON array / list. Use it
+#'   when the tool should receive flexible list payloads instead of a homogenous
+#'   typed vector declared with `type_array()`.
 #'
 #' * `type_from_schema()` allows you to specify the full schema that you want to
 #'   get back from the LLM as a JSON schema. This is useful if you have a
@@ -180,38 +226,38 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 #' type_string("The creation date, in YYYY-MM-DD format.")
 #' type_string("The update date, in dd/mm/yyyy format.")
 #' @noRd
-type_boolean <- function(description = NULL, required = TRUE) {
-  structure(list(type = "boolean", description = description, required = required), class = "mcpr_type")
+type_boolean <- function(description = NULL, required = TRUE, error = NULL) {
+  structure(list(type = "boolean", description = description, required = required, error = error), class = "mcpr_type")
 }
 #' @rdname type_boolean
 #' @noRd
-type_integer <- function(description = NULL, required = TRUE) {
-  structure(list(type = "integer", description = description, required = required), class = "mcpr_type")
+type_integer <- function(description = NULL, required = TRUE, error = NULL) {
+  structure(list(type = "integer", description = description, required = required, error = error), class = "mcpr_type")
 }
 #' @rdname type_boolean
 #' @noRd
-type_number <- function(description = NULL, required = TRUE) {
-  structure(list(type = "number", description = description, required = required), class = "mcpr_type")
+type_number <- function(description = NULL, required = TRUE, error = NULL) {
+  structure(list(type = "number", description = description, required = required, error = error), class = "mcpr_type")
 }
 #' @rdname type_boolean
 #' @noRd
-type_string <- function(description = NULL, required = TRUE) {
-  structure(list(type = "string", description = description, required = required), class = "mcpr_type")
+type_string <- function(description = NULL, required = TRUE, error = NULL) {
+  structure(list(type = "string", description = description, required = required, error = error), class = "mcpr_type")
 }
 
 #' @param values Character vector of permitted values.
 #' @rdname type_boolean
 #' @noRd
-type_enum <- function(values, description = NULL, required = TRUE) {
-  structure(list(type = "enum", values = values, description = description, required = required), class = "mcpr_type")
+type_enum <- function(values, description = NULL, required = TRUE, error = NULL) {
+  structure(list(type = "enum", values = values, description = description, required = required, error = error), class = "mcpr_type")
 }
 
 #' @param items The type of the array items. Can be created by any of the
 #'   `type_` function.
 #' @rdname type_boolean
 #' @noRd
-type_array <- function(items, description = NULL, required = TRUE) {
-  structure(list(type = "array", items = items, description = description, required = required), class = "mcpr_type")
+type_array <- function(items, description = NULL, required = TRUE, error = NULL) {
+  structure(list(type = "array", items = items, description = description, required = required, error = error), class = "mcpr_type")
 }
 
 #' @param ... Name-type pairs defineing the components that the object must
@@ -224,15 +270,35 @@ type_object <- function(
   .description = NULL,
   ...,
   .required = TRUE,
-  .additional_properties = FALSE
+  .additional_properties = FALSE,
+  .error = NULL
 ) {
   structure(list(
     type = "object",
     properties = list(...),
     description = .description,
     required = .required,
-    additional_properties = .additional_properties
+    additional_properties = .additional_properties,
+    error = .error
   ), class = "mcpr_type")
+}
+
+#' @rdname type_boolean
+#' @noRd
+type_json_object <- function(description = NULL, required = TRUE, error = NULL) {
+  structure(
+    list(type = "json_object", description = description, required = required, error = error),
+    class = "mcpr_type"
+  )
+}
+
+#' @rdname type_boolean
+#' @noRd
+type_json_array <- function(description = NULL, required = TRUE, error = NULL) {
+  structure(
+    list(type = "json_array", description = description, required = required, error = error),
+    class = "mcpr_type"
+  )
 }
 
 
@@ -249,30 +315,44 @@ type_object <- function(
 #' @param input_type Either "definition" for string-based input or "json" for JSON schema objects
 #' @return MCPR type object with appropriate specification
 #' @noRd
-map_type_schema <- function(type_str, description = NULL, input_type = "definition") {
+map_type_schema <- function(type_str,
+                            description = NULL,
+                            input_type = "definition",
+                            parameter_name = NULL,
+                            function_name = NULL,
+                            file_path = NULL) {
   if (input_type == "json") {
     # Handle JSON schema object input
     schema <- type_str # Rename for clarity
+    extension_type <- schema[["x-mcpr-type"]] %||% NULL
     description <- schema$description %||% NULL
     required <- TRUE # Default to required for MCP compatibility
+    error <- schema[["x-mcpr-error"]] %||% NULL
+
+    if (!is.null(extension_type)) {
+      switch(extension_type,
+        "json_object" = return(type_json_object(description = description, required = required, error = error)),
+        "json_array" = return(type_json_array(description = description, required = required, error = error))
+      )
+    }
 
     # Handle enum types
     if (!is.null(schema$enum)) {
-      return(type_enum(schema$enum, description = description, required = required))
+      return(type_enum(schema$enum, description = description, required = required, error = error))
     }
 
     switch(schema$type %||% "string",
-      "string" = type_string(description = description, required = required),
-      "number" = type_number(description = description, required = required),
-      "integer" = type_integer(description = description, required = required),
-      "boolean" = type_boolean(description = description, required = required),
+      "string" = type_string(description = description, required = required, error = error),
+      "number" = type_number(description = description, required = required, error = error),
+      "integer" = type_integer(description = description, required = required, error = error),
+      "boolean" = type_boolean(description = description, required = required, error = error),
       "array" = {
         items_type <- if (!is.null(schema$items)) {
           map_type_schema(schema$items, input_type = "json")
         } else {
           type_string()
         }
-        type_array(items_type, description = description, required = required)
+        type_array(items_type, description = description, required = required, error = error)
       },
       "object" = {
         additional <- isTRUE(schema$additionalProperties)
@@ -281,19 +361,33 @@ map_type_schema <- function(type_str, description = NULL, input_type = "definiti
           for (prop_name in names(schema$properties)) {
             props[[prop_name]] <- map_type_schema(schema$properties[[prop_name]], input_type = "json")
           }
-          do.call(type_object, c(list(.description = description, .required = required, .additional_properties = additional), props))
+          do.call(type_object, c(list(.description = description, .required = required, .additional_properties = additional, .error = error), props))
         } else {
-          type_object(.description = description, .required = required, .additional_properties = additional)
+          type_object(.description = description, .required = required, .additional_properties = additional, .error = error)
         }
       },
       # Default fallback
-      type_string(description = description, required = required)
+      type_string(description = description, required = required, error = error)
     )
   } else {
     # Handle string-based type definition input (original logic)
     description <- description %||% ""
+    lower_type <- tolower(type_str)
 
-    switch(tolower(type_str),
+    if (!lower_type %in% mcpr_supported_definition_types(include_aliases = TRUE)) {
+      abort_unsupported_mcpr_definition_type(
+        type_str,
+        parameter_name = parameter_name,
+        function_name = function_name,
+        file_path = file_path
+      )
+    }
+
+    switch(lower_type,
+      "json_object" = type_json_object(description = description),
+      "named_list" = type_json_object(description = description),
+      "list" = type_json_object(description = description),
+      "json_array" = type_json_array(description = description),
       "character" = ,
       "string" = type_string(description = description),
       "numeric" = ,

@@ -22,10 +22,10 @@
 #' By default (target='user'), the plot is shown to the user. Set target='agent'
 #' when YOU need to analyze the plot as an image.
 #'
-#' @param plot Name of a variable in the R session containing a plot object
+#' @param plot string Name of a variable in the R session containing a plot object
 #'   (ggplot, plotly, recordedplot, grob, gtable, trellis, htmlwidget,
 #'   or captured_plot)
-#' @param target Who sees the plot: 'user' (default) or 'agent'
+#' @param target string Who sees the plot: 'user' (default) or 'agent'
 #' @keywords mcpr_tool
 #' @return For target='user': a text confirmation or structuredContent. For target='agent': image
 #'   response with base64-encoded plot and optimization metadata.

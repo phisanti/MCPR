@@ -40,7 +40,11 @@ create_tool_from_block <- function(block, env, file_path) {
   # from the callable interface. This mirrors Python SDK-style signature
   # inference while leaving explicit tool() schemas authoritative.
   param_tags <- Filter(function(tag) inherits(tag, "roxy_tag_param"), block$tags)
-  mcpr_args <- convert_to_schema(param_tags)
+  mcpr_args <- convert_to_schema(
+    param_tags,
+    function_name = func_name,
+    file_path = file_path
+  )
   mcpr_args <- apply_formal_requiredness(mcpr_args, formals(func))
 
   # Check for companion annotations variable (.{func_name}_annotations)
@@ -140,8 +144,14 @@ extract_description <- function(block) {
 #' @param param_tags List of roxy_tag_param objects from roxygen2 parsing
 #' @return Named list of MCPR type objects for tool arguments
 #' @noRd
-convert_to_schema <- function(param_tags) {
+convert_to_schema <- function(param_tags, function_name = NULL, file_path = NULL) {
   mcpr_args <- list()
+  supported_types <- mcpr_supported_definition_types(include_aliases = TRUE)
+  type_pattern <- paste0(
+    "^(",
+    paste(supported_types[order(nchar(supported_types), decreasing = TRUE)], collapse = "|"),
+    ")\\s+"
+  )
 
   for (param_tag in param_tags) {
     # Parse the val field which contains "param_name type description"
@@ -156,7 +166,6 @@ convert_to_schema <- function(param_tags) {
     type_and_desc <- paste(val_parts[-1], collapse = " ")
 
     # Extract type from beginning of type_and_desc
-    type_pattern <- "^(character|string|numeric|number|integer|int|logical|boolean|bool|object|list|array)\\s+"
     type_match <- regexpr(type_pattern, type_and_desc, ignore.case = TRUE)
 
     if (type_match != -1) {
@@ -164,12 +173,24 @@ convert_to_schema <- function(param_tags) {
       type_str <- trimws(gsub("\\s+$", "", type_str))
       param_desc <- sub(type_pattern, "", type_and_desc, ignore.case = TRUE)
     } else {
-      type_str <- "string" # default
-      param_desc <- type_and_desc
+      observed_type <- val_parts[2]
+      abort_unsupported_mcpr_definition_type(
+        observed_type,
+        parameter_name = param_name,
+        function_name = function_name,
+        file_path = file_path
+      )
     }
 
     # Create proper mcpr_type objects directly
-    mcpr_args[[param_name]] <- map_type_schema(type_str, description = param_desc, input_type = "definition")
+    mcpr_args[[param_name]] <- map_type_schema(
+      type_str,
+      description = param_desc,
+      input_type = "definition",
+      parameter_name = param_name,
+      function_name = function_name,
+      file_path = file_path
+    )
   }
 
   mcpr_args

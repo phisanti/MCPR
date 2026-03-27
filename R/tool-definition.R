@@ -1,6 +1,6 @@
 # Tool Definition Framework
 # Core framework for defining MCP tools with R6 class structure and type specifications.
-# Provides ToolDef class for tool creation, validation, schema-driven coercion, and JSON Schema conversion.
+# Provides ToolDef class for tool creation, validation, MCPR type normalization, and JSON Schema conversion.
 
 #' Define Tool for MCP Framework
 #'
@@ -95,14 +95,23 @@ convert_argument_types <- function(arguments) {
 
     # Handle string-based type definitions
     if (is.character(arg_spec) && length(arg_spec) == 1) {
-      converted_args[[arg_name]] <- map_type_schema(arg_spec, input_type = "definition")
+      converted_args[[arg_name]] <- map_type_schema(
+        arg_spec,
+        input_type = "definition",
+        parameter_name = arg_name
+      )
       next
     }
 
     # Handle raw list format (backward compatibility)
     if (is.list(arg_spec) && !is.null(arg_spec$type)) {
       description <- arg_spec$description %||% ""
-      converted_args[[arg_name]] <- map_type_schema(arg_spec$type, description = description, input_type = "definition")
+      converted_args[[arg_name]] <- map_type_schema(
+        arg_spec$type,
+        description = description,
+        input_type = "definition",
+        parameter_name = arg_name
+      )
       next
     }
 
@@ -162,7 +171,7 @@ ToolDef <- R6::R6Class("ToolDef",
     call = function(...) {
       args <- list(...)
       if (self$convert) {
-        args <- coerce_args_by_schema(args, self$arguments)
+        args <- normalize_args_by_type(args, self$arguments)
       }
       do.call(self$fun, args)
     },

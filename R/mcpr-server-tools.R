@@ -92,10 +92,28 @@ mcpr_type_to_json_schema <- function(spec) {
 
   base <- compact(list(
     type = spec$type,
-    description = spec$description
+    description = spec$description,
+    `x-mcpr-error` = spec$error
   ))
 
   switch(spec$type,
+    "json_object" = {
+      compact(list(
+        type = "object",
+        description = spec$description,
+        additionalProperties = TRUE,
+        `x-mcpr-error` = spec$error,
+        `x-mcpr-type` = "json_object"
+      ))
+    },
+    "json_array" = {
+      compact(list(
+        type = "array",
+        description = spec$description,
+        `x-mcpr-error` = spec$error,
+        `x-mcpr-type` = "json_array"
+      ))
+    },
     "object" = {
       if (length(spec$properties) > 0) {
         base$properties <- lapply(spec$properties, mcpr_type_to_json_schema)
@@ -112,7 +130,7 @@ mcpr_type_to_json_schema <- function(spec) {
       base
     },
     "enum" = {
-      compact(list(type = "string", enum = spec$values, description = spec$description))
+      compact(list(type = "string", enum = spec$values, description = spec$description, `x-mcpr-error` = spec$error))
     },
     base
   )

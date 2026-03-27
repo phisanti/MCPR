@@ -68,9 +68,16 @@ validate_mcpr_type_object <- function(mcpr_obj, property_name = "argument") {
   }
 
   # Validate type field
-  valid_types <- c("boolean", "integer", "number", "string", "enum", "array", "object")
+  valid_types <- c(
+    "boolean", "integer", "number", "string", "enum",
+    "array", "object", "json_object", "json_array"
+  )
   if (!mcpr_obj$type %in% valid_types) {
     cli::cli_abort("Property {.field {property_name}} has invalid type '{mcpr_obj$type}'. Valid types: {.val {valid_types}}")
+  }
+
+  if (!is.null(mcpr_obj$error) && (!is.character(mcpr_obj$error) || length(mcpr_obj$error) != 1 || is.na(mcpr_obj$error))) {
+    cli::cli_abort("Property {.field {property_name}} error field must be a single string when provided")
   }
 
   # Type-specific validation
@@ -97,6 +104,12 @@ validate_mcpr_type_object <- function(mcpr_obj, property_name = "argument") {
           validate_mcpr_type_structure(mcpr_obj$properties[[prop_name]], paste0(property_name, "$properties$", prop_name))
         }
       }
+    },
+    "json_object" = {
+      return(invisible(NULL))
+    },
+    "json_array" = {
+      return(invisible(NULL))
     }
   )
 }

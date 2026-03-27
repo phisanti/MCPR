@@ -84,6 +84,12 @@ from_mcpr_json <- function(json) {
         } else if (mcp_type == "factor") {
           # Reconstruct factor
           return(factor(obj$values, levels = obj$levels))
+        } else if (mcp_type == "json_object") {
+          value <- obj$value %||% list()
+          return(reconstruct(value))
+        } else if (mcp_type == "json_array") {
+          value <- obj$value %||% list()
+          return(reconstruct(value))
         } else if (mcp_type == "data.frame") {
           # Reconstruct data frame
           obj[["_mcp_type"]] <- NULL

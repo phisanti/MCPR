@@ -181,9 +181,6 @@ mcprSession <- R6::R6Class("mcprSession",
       if (!is.null(log_data$tool)) {
         log_data$tool <- paste0("<function: ", data$params$name %||% "unknown", ">")
       }
-      if (!is.null(log_data$arg_schema)) {
-        log_data$arg_schema <- NULL
-      }
 
       tryCatch(
         jsonlite::toJSON(log_data, auto_unbox = TRUE),

@@ -471,8 +471,11 @@ mcprServer <- R6::R6Class("mcprServer",
         ))
       }
       tooldef <- get_mcptools_tools()[[tool_name]]
-      data$tool <- tooldef$fun
-      data$arg_schema <- tooldef$arguments
+      data$tool <- structure(
+        tooldef$fun,
+        mcpr_arguments = tooldef$arguments,
+        mcpr_convert = tooldef$convert
+      )
       data
     }
   )
