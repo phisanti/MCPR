@@ -535,8 +535,14 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
           subtitle.style.display = text ? 'block' : 'none';
         }
 
+        function setEyebrow(text) {
+          eyebrow.textContent = text || '';
+          eyebrow.style.display = text ? 'block' : 'none';
+        }
+
         function setTitle(text) {
-          title.textContent = text || 'Untitled chart';
+          title.textContent = text || '';
+          title.style.display = text ? 'block' : 'none';
         }
 
         function setMeta(items) {
@@ -551,12 +557,15 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
           }
         }
 
+        setEyebrow(options.eyebrow || '');
+        setTitle(options.title || '');
         setSubtitle(options.subtitle || '');
         setMeta(options.meta || []);
 
         return {
           card: card,
           body: body,
+          setEyebrow: setEyebrow,
           setTitle: setTitle,
           setStatus: setStatus,
           setSubtitle: setSubtitle,
@@ -588,15 +597,11 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
         if (title && typeof title.text === 'string') {
           return title.text;
         }
-        return 'Interactive plot';
+        return '';
       }
 
       function buildPlotlySubtitle(spec) {
-        var dataCount = spec && Array.isArray(spec.data) ? spec.data.length : 0;
-        if (dataCount > 0) {
-          return 'Interactive Plotly chart with ' + dataCount + ' trace' + (dataCount === 1 ? '' : 's') + '.';
-        }
-        return 'Interactive Plotly chart';
+        return '';
       }
 
       function renderContent(contentItems, isError) {
@@ -622,6 +627,8 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
           renderTextCard({ text: 'Viewer received an invalid graph payload.' }, true);
           return;
         }
+
+        clearContent();
 
         if (graphPayload.kind === 'image') {
           renderImageCard(graphPayload);
@@ -660,8 +667,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
       function renderImageCard(item) {
         var card = createGraphCard({
           eyebrow: 'Static plot',
-          title: 'R plot snapshot',
-          subtitle: 'Rendered as a static image for reliable inline display.',
           status: 'Rendered',
           meta: ['Static image', item.mimeType || 'image/png', 'Updated ' + formatTimestamp()]
         });
@@ -676,7 +681,7 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
           card.setMeta([
             'Static image',
             mimeType,
-            img.naturalWidth + ' × ' + img.naturalHeight,
+            img.naturalWidth + ' x ' + img.naturalHeight,
             'Updated ' + formatTimestamp()
           ]);
           scheduleSizeReport();
@@ -689,8 +694,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
       function renderPlotlySpecCard(spec, isError) {
         var card = createGraphCard({
           eyebrow: isError ? 'Interactive plot error' : 'Interactive plot',
-          title: 'Interactive plot',
-          subtitle: 'Plotly chart rendered inside the shared graph card shell.',
           status: isError ? 'Error' : 'Rendering',
           meta: ['Plotly', 'Interactive', 'Updated ' + formatTimestamp()]
         });
@@ -735,7 +738,6 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
             }
             card.setMeta([
               'Plotly',
-              data.length + ' trace' + (data.length === 1 ? '' : 's'),
               'Interactive',
               'Updated ' + formatTimestamp()
             ]);
