@@ -188,6 +188,34 @@ test_that("ToolRegistry marks defaulted formals as optional in JSON schema", {
   expect_equal(parsed$required, list("required_arg"))
 })
 
+test_that("ToolRegistry aborts on unsupported MCPR roxygen types", {
+  temp_dir <- tempfile()
+  dir.create(temp_dir, recursive = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+  tool_file <- file.path(temp_dir, "tool-bad_type.R")
+  writeLines(c(
+    "#' Bad Type Tool",
+    "#' @description A tool with an unsupported MCPR type annotation",
+    "#' @param when date A date value",
+    "#' @keywords mcpr_tool",
+    "bad_type_tool <- function(when) when"
+  ), tool_file)
+
+  registry <- ToolRegistry$new(tools_dir = temp_dir, verbose = FALSE)
+
+  expect_error(
+    registry$search_tools(),
+    regexp = paste(
+      "Unsupported MCPR type declaration",
+      "parameter = when",
+      "function = bad_type_tool",
+      "Supported types:",
+      sep = ".*"
+    )
+  )
+})
+
 test_that("explicit tool schemas keep author-declared requiredness", {
   explicit_tool <- tool(
     function(optional_arg = 20L) optional_arg,

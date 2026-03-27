@@ -282,7 +282,7 @@ test_that("validate_mcpr_type_object validates object types", {
 
 test_that("validate_mcpr_type_object validates all basic types", {
   # Test all valid basic types
-  basic_types <- c("boolean", "integer", "number", "string")
+  basic_types <- c("boolean", "integer", "number", "string", "json_object", "json_array")
 
   for (type in basic_types) {
     basic_obj <- structure(list(type = type), class = "mcpr_type")

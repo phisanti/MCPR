@@ -12,84 +12,96 @@ get_local_or_installed_path <- function(...) {
 )
 source(.client_tools_path, local = .client_tools_env)
 
-test_that("coerce_args_by_schema parses stringified objects when schema says object", {
+test_that("normalize_args_by_type parses json_object strings into named lists", {
   schema <- list(
-    config = structure(list(type = "object"), class = "mcpr_type"),
-    name = structure(list(type = "string"), class = "mcpr_type")
+    config = MCPR:::type_json_object(description = "Flexible config"),
+    name = MCPR:::type_string(description = "Tool name")
   )
 
-  args <- list(config = '{"key": "value"}', name = "test")
-  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+  args <- list(config = '{"key": "value", "nested": {"flag": true}}', name = "test")
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
 
   expect_type(result$config, "list")
   expect_equal(result$config$key, "value")
-  expect_equal(result$name, "test") # string left alone
+  expect_true(is.list(result$config$nested))
+  expect_equal(result$config$nested$flag, TRUE)
+  expect_equal(result$name, "test")
 })
 
-test_that("coerce_args_by_schema parses stringified arrays when schema says array", {
+test_that("normalize_args_by_type parses json_array strings into lists", {
   schema <- list(
-    items = structure(list(type = "array"), class = "mcpr_type")
+    items = MCPR:::type_json_array(description = "Flexible list payload")
   )
 
-  args <- list(items = '[1, 2, 3]')
-  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+  args <- list(items = '[1, 2, {"name": "x"}]')
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
 
   expect_type(result$items, "list")
-  expect_equal(result$items, list(1, 2, 3))
+  expect_equal(result$items[[1]], 1)
+  expect_equal(result$items[[2]], 2)
+  expect_equal(result$items[[3]]$name, "x")
 })
 
-test_that("coerce_args_by_schema unlists unnamed lists for scalar types", {
+test_that("normalize_args_by_type enforces scalar MCPR types", {
   schema <- list(
-    x = structure(list(type = "number"), class = "mcpr_type")
+    top_n = MCPR:::type_integer(description = "Maximum rows"),
+    include_primer = MCPR:::type_boolean(description = "Whether to include primer"),
+    contrast = MCPR:::type_string(description = "Contrast name")
   )
 
-  args <- list(x = list(1, 2, 3))
-  result <- .client_tools_env$coerce_args_by_schema(args, schema)
+  args <- list(top_n = 20, include_primer = TRUE, contrast = "A_vs_B")
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
 
-  expect_equal(result$x, c(1, 2, 3))
+  expect_equal(result$top_n, 20L)
+  expect_equal(result$include_primer, TRUE)
+  expect_equal(result$contrast, "A_vs_B")
 })
 
-test_that("coerce_args_by_schema leaves correct types untouched", {
+test_that("normalize_args_by_type validates nested object schemas", {
   schema <- list(
-    config = structure(list(type = "object"), class = "mcpr_type"),
-    name = structure(list(type = "string"), class = "mcpr_type")
+    params = MCPR:::type_object(
+      .description = "Heatmap params",
+      cluster_rows = MCPR:::type_boolean(description = "Cluster rows"),
+      width = MCPR:::type_integer(description = "Plot width")
+    )
   )
 
-  # Already correct types
-  args <- list(config = list(key = "value"), name = "test")
-  result <- .client_tools_env$coerce_args_by_schema(args, schema)
-  expect_equal(result, args)
+  args <- list(params = '{"cluster_rows": true, "width": 900}')
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
+
+  expect_true(result$params$cluster_rows)
+  expect_equal(result$params$width, 900L)
 })
 
-test_that("coerce_args_by_schema handles missing schema gracefully", {
+test_that("normalize_args_by_type rejects malformed json_object payloads", {
   schema <- list(
-    known = structure(list(type = "string"), class = "mcpr_type")
+    params = MCPR:::type_json_object(description = "Flexible params")
   )
 
-  # Extra arg not in schema — left untouched
-  args <- list(known = "hello", unknown = list(1, 2))
-  result <- .client_tools_env$coerce_args_by_schema(args, schema)
-  expect_equal(result$unknown, list(1, 2))
+  expect_error(
+    .client_tools_env$normalize_args_by_type(list(params = '["not","object"]'), schema),
+    "should be a JSON object / named list"
+  )
 })
 
-test_that("coerce_args_by_schema does not parse strings for string schema", {
+test_that("normalize_args_by_type reports missing required parameters", {
   schema <- list(
-    data = structure(list(type = "string"), class = "mcpr_type")
+    contrast = MCPR:::type_string(description = "Contrast name", required = TRUE),
+    top_n = MCPR:::type_integer(description = "Maximum rows", required = FALSE)
   )
 
-  # A string that happens to be valid JSON — should NOT be parsed
-  args <- list(data = '{"key": "value"}')
-  result <- .client_tools_env$coerce_args_by_schema(args, schema)
-  expect_equal(result$data, '{"key": "value"}')
+  expect_error(
+    .client_tools_env$normalize_args_by_type(list(top_n = 20), schema),
+    "Missing required parameter"
+  )
 })
 
-test_that("coerce_args_by_schema passes through when schema has non-mcpr_type entries", {
-  # Simulates ToolDef$call with string-shorthand arguments (e.g. arguments = list(x = "number"))
+test_that("normalize_args_by_type passes through non-mcpr_type entries", {
   schema <- list(x = "number", y = "string")
 
   args <- list(x = 42, y = "hello")
-  result <- .client_tools_env$coerce_args_by_schema(args, schema)
-  expect_equal(result, args) # no coercion, safe passthrough
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
+  expect_equal(result, args)
 })
 
 test_that("encode_tool_results handles simple text results", {
