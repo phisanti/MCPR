@@ -54,6 +54,10 @@ mcpr_session_start()
 **That’s it!** Your AI agent can now execute R code, create plots, and
 inspect your workspace while preserving all session state.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/phisanti-mcpr).
+
 ## Core capabilities
 
 MCPR’s design is guided by principles of modularity, robustness, and
