@@ -203,3 +203,14 @@ test_that("await_daemon_ready returns NULL on timeout for non-existent session",
   sock <- MCPR:::await_daemon_ready(999L, timeout_ms = 1000)
   expect_null(sock)
 })
+
+test_that("find_daemon_key_by_session finds key by session ID value", {
+  old_sessions <- the$daemon_sessions
+  on.exit(the$daemon_sessions <- old_sessions, add = TRUE)
+
+  the$daemon_sessions <- c("default" = 5L, "daemon-6" = 6L)
+
+  expect_equal(MCPR:::find_daemon_key_by_session(5L), "default")
+  expect_equal(MCPR:::find_daemon_key_by_session(6L), "daemon-6")
+  expect_null(MCPR:::find_daemon_key_by_session(99L))
+})

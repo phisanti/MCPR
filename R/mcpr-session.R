@@ -393,12 +393,6 @@ mcp_session <- function(session_id = NULL, timeout_seconds = 900, working_dir = 
   on.exit(mcpr_session_stop(), add = TRUE)
   the$mcpr_session$start(session_id = session_id, force = TRUE)
 
-  # Set process name for Activity Monitor visibility (daemon mode only)
-  label <- Sys.getenv("MCPR_PROCESS_LABEL", "")
-  if (nzchar(label)) {
-    tryCatch(setProcessName(label), error = function(e) NULL)
-  }
-
   # Daemon mode: Keep process alive with event loop
   # Non-daemon mode: Legacy blocking loop for manual invocation
   if (daemon || !rlang::is_interactive()) {

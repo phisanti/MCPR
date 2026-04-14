@@ -171,13 +171,24 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       stop("No server socket available - server may not be running")
     }
 
+    # Exclusive mode: close all daemon sessions before joining a user session
+    daemons <- MCPR:::list_daemon_sessions()
+    closed_count <- length(daemons)
+    for (cid in names(daemons)) {
+      MCPR:::unregister_daemon(cid)
+    }
+
     nanonext::reap(server_socket[["dialer"]][[1L]])
     attr(server_socket, "dialer") <- NULL
     nanonext::dial(
       server_socket,
       url = sprintf("%s%d", socket_base, session)
     )
-    sprintf("Joined session %d successfully.", session)
+    if (closed_count > 0) {
+      sprintf("Joined session %d successfully. Closed %d daemon session(s).", session, closed_count)
+    } else {
+      sprintf("Joined session %d successfully.", session)
+    }
   } else if (action == "start") {
     # Always create a new daemon with a unique key based on session_id.
     # Each call creates a separate isolated session with no sharing.
@@ -190,9 +201,8 @@ manage_r_sessions <- function(action = "list", session = NULL) {
     if (is.null(session)) {
       stop("session parameter is required when action='close' - specify which daemon session to close")
     }
-    daemon_key <- sprintf("daemon-%d", as.integer(session))
-    existing <- MCPR:::get_daemon_session(daemon_key)
-    if (is.null(existing)) {
+    daemon_key <- MCPR:::find_daemon_key_by_session(as.integer(session))
+    if (is.null(daemon_key)) {
       return(sprintf("No daemon session %d found.", as.integer(session)))
     }
     MCPR:::unregister_daemon(daemon_key)

@@ -2,6 +2,9 @@
 library(MCPR)
 source(system.file("tool-manage_r_sessions.R", package = "MCPR", mustWork = TRUE))
 
+# Expose internal state so tests can manipulate the daemon registry directly
+.the <- MCPR:::the
+
 test_that("manage_r_sessions validates action parameter", {
   # Test that invalid actions are rejected
   expect_error(
@@ -90,4 +93,25 @@ test_that("manage_r_sessions close requires session parameter", {
     manage_r_sessions(action = "close"),
     "session parameter is required when action='close'"
   )
+})
+
+test_that("manage_r_sessions close finds daemon by session ID regardless of key", {
+  # Simulate a default-keyed daemon (as auto-spawned by server)
+  old_sessions <- .the$daemon_sessions
+  old_sockets <- .the$daemon_sockets
+  old_processes <- .the$daemon_processes
+  on.exit({
+    .the$daemon_sessions <- old_sessions
+    .the$daemon_sockets <- old_sockets
+    .the$daemon_processes <- old_processes
+  }, add = TRUE)
+
+  .the$daemon_sessions <- c("default" = 7L)
+  .the$daemon_sockets <- list()
+  .the$daemon_processes <- list()
+
+  # close session=7 should find the "default" key and unregister it
+  result <- manage_r_sessions(action = "close", session = 7)
+  expect_match(result, "closed")
+  expect_length(.the$daemon_sessions, 0)
 })

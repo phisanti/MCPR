@@ -63,6 +63,23 @@ list_daemon_sessions <- function() {
   the$daemon_sessions
 }
 
+#' Find daemon registry key by session ID value
+#'
+#' @description Scans the daemon_sessions registry for an entry whose value
+#' matches the given session_id. Returns the key (client_id) or NULL.
+#' This is used for reverse lookup when the key is unknown but the session
+#' port number is known (e.g., when closing the default auto-spawned daemon).
+#' @param session_id Integer. The session port number to look up.
+#' @return Character(1) key or NULL.
+#' @noRd
+find_daemon_key_by_session <- function(session_id) {
+  sessions <- the$daemon_sessions
+  if (length(sessions) == 0L) return(NULL)
+  match_idx <- which(sessions == as.integer(session_id))
+  if (length(match_idx) == 0L) return(NULL)
+  names(sessions)[match_idx[[1L]]]
+}
+
 #' Build a process label for a daemon session
 #'
 #' @description Returns "MCPR-{session_id}" for use in Activity Monitor / ps output.
@@ -128,6 +145,9 @@ spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
   )
 
   the$daemon_processes[[client_id]] <- proc
+  cli::cli_inform(c(
+    "i" = "Daemon session {session_id} spawned (PID {proc$get_pid()}, label {daemon_process_label(session_id)})"
+  ))
   proc
 }
 

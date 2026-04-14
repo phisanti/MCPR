@@ -312,6 +312,7 @@ mcprServer <- R6::R6Class("mcprServer",
       sock <- await_daemon_ready(session_id, timeout_ms = 15000)
       if (is.null(sock)) {
         private$log_error(sprintf("Daemon session %d failed to start", session_id))
+        unregister_daemon(client_id)
         cli::cli_abort("Daemon session failed to start within timeout")
       }
 
@@ -493,17 +494,35 @@ mcprServer <- R6::R6Class("mcprServer",
           # Path 3+4: Use existing or auto-spawn daemon session
           # Check for explicit session routing (session parameter in tool arguments)
           session_arg <- data$params$arguments$session
-          if (!is.null(session_arg)) {
-            daemon_key <- sprintf("daemon-%d", as.integer(session_arg))
-            # Remove session from arguments before forwarding (routing-only param)
-            data$params$arguments$session <- NULL
-            private$ensure_daemon_session(daemon_key)
-            private$forward_request_to_daemon(data, daemon_key)
-          } else {
-            client_id <- private$get_client_id()
-            private$ensure_daemon_session(client_id)
-            private$forward_request_to_daemon(data, client_id)
-          }
+          tryCatch({
+            if (!is.null(session_arg)) {
+              daemon_key <- sprintf("daemon-%d", as.integer(session_arg))
+              # Explicit session must already exist - do not auto-spawn
+              if (is.null(get_daemon_session(daemon_key))) {
+                cat_json(jsonrpc_response(data$id, error = list(
+                  code = -32602L,
+                  message = sprintf(
+                    "Daemon session %d not found. Use manage_r_sessions with action='start' to create one.",
+                    as.integer(session_arg)
+                  )
+                )))
+                return(NULL)
+              }
+              # Remove session from arguments before forwarding (routing-only param)
+              data$params$arguments$session <- NULL
+              private$ensure_daemon_session(daemon_key)
+              private$forward_request_to_daemon(data, daemon_key)
+            } else {
+              client_id <- private$get_client_id()
+              private$ensure_daemon_session(client_id)
+              private$forward_request_to_daemon(data, client_id)
+            }
+          }, error = function(e) {
+            cat_json(jsonrpc_response(data$id, error = list(
+              code = -32603L,
+              message = conditionMessage(e)
+            )))
+          })
           return(NULL)
         },
         "notifications/initialized" = function(data) {
