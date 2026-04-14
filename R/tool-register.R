@@ -31,7 +31,7 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Basic usage — single directory
+#' # Basic usage - single directory
 #' registry <- ToolRegistry$new()
 #' tools <- registry$search_tools()
 #'

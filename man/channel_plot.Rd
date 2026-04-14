@@ -7,14 +7,15 @@
 channel_plot(plot_obj, mcp_apps_supported = FALSE, target = c("user", "agent"))
 }
 \arguments{
-\item{plot_obj}{A plot object (ggplot, plotly, htmlwidget, recordedplot, grob, gtable, trellis, or captured_plot)}
+\item{plot_obj}{A plot object (ggplot, plotly, htmlwidget, recordedplot,
+grob, gtable, trellis, or captured_plot)}
 
 \item{mcp_apps_supported}{Logical; whether the client supports MCP App structuredContent}
 
 \item{target}{Character; who sees the plot: "user" (display) or "agent" (base64 for analysis)}
 }
 \value{
-Varies by path — text confirmation, structuredContent list, or image response
+Varies by path: text confirmation, structuredContent list, or image response
 }
 \description{
 Central routing function for displaying R plot objects.

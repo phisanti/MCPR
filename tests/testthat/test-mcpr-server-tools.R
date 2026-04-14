@@ -212,7 +212,7 @@ test_that("set_server_tools handles concurrent access", {
 })
 
 test_that("get_mcptools_tools preserves tool names correctly", {
-  # Create tools with specific names
+  # Create tools with specific names and valid MCPR types
   temp_dir <- tempfile("tools_")
   dir.create(temp_dir)
   on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
@@ -221,7 +221,7 @@ test_that("get_mcptools_tools preserves tool names correctly", {
   writeLines(c(
     "#' Named Tool",
     "#' @description Tool with specific name",
-    "#' @param input any Input value",
+    "#' @param input string Input value",
     "#' @keywords mcpr_tool",
     "specific_name_tool <- function(input) input"
   ), tool_file)

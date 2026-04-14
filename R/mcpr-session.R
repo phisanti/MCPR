@@ -182,6 +182,9 @@ mcprSession <- R6::R6Class("mcprSession",
         log_data$tool <- paste0("<function: ", data$params$name %||% "unknown", ">")
       }
 
+      # Strip arg_schema (non-serializable mcpr_type objects)
+      log_data$arg_schema <- NULL
+
       tryCatch(
         jsonlite::toJSON(log_data, auto_unbox = TRUE),
         error = function(e) {
@@ -389,6 +392,12 @@ mcp_session <- function(session_id = NULL, timeout_seconds = 900, working_dir = 
   the$mcpr_session <- mcprSession$new(timeout_seconds = timeout_seconds)
   on.exit(mcpr_session_stop(), add = TRUE)
   the$mcpr_session$start(session_id = session_id, force = TRUE)
+
+  # Set process name for Activity Monitor visibility (daemon mode only)
+  label <- Sys.getenv("MCPR_PROCESS_LABEL", "")
+  if (nzchar(label)) {
+    tryCatch(setProcessName(label), error = function(e) NULL)
+  }
 
   # Daemon mode: Keep process alive with event loop
   # Non-daemon mode: Legacy blocking loop for manual invocation

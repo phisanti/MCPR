@@ -38,7 +38,7 @@ inspect_object <- function(object_name) {
   }
 
   if (is.null(obj)) {
-    # Object not found — provide helpful suggestions
+    # Object not found - provide helpful suggestions
     all_objects <- ls(envir = .GlobalEnv)
     suggestions <- all_objects[agrep(object_name, all_objects, max.distance = 0.3)]
 

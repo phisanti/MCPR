@@ -63,15 +63,47 @@ format_sessions_table <- function(session_data) {
   MCPR:::format_table_for_agent(sessions_df, "No parseable session data found.")
 }
 
-#' @description Manage R sessions - list available sessions with detailed status, join a specific session. Use action="list" to see all available sessions with working directory and timestamp. Use action="join" with session parameter to connect to a specific session. Do not use this tool unless specifically asked to manage R sessions.
-#' @param action character The action to perform: "list" or "join"
-#' @param session integer Optional. The R session number to join (required when action="join")
+#' Format Daemon Sessions as Table
+#'
+#' @description Helper to list daemon sessions from the registry with status info.
+#' @return Formatted table string, or NULL if no daemon sessions exist.
+#' @noRd
+format_daemon_sessions_table <- function() {
+  daemons <- MCPR:::list_daemon_sessions()
+  if (length(daemons) == 0) return(NULL)
+
+  rows <- lapply(names(daemons), function(key) {
+    sid <- daemons[[key]]
+    proc <- MCPR:::the$daemon_processes[[key]]
+    status <- if (!is.null(proc) && inherits(proc, "process") && proc$is_alive()) {
+      "running"
+    } else {
+      "stopped"
+    }
+    data.frame(
+      `Session ID` = as.character(sid),
+      Status = status,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  })
+
+  df <- do.call(rbind, rows)
+  MCPR:::format_table_for_agent(df, "No daemon sessions found.")
+}
+
+#' @description Manage R sessions - list available sessions with detailed status, join a specific session, or start/stop a daemon session. Use action="list" to see all available sessions (interactive and daemon) with working directory and timestamp. Use action="join" with session parameter to connect to a specific session. Use action="start" to spawn a new isolated background daemon R session - each call creates a separate session with its own workspace. Use action="close" with session parameter to close a specific daemon session. Do not use this tool unless specifically asked to manage R sessions.
+#' @param action character The action to perform: "list", "join", "start", or "close"
+#' @param session integer Optional. The R session number to join (required when action="join"), or the daemon session to close (required when action="close").
 #' @keywords mcpr_tool
-#' @return For "list": vector of detailed session descriptions. For "join": success message.
+#' @return For "list": formatted table of all sessions. For "join": success message. For "start": the session ID to use with other tools. For "close": status message.
 manage_r_sessions <- function(action = "list", session = NULL) {
-  if (!action %in% c("list", "join")) {
-    stop("action must be one of: 'list', 'join'")
+  if (!action %in% c("list", "join", "start", "close", "stop")) {
+    stop("action must be one of: 'list', 'join', 'start', 'close'")
   }
+
+  # Normalize "stop" to "close" (back-compat alias)
+  if (action == "stop") action <- "close"
 
   # Get platform-specific socket URL once and reuse
   socket_base <- MCPR:::get_system_socket_url()
@@ -111,7 +143,19 @@ manage_r_sessions <- function(action = "list", session = NULL) {
 
     # Collect and format session data as table
     session_data <- sort(as.character(nanonext::collect_aio_(res)))
-    format_sessions_table(session_data)
+    interactive_table <- format_sessions_table(session_data)
+
+    # Append daemon sessions
+    daemon_table <- format_daemon_sessions_table()
+
+    parts <- character(0)
+    if (nchar(interactive_table) > 0) {
+      parts <- c(parts, "Interactive Sessions:", interactive_table)
+    }
+    if (!is.null(daemon_table)) {
+      parts <- c(parts, "", "Daemon Sessions:", daemon_table)
+    }
+    paste(parts, collapse = "\n")
   } else if (action == "join") {
     # Join existing session (renamed from select)
     if (is.null(session)) {
@@ -134,6 +178,25 @@ manage_r_sessions <- function(action = "list", session = NULL) {
       url = sprintf("%s%d", socket_base, session)
     )
     sprintf("Joined session %d successfully.", session)
+  } else if (action == "start") {
+    # Always create a new daemon with a unique key based on session_id.
+    # Each call creates a separate isolated session with no sharing.
+    session_id <- MCPR:::find_daemon_port()
+    daemon_key <- sprintf("daemon-%d", session_id)
+    MCPR:::spawn_daemon(daemon_key, session_id, getwd())
+    MCPR:::register_daemon(daemon_key, session_id)
+    sprintf("Daemon session %d started. Use session=%d in execute_r_code and other tools to target this session. Connection will be established on first use.", session_id, session_id)
+  } else if (action == "close") {
+    if (is.null(session)) {
+      stop("session parameter is required when action='close' - specify which daemon session to close")
+    }
+    daemon_key <- sprintf("daemon-%d", as.integer(session))
+    existing <- MCPR:::get_daemon_session(daemon_key)
+    if (is.null(existing)) {
+      return(sprintf("No daemon session %d found.", as.integer(session)))
+    }
+    MCPR:::unregister_daemon(daemon_key)
+    sprintf("Daemon session %d closed.", as.integer(session))
   }
 }
 

@@ -9,6 +9,7 @@ MCPR_MCP_APP_MIME <- "text/html;profile=mcp-app"
 #'
 #' @include mcpr-base.R
 #' @include mcpr-server-tools.R
+#' @include daemon-utils.R
 #' @include protocol.R
 #' @include tool-register.R
 #' @include utils.R
@@ -137,6 +138,17 @@ mcprServer <- R6::R6Class("mcprServer",
           private$handle_message_from_session(private$.session_reader$data)
           private$.session_reader <- private$arm_session_listener(previous = private$.session_reader)
         }
+        # Check daemon listeners for responses
+        for (cid in names(private$.daemon_listeners)) {
+          dl <- private$.daemon_listeners[[cid]]
+          if (!is.null(dl) && !nanonext::unresolved(dl)) {
+            private$handle_message_from_session(dl$data)
+            sock <- the$daemon_sockets[[cid]]
+            if (!is.null(sock)) {
+              private$arm_daemon_listener(cid, sock, previous = dl)
+            }
+          }
+        }
         if (!nanonext::unresolved(client)) {
           private$handle_message_from_client(client$data)
           client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
@@ -162,6 +174,12 @@ mcprServer <- R6::R6Class("mcprServer",
           if (nanonext::unresolved(private$.cv) == 0) break
         }
       }
+
+      # Clean up daemon sessions (reuse unregister_daemon for each)
+      for (cid in names(the$daemon_sessions)) {
+        unregister_daemon(cid)
+      }
+      private$.daemon_listeners <- list()
 
       self$cleanup_all()
 
@@ -223,6 +241,89 @@ mcprServer <- R6::R6Class("mcprServer",
     .client_name = "unknown",
     .client_interface = "unknown",
     .session_reader = NULL,
+    .daemon_listeners = list(),
+
+    # Returns a client identifier for daemon session routing.
+    # stdio server always uses "default"; HTTP server would override per-connection.
+    get_client_id = function() {
+      "default"
+    },
+
+    # Arm a listener for daemon session responses.
+    # Must pass cv so the main event loop wakes on daemon replies.
+    arm_daemon_listener = function(client_id, sock, previous = NULL) {
+      if (!is.null(previous) && nanonext::is_aio(previous)) {
+        nanonext::stop_aio(previous)
+      }
+      reader <- nanonext::recv_aio(sock, mode = "string", cv = private$.cv)
+      private$.daemon_listeners[[client_id]] <- reader
+      reader
+    },
+
+    # Forward a tool call request to a daemon session's socket.
+    # Resolves the socket from the daemon registry and delegates to forward_to_socket.
+    forward_request_to_daemon = function(data, client_id) {
+      sock <- the$daemon_sockets[[client_id]]
+      if (is.null(sock)) {
+        return(cat_json(jsonrpc_response(
+          data$id,
+          error = list(code = -32603, message = "Daemon socket not found")
+        )))
+      }
+      private$forward_to_socket(data, sock, label = "TO DAEMON")
+    },
+
+    # Ensure a daemon session exists for the given client with a usable socket.
+    # If a daemon is registered but has no socket (e.g., spawned by action="start"
+    # tool), connects to it. If no daemon exists, spawns one.
+    ensure_daemon_session = function(client_id) {
+      existing <- get_daemon_session(client_id)
+
+      # Case: daemon registered but no server-side socket yet (tool spawned it)
+      if (!is.null(existing) && is.null(the$daemon_sockets[[client_id]])) {
+        private$log_info(sprintf(
+          "Connecting to existing daemon session %d for client '%s'", existing, client_id
+        ))
+        sock <- await_daemon_ready(existing, timeout_ms = 15000)
+        if (is.null(sock)) {
+          # Daemon died or never started - clean up and re-spawn below
+          private$log_warn(sprintf("Daemon session %d unreachable, re-spawning", existing))
+          unregister_daemon(client_id)
+        } else {
+          the$daemon_sockets[[client_id]] <- sock
+          private$arm_daemon_listener(client_id, sock)
+          return(existing)
+        }
+      }
+
+      # Case: daemon registered and socket exists - nothing to do
+      if (!is.null(existing) && !is.null(the$daemon_sockets[[client_id]])) {
+        return(existing)
+      }
+
+      # Case: no daemon - spawn one, then connect
+      session_id <- find_daemon_port()
+      private$log_info(sprintf(
+        "Spawning daemon session %d for client '%s'", session_id, client_id
+      ))
+
+      spawn_daemon(client_id, session_id, working_dir = getwd())
+
+      sock <- await_daemon_ready(session_id, timeout_ms = 15000)
+      if (is.null(sock)) {
+        private$log_error(sprintf("Daemon session %d failed to start", session_id))
+        cli::cli_abort("Daemon session failed to start within timeout")
+      }
+
+      the$daemon_sockets[[client_id]] <- sock
+      register_daemon(client_id, session_id)
+      private$arm_daemon_listener(client_id, sock)
+
+      private$log_info(sprintf(
+        "Daemon session %d ready for client '%s'", session_id, client_id
+      ))
+      session_id
+    },
 
     arm_session_listener = function(previous = NULL) {
       if (!is.null(previous) && nanonext::is_aio(previous)) {
@@ -364,10 +465,10 @@ mcprServer <- R6::R6Class("mcprServer",
         },
         "tools/call" = function(data) {
           tool_name <- data$params$name
-          if (tool_name %in% c("list_r_sessions", "select_r_session", "manage_r_sessions") ||
-            !nanonext::stat(the$server_socket, "pipes")) {
-            private$handle_request(data)
 
+          # Path 1: Session-management tools always run locally
+          if (tool_name %in% c("list_r_sessions", "select_r_session", "manage_r_sessions")) {
+            private$handle_request(data)
             if (private$should_refresh_session_listener(data)) {
               private$log_debug(sprintf("Refreshing session listener after %s", tool_name))
               private$.session_reader <- private$arm_session_listener(previous = private$.session_reader)
@@ -380,11 +481,30 @@ mcprServer <- R6::R6Class("mcprServer",
                 socket_info$has_session
               ))
             }
-            return(NULL) # Response handled in handle_request
-          } else {
-            private$forward_request(data)
-            return(NULL) # Response handled in forward_request
+            return(NULL)
           }
+
+          # Path 2: Joined to a user session? Forward there
+          if (nanonext::stat(the$server_socket, "pipes") > 0) {
+            private$forward_request(data)
+            return(NULL)
+          }
+
+          # Path 3+4: Use existing or auto-spawn daemon session
+          # Check for explicit session routing (session parameter in tool arguments)
+          session_arg <- data$params$arguments$session
+          if (!is.null(session_arg)) {
+            daemon_key <- sprintf("daemon-%d", as.integer(session_arg))
+            # Remove session from arguments before forwarding (routing-only param)
+            data$params$arguments$session <- NULL
+            private$ensure_daemon_session(daemon_key)
+            private$forward_request_to_daemon(data, daemon_key)
+          } else {
+            client_id <- private$get_client_id()
+            private$ensure_daemon_session(client_id)
+            private$forward_request_to_daemon(data, client_id)
+          }
+          return(NULL)
         },
         "notifications/initialized" = function(data) {
           # Notification, no response needed
@@ -428,7 +548,13 @@ mcprServer <- R6::R6Class("mcprServer",
 
     # Forward requests to an R session for execution
     forward_request = function(data) {
-      private$log_comm("TO SESSION", jsonlite::toJSON(data))
+      server_socket <- self$state_get("server_socket")
+      private$forward_to_socket(data, server_socket, label = "TO SESSION")
+    },
+
+    # Shared forwarding logic: prepare tool call and send to a nanonext socket.
+    forward_to_socket = function(data, sock, label = "TO TARGET") {
+      private$log_comm(label, jsonlite::toJSON(data))
       prepared <- private$append_tool_fn(data)
       if (is.list(prepared) && !is.null(prepared$error)) {
         return(cat_json(prepared))
@@ -438,8 +564,7 @@ mcprServer <- R6::R6Class("mcprServer",
         interface = private$.client_interface,
         client_name = private$.client_name
       )
-      server_socket <- self$state_get("server_socket")
-      nanonext::send_aio(server_socket, prepared, mode = "serial")
+      nanonext::send_aio(sock, prepared, mode = "serial")
     },
 
     # Routes incoming JSON-RPC messages to appropriate handlers

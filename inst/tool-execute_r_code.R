@@ -4,11 +4,12 @@
 
 #' Execute R code in the current session
 #'
-#' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only - invisible to the user. Note that cat() and message() calls also have no visible side-effect to the user; their output is captured and returned to the agent only. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat.
+#' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only - invisible to the user. Note that cat() and message() calls also have no visible side-effect to the user; their output is captured and returned to the agent only. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat. Use the session parameter to target a specific daemon session (obtained from manage_r_sessions with action="start"). When session is omitted, code runs in the default shared session.
 #' @param code character The R code to execute. Can be a single expression or multiple statements.
+#' @param session integer Optional. Target a specific daemon session by ID (from manage_r_sessions action="start"). Omit to use the default session.
 #' @keywords mcpr_tool
 #' @return A list containing the results, output, and any warnings/errors
-execute_r_code <- function(code) {
+execute_r_code <- function(code, session = NULL) {
   if (!is.character(code) || length(code) != 1) {
     stop("Code must be a single character string")
   }

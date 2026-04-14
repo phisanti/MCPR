@@ -16,8 +16,7 @@ An object of class \code{captured_plot}.
 Capture an unevaluated plotting expression for later display on
 the active graphics device. This is intended for base R graphics and other
 side-effect plotting workflows that do not naturally return a reusable plot
-object, such as \code{plot(cars)} or \code{{ model <- lm(dist ~ speed, data = cars);
-plot(model) }}.
+object, such as \code{plot(cars)} or \code{{ model <- lm(dist ~ speed, data = cars); plot(model) }}.
 
 The expression is not evaluated when captured. Instead, \code{print()} re-runs it
 in the original calling environment when the plot is displayed through

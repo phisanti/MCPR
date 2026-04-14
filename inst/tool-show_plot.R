@@ -4,7 +4,7 @@
 
 #' Display an R plot object
 #'
-#' @description Display an R plot object. Pass the NAME of an existing variable — not R code.
+#' @description Display an R plot object. Pass the NAME of an existing variable - not R code.
 #'
 #' Two-step workflow:
 #' 1. Create the plot: execute_r_code("my_plot <- ggplot(mtcars, aes(mpg, wt)) + geom_point()")
