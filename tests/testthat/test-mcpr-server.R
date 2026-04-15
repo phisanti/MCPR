@@ -669,3 +669,51 @@ test_that("session-required error lists active daemon sessions by port", {
   expect_equal(captured$error$code, -32602L)
   expect_match(captured$error$message, "Active sessions: 9", fixed = TRUE)
 })
+
+test_that("session_discovery='auto' routes no-session call to daemon without error", {
+  inst_dir <- system.file(package = "MCPR")
+  server <- mcprServer$new(.tools_dir = inst_dir, session_discovery = "auto")
+  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
+  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
+
+  fake_socket <- nanonext::socket("poly")
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+  original_daemons <- server$state_get("daemon_sessions")
+  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
+  server$state_set("server_socket", fake_socket)
+  server$state_set("daemon_sessions", list())
+
+  ensure_called <- FALSE
+  forward_called <- FALSE
+
+  priv <- server$.__enclos_env__$private
+  unlockBinding("ensure_daemon_session", priv)
+  unlockBinding("forward_request_to_daemon", priv)
+  original_ensure <- priv$ensure_daemon_session
+  original_forward <- priv$forward_request_to_daemon
+  on.exit({
+    unlockBinding("ensure_daemon_session", priv)
+    unlockBinding("forward_request_to_daemon", priv)
+    priv$ensure_daemon_session <- original_ensure
+    priv$forward_request_to_daemon <- original_forward
+  }, add = TRUE)
+
+  priv$ensure_daemon_session <- function(client_id) {
+    ensure_called <<- TRUE
+  }
+  priv$forward_request_to_daemon <- function(data, client_id) {
+    forward_called <<- TRUE
+  }
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 99L))
+
+  expect_true(ensure_called, label = "ensure_daemon_session was called")
+  expect_true(forward_called, label = "forward_request_to_daemon was called")
+  expect_null(captured, label = "no cat_json output emitted in auto mode")
+})

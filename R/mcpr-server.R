@@ -51,6 +51,8 @@ detect_mcp_apps_support <- function(params) {
 #'
 #' @param registry A ToolRegistry instance for tool discovery and management
 #' @param .tools_dir Internal parameter for specifying tools directory path
+#' @param session_discovery Session routing policy: `"explicit"` (default) requires callers to
+#'   supply a `session=N` argument; `"auto"` lazily provisions a daemon keyed to the client.
 #' @examples
 #' \dontrun{
 #' # Basic server initialization
@@ -80,10 +82,18 @@ mcprServer <- R6::R6Class("mcprServer",
     #' @description Initialize the MCP server with optional tools
     #' @param registry A ToolRegistry instance to use for tool discovery
     #' @param .tools_dir Internal parameter for specifying tools directory path
+    #' @param session_discovery Session routing policy: `"explicit"` or `"auto"`.
     #' @return A new mcprServer instance
-    initialize = function(registry = NULL, .tools_dir = NULL) {
+    initialize = function(registry = NULL, .tools_dir = NULL, session_discovery = "explicit") {
       self$initialize_base("SERVER")
       private$.mcpr_version <- mcpr_package_version()
+
+      if (!session_discovery %in% c("explicit", "auto")) {
+        cli::cli_abort(
+          "session_discovery must be one of {.val explicit} or {.val auto}, not {.val {session_discovery}}"
+        )
+      }
+      private$.session_discovery <- session_discovery
 
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         error_msg <- "registry must be a ToolRegistry instance"
@@ -260,6 +270,7 @@ mcprServer <- R6::R6Class("mcprServer",
     .session_reader = NULL,
     .daemon_listeners = list(),
     .user_listeners = list(),
+    .session_discovery = "explicit",
 
     # Returns a client identifier for daemon session routing.
     # stdio server always uses "default"; HTTP server would override per-connection.
@@ -521,25 +532,32 @@ mcprServer <- R6::R6Class("mcprServer",
           session_arg <- data$params$arguments$session
           tryCatch({
             if (is.null(session_arg)) {
-              # No session argument — require explicit session.
-              # List all active sessions (user + daemon) so the agent knows what's available.
-              user_ids <- sort(list_user_sessions())
-              daemon_ids <- sort(as.integer(list_daemon_sessions()))
-              all_ids <- sort(c(user_ids, daemon_ids))
-              active_ids <- if (length(all_ids) == 0L) "none" else paste(all_ids, collapse = ", ")
-              cat_json(jsonrpc_response(data$id, error = list(
-                code = -32602L,
-                message = sprintf(
-                  paste0(
-                    "session is required. ",
-                    "Active sessions: %s. ",
-                    "Pass session=N to target one, or call manage_r_sessions ",
-                    "with action='start' to open a new isolated session."
-                  ),
-                  active_ids
-                )
-              )))
-              return(NULL)
+              if (private$.session_discovery == "explicit") {
+                # No session argument — require explicit session.
+                # List all active sessions (user + daemon) so the agent knows what's available.
+                user_ids <- sort(list_user_sessions())
+                daemon_ids <- sort(as.integer(list_daemon_sessions()))
+                all_ids <- sort(c(user_ids, daemon_ids))
+                active_ids <- if (length(all_ids) == 0L) "none" else paste(all_ids, collapse = ", ")
+                cat_json(jsonrpc_response(data$id, error = list(
+                  code = -32602L,
+                  message = sprintf(
+                    paste0(
+                      "session is required. ",
+                      "Active sessions: %s. ",
+                      "Pass session=N to target one, or call manage_r_sessions ",
+                      "with action='start' to open a new isolated session."
+                    ),
+                    active_ids
+                  )
+                )))
+                return(NULL)
+              } else {
+                # Auto mode: lazily provision a daemon keyed to this client.
+                private$ensure_daemon_session(private$get_client_id())
+                private$forward_request_to_daemon(data, private$get_client_id())
+                return(NULL)
+              }
             }
 
             target <- private$resolve_session_target(as.integer(session_arg))
@@ -717,11 +735,13 @@ mcprServer <- R6::R6Class("mcprServer",
 #' blocking event loop with automatic tool discovery and registration.
 #'
 #' @param registry A ToolRegistry instance to use for tool discovery
+#' @param session_discovery Session routing policy passed to `mcprServer$new()`.
+#'   `"explicit"` (default) or `"auto"`.
 #' @return The server instance (invisibly)
 #' @export
-mcpr_server <- function(registry = NULL) {
+mcpr_server <- function(registry = NULL, session_discovery = "explicit") {
   # Auto-discovery logic is now handled in mcprServer$initialize()
-  server <- mcprServer$new(registry = registry)
+  server <- mcprServer$new(registry = registry, session_discovery = session_discovery)
   server$start()
   invisible(server)
 }

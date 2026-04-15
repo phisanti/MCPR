@@ -38,7 +38,7 @@ registry$get_tool_summary()
 #> 6               view     View the current state of the R session, t...          2  /path/MCPR
 ```
 
-That's the right default for a general-purpose R assistant. But a genomics package like `omicspgxmcp` wants a narrower surface: its own analysis tools, maybe session management, and definitely *not* `execute_r_code` — which would let an LLM run arbitrary code in a clinical pipeline.
+That's the right default for a general-purpose R assistant. But a domain package like `mypackage` wants a narrower surface: its own tools, maybe session management, and definitely *not* `execute_r_code` — which would let an LLM run arbitrary code in a production pipeline.
 
 Two mechanisms solve this: **multi-directory discovery** and **filtering**.
 
@@ -58,19 +58,19 @@ Pass a character vector to `tools_dir`:
 
 ```{r}
 mcpr_dir <- system.file(package = "MCPR")
-my_dir   <- system.file("tools", package = "omicspgxmcp")
+my_dir   <- system.file("tools", package = "mypackage")
 
 registry <- ToolRegistry$new(
   tools_dir = c(mcpr_dir, my_dir)
 )
 registry$search_tools()
 registry$get_tool_summary()
-#>                  name                                        description parameters     source_dir
-#> 1     execute_r_code     Execute R code in the active R session and ...          2     /path/MCPR
-#> 2     inspect_object     ...                                                    3     /path/MCPR
+#>                  name                                        description parameters   source_dir
+#> 1     execute_r_code     Execute R code in the active R session and ...          2   /path/MCPR
+#> 2     inspect_object     ...                                                    3   /path/MCPR
 #> ...
-#> 7         run_gwas        Run genome-wide association study on ...               4  /path/omicspgxmcp
-#> 8     query_variants     Query pharmacogenomic variant database ...              2  /path/omicspgxmcp
+#> 7                add     Add two numbers and return the result.                  2  /path/mypackage
+#> 8           subtract     Subtract b from a and return the result.                2  /path/mypackage
 
 server <- mcprServer$new(registry = registry)
 ```
@@ -85,7 +85,7 @@ Point the registry at your package alone:
 
 ```{r}
 registry <- ToolRegistry$new(
-  tools_dir = system.file("tools", package = "omicspgxmcp")
+  tools_dir = system.file("tools", package = "mypackage")
 )
 registry$search_tools()
 
@@ -104,7 +104,7 @@ Two approaches, same result:
 
 ```{r}
 registry <- ToolRegistry$new(
-  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "omicspgxmcp"))
+  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "mypackage"))
 )
 registry$search_tools()
 registry$filter(exclude = c("execute_r_code", "show_plot", "inspect_object"))
@@ -114,8 +114,8 @@ registry$get_tool_summary()
 #> 1 manage_r_sessions         ...   /path/MCPR
 #> 2 read_instructions         ...   /path/MCPR
 #> 3              view         ...   /path/MCPR
-#> 4          run_gwas         ...   /path/omicspgxmcp
-#> 5      query_variants        ...   /path/omicspgxmcp
+#> 4               add         ...   /path/mypackage
+#> 5          subtract         ...   /path/mypackage
 
 server <- mcprServer$new(registry = registry)
 ```
@@ -124,10 +124,10 @@ server <- mcprServer$new(registry = registry)
 
 ```{r}
 registry <- ToolRegistry$new(
-  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "omicspgxmcp"))
+  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "mypackage"))
 )
 registry$search_tools()
-registry$filter(include = c("manage_r_sessions", "run_gwas", "query_variants"))
+registry$filter(include = c("manage_r_sessions", "add", "subtract"))
 ```
 
 Use `exclude` when you want "everything except these". Use `include` when you want "only these, nothing else".
@@ -139,49 +139,42 @@ Filters persist across `search_tools()` calls — if you re-scan (e.g., `search_
 Some packages organize tools by domain:
 
 ```
-omicspgxmcp/
+mypackage/
   inst/
-    tools-gwas/
-      tool-run_gwas.R
-      tool-manhattan_plot.R
-    tools-pgx/
-      tool-query_variants.R
-      tool-drug_response.R
-    tools-qc/
-      tool-sample_qc.R
+    tools-basic/
+      tool-add.R
+      tool-subtract.R
+    tools-advanced/
+      tool-multiply.R
+      tool-divide.R
 ```
 
 Point the registry at all of them:
 
 ```{r}
-pkg_base <- system.file(package = "omicspgxmcp")
+pkg_base <- system.file(package = "mypackage")
 
 registry <- ToolRegistry$new(
   tools_dir = c(
-    file.path(pkg_base, "tools-gwas"),
-    file.path(pkg_base, "tools-pgx"),
-    file.path(pkg_base, "tools-qc")
+    file.path(pkg_base, "tools-basic"),
+    file.path(pkg_base, "tools-advanced")
   )
 )
 registry$search_tools()
 registry$get_tool_summary()
-#>              name                          ...     source_dir
-#> 1        run_gwas   Run genome-wide ...          /path/tools-gwas
-#> 2  manhattan_plot   Generate Manhattan ...       /path/tools-gwas
-#> 3 query_variants   Query pharmacogenomic ...    /path/tools-pgx
-#> 4  drug_response   Predict drug response ...    /path/tools-pgx
-#> 5      sample_qc   Run sample quality ...       /path/tools-qc
+#>        name                              ...     source_dir
+#> 1       add   Add two numbers.                /path/tools-basic
+#> 2  subtract   Subtract b from a.              /path/tools-basic
+#> 3  multiply   Multiply two numbers.           /path/tools-advanced
+#> 4    divide   Divide a by b.                  /path/tools-advanced
 ```
 
 Or load a subset of modules:
 
 ```{r}
-# GWAS server — only GWAS + QC tools, no PGx
+# Basic calculator only — no advanced operations
 registry <- ToolRegistry$new(
-  tools_dir = c(
-    file.path(pkg_base, "tools-gwas"),
-    file.path(pkg_base, "tools-qc")
-  )
+  tools_dir = file.path(pkg_base, "tools-basic")
 )
 ```
 
@@ -197,10 +190,10 @@ registry$filter(exclude = "execute_r_code")
 
 # Or reconfigure an existing registry
 registry$configure(
-  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "omicspgxmcp"))
+  tools_dir = c(system.file(package = "MCPR"), system.file("tools", package = "mypackage"))
 )
 registry$search_tools()
-registry$filter(include = c("manage_r_sessions", "run_gwas"))
+registry$filter(include = c("manage_r_sessions", "add"))
 ```
 
 `configure()` clears the cache and resets the directory list. `filter()` applies immediately to already-discovered tools *and* persists for future scans. `search_tools()` respects both.
@@ -210,11 +203,11 @@ registry$filter(include = c("manage_r_sessions", "run_gwas"))
 Every discovered tool is stamped with `source_dir` and `source_file` in its annotations. This shows up in `get_tool_summary()` and is accessible programmatically:
 
 ```{r}
-tool <- registry$get_tool("run_gwas")
+tool <- registry$get_tool("add")
 tool$annotations$source_dir
-#> [1] "/Library/R/4.3/library/omicspgxmcp/tools-gwas"
+#> [1] "/Library/R/4.3/library/mypackage/tools-basic"
 tool$annotations$source_file
-#> [1] "tool-run_gwas.R"
+#> [1] "tool-add.R"
 ```
 
 Enable verbose mode to see provenance during discovery:
@@ -222,11 +215,11 @@ Enable verbose mode to see provenance during discovery:
 ```{r}
 registry$set_verbose(TRUE)
 registry$search_tools(force_refresh = TRUE)
-#> ℹ Searching 8 files across 3 directories...
-#> ℹ Loaded 2 tools from tool-run_gwas.R
-#> ℹ Loaded 1 tool from tool-query_variants.R
+#> ℹ Searching 4 files across 2 directories...
+#> ℹ Loaded 1 tool from tool-add.R
+#> ℹ Loaded 1 tool from tool-subtract.R
 #> ...
-#> ℹ Found 8 tools, 5 active after filtering.
+#> ℹ Found 4 tools, 2 active after filtering.
 ```
 
 ## Writing Tools for Your Package
@@ -260,15 +253,16 @@ For package authors using `inst/tools/` wrappers, the practical rule is simple:
 
 ```{r}
 # Required in schema: no default in the wrapper
-#' @param contrast character Contrast name (required).
-query_de <- function(contrast, direction = "both", top_n = 50L) {
-  omicspgxmcp::query_de(contrast = contrast, direction = direction, top_n = top_n)
+#' @param a numeric First operand (required).
+#' @param b numeric Second operand (required).
+add <- function(a, b) {
+  mypackage::add(a = a, b = b)
 }
 
 # Optional in schema: defaulted in the wrapper
-#' @param include_primer logical Include primer text (default: TRUE).
-list_analyses <- function(include_primer = TRUE) {
-  omicspgxmcp::list_analyses(include_primer = include_primer)
+#' @param b numeric Multiplier (default: 1, i.e. identity).
+multiply <- function(a, b = 1) {
+  mypackage::multiply(a = a, b = b)
 }
 ```
 
@@ -292,13 +286,13 @@ Place your tool files in `inst/tools/` (or any subdirectory convention you prefe
 A downstream package typically exposes a convenience function:
 
 ```{r}
-# In omicspgxmcp/R/server.R
+# In mypackage/R/server.R
 
-#' Start the omicspgxmcp MCP Server
+#' Start the mypackage MCP Server
 #' @param include_session_tools Include MCPR session management tools (default: TRUE)
 #' @export
-omics_server <- function(include_session_tools = TRUE) {
-  dirs <- system.file("tools", package = "omicspgxmcp")
+calc_server <- function(include_session_tools = TRUE) {
+  dirs <- system.file("tools", package = "mypackage")
 
   if (include_session_tools) {
     dirs <- c(system.file(package = "MCPR"), dirs)
@@ -312,12 +306,13 @@ omics_server <- function(include_session_tools = TRUE) {
     registry$filter(exclude = c("execute_r_code", "show_plot"))
   }
 
-  server <- MCPR::mcprServer$new(registry = registry)
-  server$start()
+  # session_discovery = "auto": tool calls with no session= arg automatically
+  # route to a lazily-spawned daemon, so callers never need to manage sessions.
+  MCPR::mcpr_server(registry = registry, session_discovery = "auto")
 }
 ```
 
-Users of the package get a safe, domain-specific MCP server without needing to understand MCPR internals.
+Users of the package get a focused, domain-specific MCP server — in this case exposing only the calculator tools (`add`, `subtract`, `multiply`, `divide`) plus optional session management — without needing to understand MCPR internals.
 
 ## Summary
 

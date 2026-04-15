@@ -4,10 +4,13 @@
 \alias{mcpr_server}
 \title{Start MCP Server}
 \usage{
-mcpr_server(registry = NULL)
+mcpr_server(registry = NULL, session_discovery = "explicit")
 }
 \arguments{
 \item{registry}{A ToolRegistry instance to use for tool discovery}
+
+\item{session_discovery}{Session routing policy passed to \code{mcprServer$new()}.
+\code{"explicit"} (default) or \code{"auto"}.}
 }
 \value{
 The server instance (invisibly)

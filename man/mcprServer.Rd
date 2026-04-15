@@ -82,7 +82,11 @@ mcpr_server(registry = registry)
 \subsection{Method \code{new()}}{
 Initialize the MCP server with optional tools
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{mcprServer$new(registry = NULL, .tools_dir = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{mcprServer$new(
+  registry = NULL,
+  .tools_dir = NULL,
+  session_discovery = "explicit"
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -91,6 +95,8 @@ Initialize the MCP server with optional tools
 \item{\code{registry}}{A ToolRegistry instance to use for tool discovery}
 
 \item{\code{.tools_dir}}{Internal parameter for specifying tools directory path}
+
+\item{\code{session_discovery}}{Session routing policy: \code{"explicit"} or \code{"auto"}.}
 }
 \if{html}{\out{</div>}}
 }
