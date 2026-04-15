@@ -149,6 +149,17 @@ mcprServer <- R6::R6Class("mcprServer",
             }
           }
         }
+        # Check user session listeners for responses
+        for (sid_key in names(private$.user_listeners)) {
+          ul <- private$.user_listeners[[sid_key]]
+          if (!is.null(ul) && !nanonext::unresolved(ul)) {
+            private$handle_message_from_session(ul$data)
+            sock <- get_user_session(as.integer(sid_key))
+            if (!is.null(sock)) {
+              private$arm_user_session_listener(sid_key, sock, previous = ul)
+            }
+          }
+        }
         if (!nanonext::unresolved(client)) {
           private$handle_message_from_client(client$data)
           client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
@@ -180,6 +191,12 @@ mcprServer <- R6::R6Class("mcprServer",
         unregister_daemon(cid)
       }
       private$.daemon_listeners <- list()
+
+      # Clean up joined user sessions
+      for (sid_key in names(the$user_sessions)) {
+        unregister_user_session(as.integer(sid_key))
+      }
+      private$.user_listeners <- list()
 
       self$cleanup_all()
 
@@ -242,6 +259,7 @@ mcprServer <- R6::R6Class("mcprServer",
     .client_interface = "unknown",
     .session_reader = NULL,
     .daemon_listeners = list(),
+    .user_listeners = list(),
 
     # Returns a client identifier for daemon session routing.
     # stdio server always uses "default"; HTTP server would override per-connection.
@@ -273,6 +291,28 @@ mcprServer <- R6::R6Class("mcprServer",
       private$forward_to_socket(data, sock, label = "TO DAEMON")
     },
 
+    # Connect to a daemon session using pipe_notify + until (mirai pattern).
+    # Dials the daemon's IPC URL with autostart = TRUE so nanonext retries
+    # automatically. When the daemon calls listen(), the pipe is established
+    # and the CV is signalled immediately — no polling, no Sys.sleep.
+    # Returns a connected socket on success, or NULL on timeout / dead process.
+    connect_daemon_socket = function(session_id, client_id = NULL, timeout_ms = 15000L) {
+      url <- sprintf("%s%d", get_system_socket_url(), as.integer(session_id))
+      sock <- nanonext::socket("poly")
+      cv <- nanonext::cv()
+      nanonext::pipe_notify(sock, cv, add = TRUE)
+      nanonext::dial(sock, url = url, fail = "none")  # autostart = TRUE (default)
+
+      connected <- nanonext::until(cv, as.integer(timeout_ms))
+      nanonext::pipe_notify(sock, NULL, add = TRUE)  # deregister notification
+
+      if (!connected) {
+        nanonext::reap(sock)
+        return(NULL)
+      }
+      sock
+    },
+
     # Ensure a daemon session exists for the given client with a usable socket.
     # If a daemon is registered but has no socket (e.g., spawned by action="start"
     # tool), connects to it. If no daemon exists, spawns one.
@@ -284,9 +324,8 @@ mcprServer <- R6::R6Class("mcprServer",
         private$log_info(sprintf(
           "Connecting to existing daemon session %d for client '%s'", existing, client_id
         ))
-        sock <- await_daemon_ready(existing, timeout_ms = 15000)
+        sock <- private$connect_daemon_socket(existing, client_id, timeout_ms = 15000L)
         if (is.null(sock)) {
-          # Daemon died or never started - clean up and re-spawn below
           private$log_warn(sprintf("Daemon session %d unreachable, re-spawning", existing))
           unregister_daemon(client_id)
         } else {
@@ -309,11 +348,11 @@ mcprServer <- R6::R6Class("mcprServer",
 
       spawn_daemon(client_id, session_id, working_dir = getwd())
 
-      sock <- await_daemon_ready(session_id, timeout_ms = 15000)
+      sock <- private$connect_daemon_socket(session_id, client_id, timeout_ms = 15000L)
       if (is.null(sock)) {
-        private$log_error(sprintf("Daemon session %d failed to start", session_id))
+        private$log_error(sprintf("Daemon session %d failed to connect within timeout", session_id))
         unregister_daemon(client_id)
-        cli::cli_abort("Daemon session failed to start within timeout")
+        cli::cli_abort("Daemon session failed to connect within timeout")
       }
 
       the$daemon_sockets[[client_id]] <- sock
@@ -344,14 +383,7 @@ mcprServer <- R6::R6Class("mcprServer",
       }
 
       tool_name <- data$params$name %||% ""
-      if (identical(tool_name, "select_r_session")) {
-        return(TRUE)
-      }
-      if (!identical(tool_name, "manage_r_sessions")) {
-        return(FALSE)
-      }
-
-      identical(as.character(data$params$arguments$action %||% ""), "join")
+      identical(tool_name, "select_r_session")
     },
 
     # Handle incoming messages from MCP clients
@@ -485,37 +517,50 @@ mcprServer <- R6::R6Class("mcprServer",
             return(NULL)
           }
 
-          # Path 2: Joined to a user session? Forward there
-          if (nanonext::stat(the$server_socket, "pipes") > 0) {
-            private$forward_request(data)
-            return(NULL)
-          }
-
-          # Path 3+4: Use existing or auto-spawn daemon session
-          # Check for explicit session routing (session parameter in tool arguments)
+          # Path 2+: Explicit session routing — user and daemon sessions
           session_arg <- data$params$arguments$session
           tryCatch({
-            if (!is.null(session_arg)) {
-              daemon_key <- sprintf("daemon-%d", as.integer(session_arg))
-              # Explicit session must already exist - do not auto-spawn
-              if (is.null(get_daemon_session(daemon_key))) {
-                cat_json(jsonrpc_response(data$id, error = list(
-                  code = -32602L,
-                  message = sprintf(
-                    "Daemon session %d not found. Use manage_r_sessions with action='start' to create one.",
-                    as.integer(session_arg)
-                  )
-                )))
-                return(NULL)
-              }
-              # Remove session from arguments before forwarding (routing-only param)
-              data$params$arguments$session <- NULL
-              private$ensure_daemon_session(daemon_key)
-              private$forward_request_to_daemon(data, daemon_key)
+            if (is.null(session_arg)) {
+              # No session argument — require explicit session.
+              # List all active sessions (user + daemon) so the agent knows what's available.
+              user_ids <- sort(list_user_sessions())
+              daemon_ids <- sort(as.integer(list_daemon_sessions()))
+              all_ids <- sort(c(user_ids, daemon_ids))
+              active_ids <- if (length(all_ids) == 0L) "none" else paste(all_ids, collapse = ", ")
+              cat_json(jsonrpc_response(data$id, error = list(
+                code = -32602L,
+                message = sprintf(
+                  paste0(
+                    "session is required. ",
+                    "Active sessions: %s. ",
+                    "Pass session=N to target one, or call manage_r_sessions ",
+                    "with action='start' to open a new isolated session."
+                  ),
+                  active_ids
+                )
+              )))
+              return(NULL)
+            }
+
+            target <- private$resolve_session_target(as.integer(session_arg))
+            if (is.null(target)) {
+              cat_json(jsonrpc_response(data$id, error = list(
+                code = -32602L,
+                message = sprintf(
+                  "Session %d not found. Use manage_r_sessions with action='list' to see available sessions.",
+                  as.integer(session_arg)
+                )
+              )))
+              return(NULL)
+            }
+
+            # Remove session from arguments before forwarding (routing-only param)
+            data$params$arguments$session <- NULL
+            if (target$type == "user") {
+              private$forward_request_to_user(data, target$session_id, target$socket)
             } else {
-              client_id <- private$get_client_id()
-              private$ensure_daemon_session(client_id)
-              private$forward_request_to_daemon(data, client_id)
+              private$ensure_daemon_session(target$key)
+              private$forward_request_to_daemon(data, target$key)
             }
           }, error = function(e) {
             cat_json(jsonrpc_response(data$id, error = list(
@@ -565,10 +610,49 @@ mcprServer <- R6::R6Class("mcprServer",
       cat_json(result)
     },
 
-    # Forward requests to an R session for execution
-    forward_request = function(data) {
-      server_socket <- self$state_get("server_socket")
-      private$forward_to_socket(data, server_socket, label = "TO SESSION")
+    # Resolve an explicit session ID to either a registered user session or daemon session.
+    # Checks user sessions first (higher priority), then daemon registry.
+    # Returns list(type="user", session_id=N, socket=sock) or
+    #         list(type="daemon", session_id=N, key="daemon-N") or NULL.
+    resolve_session_target = function(session_id) {
+      session_id <- as.integer(session_id)
+
+      sock <- get_user_session(session_id)
+      if (!is.null(sock)) {
+        return(list(type = "user", session_id = session_id, socket = sock))
+      }
+
+      key <- sprintf("daemon-%d", session_id)
+      if (!is.null(get_daemon_session(key))) {
+        return(list(type = "daemon", session_id = session_id, key = key))
+      }
+
+      NULL
+    },
+
+    # Arm a recv_aio listener on a user session socket, waking the main CV on arrival.
+    arm_user_session_listener = function(sid_key, sock, previous = NULL) {
+      if (!is.null(previous) && nanonext::is_aio(previous)) {
+        nanonext::stop_aio(previous)
+      }
+      reader <- nanonext::recv_aio(sock, mode = "string", cv = private$.cv)
+      private$.user_listeners[[sid_key]] <- reader
+      reader
+    },
+
+    # Forward a tool call request to a registered user session socket.
+    forward_request_to_user = function(data, session_id, sock) {
+      sid_key <- as.character(session_id)
+      if (is.null(sock)) {
+        return(cat_json(jsonrpc_response(
+          data$id,
+          error = list(code = -32603, message = sprintf("User session %d socket not found", session_id))
+        )))
+      }
+      if (is.null(private$.user_listeners[[sid_key]])) {
+        private$arm_user_session_listener(sid_key, sock)
+      }
+      private$forward_to_socket(data, sock, label = "TO USER SESSION")
     },
 
     # Shared forwarding logic: prepare tool call and send to a nanonext socket.

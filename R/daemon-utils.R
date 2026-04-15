@@ -67,8 +67,8 @@ list_daemon_sessions <- function() {
 #'
 #' @description Scans the daemon_sessions registry for an entry whose value
 #' matches the given session_id. Returns the key (client_id) or NULL.
-#' This is used for reverse lookup when the key is unknown but the session
-#' port number is known (e.g., when closing the default auto-spawned daemon).
+#' Used for reverse lookup when the session port number is known but the key is not
+#' (e.g. when closing the default auto-spawned daemon by session ID).
 #' @param session_id Integer. The session port number to look up.
 #' @return Character(1) key or NULL.
 #' @noRd
@@ -92,8 +92,9 @@ daemon_process_label <- function(session_id) {
 
 #' Find an available daemon socket port
 #'
-#' @description Scans ports 1..1023 via nanonext::listen to find the first
-#' unoccupied slot. Creates and tears down a temporary socket to avoid
+#' @description Scans ports 2..1023 via nanonext::listen to find the first
+#' unoccupied slot. Port 1 is reserved for user session connections.
+#' Creates and tears down a temporary socket to probe availability without
 #' interfering with existing listeners.
 #' @return Integer(1) port number.
 #' @noRd
@@ -102,7 +103,8 @@ find_daemon_port <- function() {
   sock <- nanonext::socket("poly")
   on.exit(nanonext::reap(sock), add = TRUE)
 
-  i <- 1L
+  # Start at 2: port 1 is pre-dialed by the server for user session connections
+  i <- 2L
   while (i < 1024L) {
     if (nanonext::listen(sock, url = sprintf("%s%d", socket_base, i), fail = "none")) {
       i <- i + 1L
@@ -116,8 +118,8 @@ find_daemon_port <- function() {
 #' Spawn a daemon R session
 #'
 #' @description Launches a new R process running MCPR::mcp_session() in daemon mode.
-#' Uses Rscript (not R) so the process exits on error instead of dropping to
-#' an interactive prompt. Stores the process handle in the$daemon_processes.
+#' Uses Rscript with --no-init-file --no-site-file to avoid .Rprofile/renv delays.
+#' Stores the process handle in the$daemon_processes.
 #' @param client_id Character. The owning client identifier.
 #' @param session_id Integer. The port number the daemon will listen on.
 #' @param working_dir Character. Working directory for the daemon process.
@@ -132,7 +134,7 @@ spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
 
   proc <- processx::process$new(
     command = rscript,
-    args = c("-e", r_expr),
+    args = c("--no-init-file", "--no-site-file", "-e", r_expr),
     stdin = NULL,
     stdout = "|",
     stderr = "|",
@@ -146,48 +148,75 @@ spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
 
   the$daemon_processes[[client_id]] <- proc
   cli::cli_inform(c(
-    "i" = "Daemon session {session_id} spawned (PID {proc$get_pid()}, label {daemon_process_label(session_id)})"
+    "i" = "Daemon session {session_id} spawned (PID {proc$get_pid()})"
   ))
   proc
 }
 
-#' Wait for a daemon session to become connectable
+#' Connect to any session via IPC socket
 #'
-#' @description Polls the daemon's nanonext socket URL until a connection is
-#' established or the timeout is reached. Returns a connected poly socket on
-#' success, or NULL on timeout.
-#'
-#' Note: IPC sockets don't support async reconnection (unlike TCP), so the
-#' mirai pipe_notify + until pattern cannot be used here. Our architecture
-#' requires the server to dial out to the daemon's listener, which must be
-#' polled. The mirai pattern works because mirai uses reverse-dial (daemon
-#' dials into host).
-#'
-#' @param session_id Integer. The port number to dial.
-#' @param timeout_ms Numeric. Milliseconds to wait before giving up (default 15000).
-#' @return A connected nanonext poly socket, or NULL on timeout.
+#' @description Dials the session's IPC URL and waits for a pipe connection using
+#'   the pipe_notify + until pattern. Works for both interactive and daemon sessions.
+#'   Returns a connected socket on success, or NULL on timeout.
+#' @param session_id Integer. The session port number to connect to.
+#' @param timeout_ms Integer. Connection timeout in milliseconds (default: 15000).
+#' @return A nanonext socket object, or NULL if connection failed.
 #' @noRd
-await_daemon_ready <- function(session_id, timeout_ms = 15000) {
+connect_ipc_socket <- function(session_id, timeout_ms = 15000L) {
   url <- sprintf("%s%d", get_system_socket_url(), as.integer(session_id))
-
-  start_time <- proc.time()[["elapsed"]]
-  timeout_s <- timeout_ms / 1000
-
-  repeat {
-    sock <- nanonext::socket("poly")
-    result <- nanonext::dial(sock, url = url, fail = "none")
-    if (!result) {
-      # Give the pipe a moment to establish after successful dial
-      Sys.sleep(0.2)
-      if (nanonext::stat(sock, "pipes") > 0L) {
-        return(sock)
-      }
-    }
+  sock <- nanonext::socket("poly")
+  cv <- nanonext::cv()
+  nanonext::pipe_notify(sock, cv, add = TRUE)
+  nanonext::dial(sock, url = url, fail = "none")
+  connected <- nanonext::until(cv, as.integer(timeout_ms))
+  nanonext::pipe_notify(sock, NULL, add = TRUE)
+  if (!connected) {
     nanonext::reap(sock)
-
-    elapsed <- proc.time()[["elapsed"]] - start_time
-    if (elapsed >= timeout_s) return(NULL)
-
-    Sys.sleep(0.5)
+    return(NULL)
   }
+  sock
+}
+
+#' Register a joined user session socket
+#'
+#' @description Stores an IPC socket under its session ID in the user sessions registry.
+#' @param session_id Integer. The session port number.
+#' @param socket A nanonext socket connected to the user session.
+#' @return Called for side effects; returns NULL invisibly.
+#' @noRd
+register_user_session <- function(session_id, socket) {
+  the$user_sessions[[as.character(as.integer(session_id))]] <- socket
+}
+
+#' Look up a joined user session socket by session ID
+#'
+#' @description Returns the nanonext socket for a registered user session, or NULL.
+#' @param session_id Integer. The session port number.
+#' @return A nanonext socket, or NULL.
+#' @noRd
+get_user_session <- function(session_id) {
+  the$user_sessions[[as.character(as.integer(session_id))]]
+}
+
+#' Unregister a joined user session
+#'
+#' @description Closes the socket and removes the entry from the user sessions registry.
+#' @param session_id Integer. The session port number.
+#' @return Called for side effects; returns NULL invisibly.
+#' @noRd
+unregister_user_session <- function(session_id) {
+  key <- as.character(as.integer(session_id))
+  sock <- the$user_sessions[[key]]
+  if (!is.null(sock)) tryCatch(nanonext::reap(sock), error = function(e) NULL)
+  the$user_sessions[[key]] <- NULL
+}
+
+#' List all registered user session IDs
+#'
+#' @description Returns the session IDs for all registered user sessions.
+#' @return Integer vector of session IDs. May be length-0.
+#' @noRd
+list_user_sessions <- function() {
+  if (length(the$user_sessions) == 0L) return(integer(0))
+  as.integer(names(the$user_sessions))
 }

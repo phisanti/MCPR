@@ -280,7 +280,7 @@ mcprSession <- R6::R6Class("mcprSession",
         result <- execute_tool_call(data)
         execution_time <- round(as.numeric(difftime(Sys.time(), start_time, units = "secs")) * 1000, 2)
         private$log_comm("TOOL_COMPLETED", paste("Session:", private$.session_id, "| Tool:", tool_name, "| Duration:", paste0(execution_time, "ms")))
-        result
+        private$append_session_footer(result)
       } else {
         jsonrpc_response(
           data$id,
@@ -297,6 +297,37 @@ mcprSession <- R6::R6Class("mcprSession",
       private$log_comm("TO SERVER", paste("Session:", private$.session_id, "| ID:", data$id %||% "unknown", "| Status:", response_info, "| Response:", to_json(body)))
       private$send_response(to_json(body), pipe)
       invisible(self)
+    },
+
+    # Append a session context footer to a tool response's content array.
+    # Tells the agent which session its code ran in so it can carry the
+    # session ID forward without a separate manage_r_sessions call.
+    append_session_footer = function(response) {
+      session_id <- private$.session_id
+      if (is.null(session_id) || is.null(response$result) || is.null(response$result$content)) {
+        return(response)
+      }
+
+      is_daemon <- startsWith(Sys.getenv("MCPR_CLIENT_ID", ""), "daemon-")
+      footer <- if (is_daemon) {
+        sprintf("Session: %d (isolated).", session_id)
+      } else {
+        sprintf("Session: %d (interactive).", session_id)
+      }
+
+      # Append to the last text content block, or add a new one
+      n <- length(response$result$content)
+      if (n > 0L && identical(response$result$content[[n]]$type, "text")) {
+        response$result$content[[n]]$text <- paste0(
+          response$result$content[[n]]$text, "\n\n---\n", footer
+        )
+      } else {
+        response$result$content <- c(
+          response$result$content,
+          list(list(type = "text", text = footer))
+        )
+      }
+      response
     },
 
     # Send response using global socket

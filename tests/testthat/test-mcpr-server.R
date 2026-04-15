@@ -598,3 +598,74 @@ test_that("mcprServer has mcp_apps_supported accessor", {
   server <- mcprServer$new(.tools_dir = tempdir())
   expect_false(server$mcp_apps_supported())
 })
+
+# --- mandatory session enforcement ---
+# These tests send execute_r_code without a session arg and verify the server
+# returns -32602 with an informative message instead of spawning a daemon.
+# A disconnected fake socket is injected via server$state_set("server_socket")
+# so the path-2 "joined session?" check (nanonext::stat(the$server_socket, "pipes") > 0)
+# returns FALSE without hanging. daemon_sessions is cleared the same way.
+
+make_execute_request <- function(id = 1L, extra_args = list()) {
+  args <- c(list(code = "1+1"), extra_args)
+  jsonlite::toJSON(list(
+    jsonrpc = "2.0",
+    id = id,
+    method = "tools/call",
+    params = list(name = "execute_r_code", arguments = args)
+  ), auto_unbox = TRUE)
+}
+
+test_that("execute_r_code without session returns session-required error", {
+  inst_dir <- system.file(package = "MCPR")
+  server <- mcprServer$new(.tools_dir = inst_dir)
+  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
+  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
+
+  # Inject a disconnected socket so path-2 (joined session check) returns FALSE.
+  # cat_json uses nanonext::write_stdout (raw fd, bypasses capture.output), so
+  # we intercept it with local_mocked_bindings to capture the response object.
+  fake_socket <- nanonext::socket("poly")
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+  original_daemons <- server$state_get("daemon_sessions")
+  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
+  server$state_set("server_socket", fake_socket)
+  server$state_set("daemon_sessions", list())
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 1L))
+
+  expect_equal(captured$error$code, -32602L)
+  expect_match(captured$error$message, "session is required", fixed = TRUE)
+  expect_match(captured$error$message, "Active sessions: none", fixed = TRUE)
+})
+
+test_that("session-required error lists active daemon sessions by port", {
+  inst_dir <- system.file(package = "MCPR")
+  server <- mcprServer$new(.tools_dir = inst_dir)
+  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
+  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
+
+  fake_socket <- nanonext::socket("poly")
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+  original_daemons <- server$state_get("daemon_sessions")
+  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
+  server$state_set("server_socket", fake_socket)
+  server$state_set("daemon_sessions", list("daemon-9" = 9L))
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 2L))
+
+  expect_equal(captured$error$code, -32602L)
+  expect_match(captured$error$message, "Active sessions: 9", fixed = TRUE)
+})

@@ -37,3 +37,10 @@ the$daemon_sockets <- list()
 #' @description Named list of processx process handles for daemon lifecycle management.
 #' Keys are client IDs, values are processx::process objects.
 the$daemon_processes <- list()
+
+#' User Session Registry
+#'
+#' @name user_sessions
+#' @description Named list of nanonext sockets for joined interactive user sessions.
+#' Keys are session IDs (character), values are nanonext socket objects.
+the$user_sessions <- list()
