@@ -427,12 +427,13 @@ mcp_session <- function(session_id = NULL, timeout_seconds = 900, working_dir = 
   # Daemon mode: Keep process alive with event loop
   # Non-daemon mode: Legacy blocking loop for manual invocation
   if (daemon || !rlang::is_interactive()) {
+    parent_pid <- suppressWarnings(as.integer(Sys.getenv("MCPR_PARENT_PID", "0")))
     repeat {
       later::run_now(timeout = 0.5)
       info <- the$mcpr_session$get_info()
-      if (!isTRUE(info$is_running)) {
-        break
-      }
+      if (!isTRUE(info$is_running)) break
+      # Exit if the spawning server process has died (orphan guard)
+      if (parent_pid > 0L && !isTRUE(tools::pskill(parent_pid, signal = 0L))) break
     }
   }
 

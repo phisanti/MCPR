@@ -131,6 +131,7 @@ spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
     'MCPR::mcp_session(session_id = %dL, working_dir = "%s", daemon = TRUE)',
     as.integer(session_id), working_dir
   )
+  label <- daemon_process_label(session_id)
 
   proc <- processx::process$new(
     command = rscript,
@@ -142,7 +143,8 @@ spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
       "current",
       MCPR_DAEMON = "true",
       MCPR_CLIENT_ID = client_id,
-      MCPR_PROCESS_LABEL = daemon_process_label(session_id)
+      MCPR_PROCESS_LABEL = label,
+      MCPR_PARENT_PID = as.character(Sys.getpid())
     )
   )
 
