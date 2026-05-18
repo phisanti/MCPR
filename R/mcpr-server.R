@@ -83,8 +83,12 @@ mcprServer <- R6::R6Class("mcprServer",
     #' @param registry A ToolRegistry instance to use for tool discovery
     #' @param .tools_dir Internal parameter for specifying tools directory path
     #' @param session_discovery Session routing policy: `"explicit"` or `"auto"`.
+    #' @param execution_timeout_secs Default seconds before a forwarded request is considered
+    #'   timed out (default: 300). Override per-call via the `timeout` argument in tools like
+    #'   `execute_r_code`.
     #' @return A new mcprServer instance
-    initialize = function(registry = NULL, .tools_dir = NULL, session_discovery = "explicit") {
+    initialize = function(registry = NULL, .tools_dir = NULL, session_discovery = "explicit",
+                          execution_timeout_secs = 300L) {
       self$initialize_base("SERVER")
       private$.mcpr_version <- mcpr_package_version()
 
@@ -94,6 +98,7 @@ mcprServer <- R6::R6Class("mcprServer",
         )
       }
       private$.session_discovery <- session_discovery
+      private$.execution_timeout_secs <- as.integer(execution_timeout_secs)
 
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         error_msg <- "registry must be a ToolRegistry instance"
@@ -143,7 +148,10 @@ mcprServer <- R6::R6Class("mcprServer",
       private$.session_reader <- private$arm_session_listener()
 
       private$.running <- TRUE
-      while (nanonext::wait(private$.cv)) {
+      while (TRUE) {
+        # Wake on any event or every 5s to sweep pending requests for timeouts/dead sessions
+        nanonext::until(private$.cv, 5000L)
+
         if (!nanonext::unresolved(private$.session_reader)) {
           private$handle_message_from_session(private$.session_reader$data)
           private$.session_reader <- private$arm_session_listener(previous = private$.session_reader)
@@ -152,7 +160,7 @@ mcprServer <- R6::R6Class("mcprServer",
         for (cid in names(private$.daemon_listeners)) {
           dl <- private$.daemon_listeners[[cid]]
           if (!is.null(dl) && !nanonext::unresolved(dl)) {
-            private$handle_message_from_session(dl$data)
+            private$handle_session_listener_resolved(dl$data, cid, "daemon")
             sock <- the$daemon_sockets[[cid]]
             if (!is.null(sock)) {
               private$arm_daemon_listener(cid, sock, previous = dl)
@@ -163,7 +171,7 @@ mcprServer <- R6::R6Class("mcprServer",
         for (sid_key in names(private$.user_listeners)) {
           ul <- private$.user_listeners[[sid_key]]
           if (!is.null(ul) && !nanonext::unresolved(ul)) {
-            private$handle_message_from_session(ul$data)
+            private$handle_session_listener_resolved(ul$data, sid_key, "user")
             sock <- get_user_session(as.integer(sid_key))
             if (!is.null(sock)) {
               private$arm_user_session_listener(sid_key, sock, previous = ul)
@@ -171,9 +179,15 @@ mcprServer <- R6::R6Class("mcprServer",
           }
         }
         if (!nanonext::unresolved(client)) {
+          # Non-character data means stdin closed (nanonext errorValue on EOF)
+          if (!is.character(client$data)) break
           private$handle_message_from_client(client$data)
           client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
         }
+        if (length(private$.pending_requests) > 0) {
+          private$sweep_pending_requests()
+        }
+        if (!private$.running) break
       }
     },
 
@@ -271,6 +285,9 @@ mcprServer <- R6::R6Class("mcprServer",
     .daemon_listeners = list(),
     .user_listeners = list(),
     .session_discovery = "explicit",
+    .pending_requests = list(),     # session_key → pending request info (one per session)
+    .timed_out_ids = character(0),  # JSON-RPC ids already sent a timeout error (to drop late responses)
+    .execution_timeout_secs = 300L, # server-level default execution timeout
 
     # Returns a client identifier for daemon session routing.
     # stdio server always uses "default"; HTTP server would override per-connection.
@@ -299,6 +316,7 @@ mcprServer <- R6::R6Class("mcprServer",
           error = list(code = -32603, message = "Daemon socket not found")
         )))
       }
+      private$register_pending_request(data, client_id, "daemon")
       private$forward_to_socket(data, sock, label = "TO DAEMON")
     },
 
@@ -601,12 +619,33 @@ mcprServer <- R6::R6Class("mcprServer",
       }
     },
 
-    # Handle messages from R sessions
-    handle_message_from_session = function(data) {
+    # Handle messages from R sessions. session_key is provided for daemon/user sessions
+    # so we can correlate the response to a pending request and drop late responses.
+    handle_message_from_session = function(data, session_key = NULL) {
       if (!is.character(data)) {
         return()
       }
       private$log_comm("FROM SESSION", data)
+
+      if (!is.null(session_key)) {
+        parsed <- tryCatch(jsonlite::parse_json(data), error = function(e) NULL)
+        resp_id <- as.character(parsed$id %||% "")
+        if (nzchar(resp_id) && resp_id %in% private$.timed_out_ids) {
+          private$log_debug(sprintf(
+            "Dropping late response for already-timed-out request id=%s (session '%s')",
+            resp_id, session_key
+          ))
+          private$.timed_out_ids <- setdiff(private$.timed_out_ids, resp_id)
+          private$.pending_requests[[session_key]] <- NULL
+          return()
+        }
+        # Clear pending for this session now that a valid response arrived
+        pending <- private$.pending_requests[[session_key]]
+        if (!is.null(pending) && identical(as.character(pending$client_request_id), resp_id)) {
+          private$.pending_requests[[session_key]] <- NULL
+        }
+      }
+
       nanonext::write_stdout(data)
     },
 
@@ -670,6 +709,7 @@ mcprServer <- R6::R6Class("mcprServer",
       if (is.null(private$.user_listeners[[sid_key]])) {
         private$arm_user_session_listener(sid_key, sock)
       }
+      private$register_pending_request(data, sid_key, "user")
       private$forward_to_socket(data, sock, label = "TO USER SESSION")
     },
 
@@ -686,6 +726,90 @@ mcprServer <- R6::R6Class("mcprServer",
         client_name = private$.client_name
       )
       nanonext::send_aio(sock, prepared, mode = "serial")
+    },
+
+    # Record a forwarded request so sweep_pending_requests can detect hangs/timeouts.
+    # session_key is the daemon client_id or the user session sid_key (as character).
+    register_pending_request = function(data, session_key, session_type) {
+      timeout_secs <- as.integer(
+        data$params$arguments$timeout %||% private$.execution_timeout_secs
+      )
+      private$.pending_requests[[session_key]] <- list(
+        client_request_id = data$id,
+        session_key = session_key,
+        session_type = session_type,
+        sent_at = Sys.time(),
+        timeout_secs = timeout_secs
+      )
+    },
+
+    # Called when a daemon or user session listener resolves.
+    # If data is a nanonext error value (peer closed connection), return a dead-session
+    # error to the waiting client immediately. Otherwise dispatch normally.
+    handle_session_listener_resolved = function(data, session_key, session_type) {
+      if (!is.character(data)) {
+        private$log_warn(sprintf(
+          "Session '%s' (%s) connection closed (nanonext error %s)",
+          session_key, session_type, as.character(data)
+        ))
+        pending <- private$.pending_requests[[session_key]]
+        if (!is.null(pending)) {
+          cat_json(jsonrpc_response(
+            pending$client_request_id,
+            error = list(
+              code = -32603L,
+              message = sprintf(
+                paste0(
+                  "Session '%s' is no longer responding — the R process may have exited. ",
+                  "Run manage_r_sessions(action='list') to see active sessions, ",
+                  "or manage_r_sessions(action='start') to open a new one."
+                ),
+                session_key
+              )
+            )
+          ))
+          private$.pending_requests[[session_key]] <- NULL
+        }
+        return()
+      }
+      private$handle_message_from_session(data, session_key)
+    },
+
+    # Sweep all pending forwarded requests. For each:
+    #   - Tier-2: return a timeout error if elapsed > timeout_secs.
+    # Tier-1 (dead-session via nanonext error) is handled immediately in
+    # handle_session_listener_resolved, so we only need the timeout sweep here.
+    sweep_pending_requests = function() {
+      now <- Sys.time()
+      for (key in names(private$.pending_requests)) {
+        req <- private$.pending_requests[[key]]
+        elapsed <- as.numeric(difftime(now, req$sent_at, units = "secs"))
+        if (elapsed > req$timeout_secs) {
+          private$log_warn(sprintf(
+            "Request %s to session '%s' timed out after %ds",
+            req$client_request_id, key, req$timeout_secs
+          ))
+          cat_json(jsonrpc_response(
+            req$client_request_id,
+            error = list(
+              code = -32603L,
+              message = sprintf(
+                paste0(
+                  "Code execution timed out after %ds in session '%s'. ",
+                  "For long-running computations, pass a larger timeout= value. ",
+                  "If the session appears stuck, use manage_r_sessions to inspect or restart it."
+                ),
+                req$timeout_secs, key
+              )
+            )
+          ))
+          # Track this id so any late response that eventually arrives is dropped
+          private$.timed_out_ids <- c(
+            private$.timed_out_ids, as.character(req$client_request_id)
+          )
+          private$.pending_requests[[key]] <- NULL
+        }
+      }
     },
 
     # Routes incoming JSON-RPC messages to appropriate handlers
@@ -737,11 +861,17 @@ mcprServer <- R6::R6Class("mcprServer",
 #' @param registry A ToolRegistry instance to use for tool discovery
 #' @param session_discovery Session routing policy passed to `mcprServer$new()`.
 #'   `"explicit"` (default) or `"auto"`.
+#' @param execution_timeout_secs Default seconds before a forwarded request is considered
+#'   timed out (default: 300). Individual tools can override via their `timeout` argument.
 #' @return The server instance (invisibly)
 #' @export
-mcpr_server <- function(registry = NULL, session_discovery = "explicit") {
-  # Auto-discovery logic is now handled in mcprServer$initialize()
-  server <- mcprServer$new(registry = registry, session_discovery = session_discovery)
+mcpr_server <- function(registry = NULL, session_discovery = "explicit",
+                        execution_timeout_secs = 300L) {
+  server <- mcprServer$new(
+    registry = registry,
+    session_discovery = session_discovery,
+    execution_timeout_secs = execution_timeout_secs
+  )
   server$start()
   invisible(server)
 }
