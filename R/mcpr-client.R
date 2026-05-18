@@ -10,11 +10,13 @@
 #' @include utils.R
 #' @description
 #' Persistent interface for managing Model Context Protocol servers within R sessions.
-#' • **Server connections**: Establishes and maintains connections to MCP servers
-#' • **Tool discovery**: Automatically discovers and registers available tools
-#' • **Protocol communication**: Handles JSON-RPC messaging with servers
-#' • **State management**: Maintains server status and tool metadata
-#' • **Configuration support**: Uses JSON config files for server specifications
+#' \itemize{
+#'   \item \strong{Server connections}: Establishes and maintains connections to MCP servers
+#'   \item \strong{Tool discovery}: Automatically discovers and registers available tools
+#'   \item \strong{Protocol communication}: Handles JSON-RPC messaging with servers
+#'   \item \strong{State management}: Maintains server status and tool metadata
+#'   \item \strong{Configuration support}: Uses JSON config files for server specifications
+#' }
 #'
 #' @param config Path to configuration file (uses default location if NULL)
 #' @return New mcprClient instance
@@ -379,9 +381,11 @@ mcprClient <- R6::R6Class("mcprClient",
 #'
 #' @description
 #' Creates MCP tools using the modern ToolDef system.
-#' • **Client management**: Creates client instance and connects to servers
-#' • **Tool discovery**: Automatically discovers and registers available tools
-#' • **ToolDef objects**: Returns modern ToolDef objects instead of legacy formats
+#' \itemize{
+#'   \item \strong{Client management}: Creates client instance and connects to servers
+#'   \item \strong{Tool discovery}: Automatically discovers and registers available tools
+#'   \item \strong{ToolDef objects}: Returns modern ToolDef objects instead of legacy formats
+#' }
 #'
 #' @param config Path to configuration file (uses default location if NULL)
 #' @return List of ToolDef objects

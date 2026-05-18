@@ -92,7 +92,7 @@ show_widget_in_browser <- function(widget) {
 #'
 #' Encapsulates the prepare/print/finalize cycle for static plot objects.
 #' Handles httpgd, native device, and file export paths. Always receives a
-#' real plot object — no expression evaluation happens here.
+#' real plot object; no expression evaluation happens here.
 #'
 #' @param plot_obj A plot object (ggplot, recordedplot, grob, gtable, trellis,
 #'   or captured_plot)
@@ -182,10 +182,10 @@ show_plot_via_mcp_app <- function(plot_obj) {
   grDevices::dev.off()
   device_open <- FALSE
 
-  # Base64-encode the PNG — guard against empty/partial files
+  # Base64-encode the PNG - guard against empty/partial files
   file_size <- file.info(tmp)$size
   if (is.na(file_size) || file_size == 0) {
-    cli::cli_abort("Plot produced an empty image file — the plot object may not generate visible output.")
+    cli::cli_abort("Plot produced an empty image file - the plot object may not generate visible output.")
   }
   raw_data <- readBin(tmp, "raw", file_size)
   b64_data <- base64enc::base64encode(raw_data)
@@ -410,7 +410,7 @@ response_image <- function(file, mime_type = "image/png") {
 #'   grob, gtable, trellis, or captured_plot)
 #' @param mcp_apps_supported Logical; whether the client supports MCP App structuredContent
 #' @param target Character; who sees the plot: "user" (display) or "agent" (base64 for analysis)
-#' @return Varies by path — text confirmation, structuredContent list, or image response
+#' @return Varies by path: text confirmation, structuredContent list, or image response
 #' @export
 channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
                          target = c("user", "agent")) {

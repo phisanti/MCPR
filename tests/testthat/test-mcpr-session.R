@@ -409,3 +409,87 @@ test_that("mcprSession method chaining works", {
   expect_identical(result1, session)
   expect_identical(result2, session)
 })
+
+# --- append_session_footer ---
+
+test_that("append_session_footer returns unchanged when session_id is NULL", {
+  session <- create_test_session()  # no session_id set
+  response <- list(result = list(content = list(list(type = "text", text = "output"))))
+  result <- session$.__enclos_env__$private$append_session_footer(response)
+  expect_identical(result, response)
+})
+
+test_that("append_session_footer returns unchanged when result is NULL", {
+  session <- create_test_session(session_id = 5L)
+  response <- list(error = list(code = -32602L, message = "oops"))
+  result <- session$.__enclos_env__$private$append_session_footer(response)
+  expect_identical(result, response)
+})
+
+test_that("append_session_footer returns unchanged when content is NULL", {
+  session <- create_test_session(session_id = 5L)
+  response <- list(result = list(content = NULL))
+  result <- session$.__enclos_env__$private$append_session_footer(response)
+  expect_identical(result, response)
+})
+
+test_that("append_session_footer labels interactive when MCPR_CLIENT_ID is not set", {
+  session <- create_test_session(session_id = 7L)
+  response <- list(result = list(content = list(list(type = "text", text = "result output"))))
+
+  withr::with_envvar(c(MCPR_CLIENT_ID = ""), {
+    result <- session$.__enclos_env__$private$append_session_footer(response)
+  })
+
+  text <- result$result$content[[1]]$text
+  expect_match(text, "result output", fixed = TRUE)
+  expect_match(text, "Session: 7 (interactive).", fixed = TRUE)
+  expect_match(text, "\n\n---\n", fixed = TRUE)
+})
+
+test_that("append_session_footer labels isolated when MCPR_CLIENT_ID starts with daemon-", {
+  session <- create_test_session(session_id = 7L)
+  response <- list(result = list(content = list(list(type = "text", text = "result output"))))
+
+  withr::with_envvar(c(MCPR_CLIENT_ID = "daemon-7"), {
+    result <- session$.__enclos_env__$private$append_session_footer(response)
+  })
+
+  expect_match(result$result$content[[1]]$text, "Session: 7 (isolated).", fixed = TRUE)
+})
+
+test_that("append_session_footer adds new text block when last content is not text", {
+  session <- create_test_session(session_id = 3L)
+  response <- list(result = list(content = list(list(type = "image", data = "base64..."))))
+
+  withr::with_envvar(c(MCPR_CLIENT_ID = "daemon-3"), {
+    result <- session$.__enclos_env__$private$append_session_footer(response)
+  })
+
+  expect_length(result$result$content, 2L)
+  expect_equal(result$result$content[[2]]$type, "text")
+  expect_match(result$result$content[[2]]$text, "Session: 3 (isolated).", fixed = TRUE)
+})
+
+test_that("append_session_footer adds text block when content is empty list", {
+  session <- create_test_session(session_id = 4L)
+  response <- list(result = list(content = list()))
+
+  withr::with_envvar(c(MCPR_CLIENT_ID = "daemon-4"), {
+    result <- session$.__enclos_env__$private$append_session_footer(response)
+  })
+
+  expect_length(result$result$content, 1L)
+  expect_match(result$result$content[[1]]$text, "Session: 4 (isolated).", fixed = TRUE)
+})
+
+test_that("append_session_footer uses session_id from private state", {
+  session <- create_test_session(session_id = 99L)
+  response <- list(result = list(content = list(list(type = "text", text = "x"))))
+
+  withr::with_envvar(c(MCPR_CLIENT_ID = "daemon-99"), {
+    result <- session$.__enclos_env__$private$append_session_footer(response)
+  })
+
+  expect_match(result$result$content[[1]]$text, "Session: 99", fixed = TRUE)
+})

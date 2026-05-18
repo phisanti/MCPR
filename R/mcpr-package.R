@@ -26,6 +26,12 @@
     "ipc:///tmp/MCPR-socket"
   )
 
+  # Cache Rscript path for daemon spawning (mirai pattern)
+  the$rscript_path <- switch(Sys.info()[["sysname"]],
+    Windows = file.path(R.home("bin"), "Rscript.exe"),
+    file.path(R.home("bin"), "Rscript")
+  )
+
   # Initialize diagnostic logger for execution tracing
   tryCatch(
     {

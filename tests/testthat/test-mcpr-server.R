@@ -598,3 +598,271 @@ test_that("mcprServer has mcp_apps_supported accessor", {
   server <- mcprServer$new(.tools_dir = tempdir())
   expect_false(server$mcp_apps_supported())
 })
+
+# --- mandatory session enforcement ---
+# These tests send execute_r_code without a session arg and verify the server
+# returns -32602 with an informative message instead of spawning a daemon.
+# A disconnected fake socket is injected via server$state_set("server_socket")
+# so the path-2 "joined session?" check (nanonext::stat(the$server_socket, "pipes") > 0)
+# returns FALSE without hanging. daemon_sessions is cleared the same way.
+
+make_execute_request <- function(id = 1L, extra_args = list()) {
+  args <- c(list(code = "1+1"), extra_args)
+  jsonlite::toJSON(list(
+    jsonrpc = "2.0",
+    id = id,
+    method = "tools/call",
+    params = list(name = "execute_r_code", arguments = args)
+  ), auto_unbox = TRUE)
+}
+
+test_that("execute_r_code without session returns session-required error", {
+  inst_dir <- system.file(package = "MCPR")
+  server <- mcprServer$new(.tools_dir = inst_dir)
+  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
+  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
+
+  # Inject a disconnected socket so path-2 (joined session check) returns FALSE.
+  # cat_json uses nanonext::write_stdout (raw fd, bypasses capture.output), so
+  # we intercept it with local_mocked_bindings to capture the response object.
+  fake_socket <- nanonext::socket("poly")
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+  original_daemons <- server$state_get("daemon_sessions")
+  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
+  server$state_set("server_socket", fake_socket)
+  server$state_set("daemon_sessions", list())
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 1L))
+
+  expect_equal(captured$error$code, -32602L)
+  expect_match(captured$error$message, "session is required", fixed = TRUE)
+  expect_match(captured$error$message, "Active sessions: none", fixed = TRUE)
+})
+
+test_that("session-required error lists active daemon sessions by port", {
+  inst_dir <- system.file(package = "MCPR")
+  server <- mcprServer$new(.tools_dir = inst_dir)
+  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
+  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
+
+  fake_socket <- nanonext::socket("poly")
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+  original_daemons <- server$state_get("daemon_sessions")
+  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
+  server$state_set("server_socket", fake_socket)
+  server$state_set("daemon_sessions", list("daemon-9" = 9L))
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 2L))
+
+  expect_equal(captured$error$code, -32602L)
+  expect_match(captured$error$message, "Active sessions: 9", fixed = TRUE)
+})
+
+test_that("session_discovery='auto' routes no-session call to daemon without error", {
+  inst_dir <- system.file(package = "MCPR")
+  server <- mcprServer$new(.tools_dir = inst_dir, session_discovery = "auto")
+  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
+  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
+
+  fake_socket <- nanonext::socket("poly")
+  on.exit(nanonext::reap(fake_socket), add = TRUE)
+  original_daemons <- server$state_get("daemon_sessions")
+  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
+  server$state_set("server_socket", fake_socket)
+  server$state_set("daemon_sessions", list())
+
+  ensure_called <- FALSE
+  forward_called <- FALSE
+
+  priv <- server$.__enclos_env__$private
+  unlockBinding("ensure_daemon_session", priv)
+  unlockBinding("forward_request_to_daemon", priv)
+  original_ensure <- priv$ensure_daemon_session
+  original_forward <- priv$forward_request_to_daemon
+  on.exit({
+    unlockBinding("ensure_daemon_session", priv)
+    unlockBinding("forward_request_to_daemon", priv)
+    priv$ensure_daemon_session <- original_ensure
+    priv$forward_request_to_daemon <- original_forward
+  }, add = TRUE)
+
+  priv$ensure_daemon_session <- function(client_id) {
+    ensure_called <<- TRUE
+  }
+  priv$forward_request_to_daemon <- function(data, client_id) {
+    forward_called <<- TRUE
+  }
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 99L))
+
+  expect_true(ensure_called, label = "ensure_daemon_session was called")
+  expect_true(forward_called, label = "forward_request_to_daemon was called")
+  expect_null(captured, label = "no cat_json output emitted in auto mode")
+})
+
+# --- two-tier session timeout ---
+
+make_pending_request <- function(session_key, id = 42L, timeout_secs = 300L,
+                                 age_secs = 0) {
+  list(
+    client_request_id = id,
+    session_key = session_key,
+    sent_at = Sys.time() - age_secs,
+    timeout_secs = timeout_secs
+  )
+}
+
+test_that("handle_session_listener_resolved sends dead-session error for non-character data", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  priv$.pending_requests[["daemon-5"]] <- make_pending_request("daemon-5", id = 10L)
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  priv$handle_session_listener_resolved(1L, "daemon-5", "daemon")
+
+  expect_equal(captured$error$code, -32603L)
+  expect_match(captured$error$message, "no longer responding", fixed = TRUE)
+  expect_match(captured$error$message, "manage_r_sessions", fixed = TRUE)
+  expect_null(priv$.pending_requests[["daemon-5"]])
+})
+
+test_that("handle_session_listener_resolved is silent when no pending request for dead socket", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  priv$handle_session_listener_resolved(1L, "daemon-5", "daemon")
+
+  expect_null(captured)
+})
+
+test_that("handle_session_listener_resolved dispatches valid data to handle_message_from_session", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  dispatched_data <- NULL
+  dispatched_key  <- NULL
+  unlockBinding("handle_message_from_session", priv)
+  original <- priv$handle_message_from_session
+  on.exit({
+    unlockBinding("handle_message_from_session", priv)
+    priv$handle_message_from_session <- original
+  }, add = TRUE)
+  priv$handle_message_from_session <- function(data, session_key = NULL) {
+    dispatched_data <<- data
+    dispatched_key  <<- session_key
+  }
+
+  priv$handle_session_listener_resolved('{"id":7,"result":"ok"}', "daemon-5", "daemon")
+
+  expect_equal(dispatched_data, '{"id":7,"result":"ok"}')
+  expect_equal(dispatched_key, "daemon-5")
+})
+
+test_that("sweep_pending_requests does nothing before timeout elapses", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  priv$.pending_requests[["daemon-5"]] <- make_pending_request("daemon-5", id = 20L,
+                                                                timeout_secs = 300L,
+                                                                age_secs = 10)
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  priv$sweep_pending_requests()
+
+  expect_null(captured)
+  expect_false(is.null(priv$.pending_requests[["daemon-5"]]))
+})
+
+test_that("sweep_pending_requests fires timeout error and tracks id after timeout elapses", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  priv$.pending_requests[["daemon-5"]] <- make_pending_request("daemon-5", id = 30L,
+                                                                timeout_secs = 60L,
+                                                                age_secs = 120)
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  priv$sweep_pending_requests()
+
+  expect_equal(captured$error$code, -32603L)
+  expect_match(captured$error$message, "timed out after 60s", fixed = TRUE)
+  expect_match(captured$error$message, "manage_r_sessions", fixed = TRUE)
+  expect_null(priv$.pending_requests[["daemon-5"]])
+  expect_true("30" %in% priv$.timed_out_ids)
+})
+
+test_that("handle_message_from_session removes timed-out id and clears pending on late response", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  priv$.timed_out_ids <- c("55", "99")
+  priv$.pending_requests[["daemon-5"]] <- make_pending_request("daemon-5", id = 55L)
+
+  # write_stdout will attempt to write to fd 1 — wrap in tryCatch so test doesn't
+  # fail if stdout is not a real pipe (non-interactive test runner context)
+  tryCatch(
+    priv$handle_message_from_session('{"id":55,"result":"late"}', session_key = "daemon-5"),
+    error = function(e) NULL
+  )
+
+  expect_false("55" %in% priv$.timed_out_ids, label = "timed-out id removed after late response")
+  expect_true("99" %in% priv$.timed_out_ids,  label = "unrelated id left intact")
+  expect_null(priv$.pending_requests[["daemon-5"]], label = "pending entry cleared")
+})
+
+test_that("timed_out_ids is capped at 500 entries by sweep_pending_requests", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  priv$.timed_out_ids <- as.character(seq_len(499))
+  priv$.pending_requests[["daemon-5"]] <- make_pending_request("daemon-5", id = 999L,
+                                                                timeout_secs = 1L,
+                                                                age_secs = 5)
+  local_mocked_bindings(
+    cat_json = function(x) invisible(NULL),
+    .package = "MCPR"
+  )
+
+  priv$sweep_pending_requests()
+
+  expect_lte(length(priv$.timed_out_ids), 500L)
+  expect_true("999" %in% priv$.timed_out_ids)
+})

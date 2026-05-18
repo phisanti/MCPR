@@ -294,7 +294,7 @@ e.exports=function(t){return null!=t&&(n(t)||function(t){return"function"==typeo
 
       // --- Host communication ---
 
-      // Target origin '*' is standard for MCP App iframes — the app does not know
+      // Target origin '*' is standard for MCP App iframes - the app does not know
       // the host's origin at runtime. Content is non-sensitive (plot data + sizing).
       function sendToHost(message) {
         window.parent.postMessage(message, '*');
