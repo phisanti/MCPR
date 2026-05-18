@@ -11,6 +11,7 @@
 #' @keywords mcpr_tool
 #' @return A list containing the results, output, and any warnings/errors
 execute_r_code <- function(code, session = NULL, timeout = 300L) {
+  # timeout is read by the server before forwarding to cap the response wait; unused here
   if (!is.character(code) || length(code) != 1) {
     cli::cli_abort("Code must be a single character string")
   }

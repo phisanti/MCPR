@@ -149,7 +149,7 @@ mcprServer <- R6::R6Class("mcprServer",
 
       private$.running <- TRUE
       while (TRUE) {
-        # Wake on any event or every 5s to sweep pending requests for timeouts/dead sessions
+        # TRUE = event fired; FALSE = 5s sweep tick — either way check all listeners
         nanonext::until(private$.cv, 5000L)
 
         if (!nanonext::unresolved(private$.session_reader)) {
@@ -161,9 +161,14 @@ mcprServer <- R6::R6Class("mcprServer",
           dl <- private$.daemon_listeners[[cid]]
           if (!is.null(dl) && !nanonext::unresolved(dl)) {
             private$handle_session_listener_resolved(dl$data, cid, "daemon")
-            sock <- the$daemon_sockets[[cid]]
-            if (!is.null(sock)) {
-              private$arm_daemon_listener(cid, sock, previous = dl)
+            if (is.character(dl$data)) {
+              # Re-arm only on valid response; dead sockets are dropped, not re-armed
+              sock <- the$daemon_sockets[[cid]]
+              if (!is.null(sock)) {
+                private$arm_daemon_listener(cid, sock, previous = dl)
+              }
+            } else {
+              private$.daemon_listeners[[cid]] <- NULL
             }
           }
         }
@@ -172,9 +177,14 @@ mcprServer <- R6::R6Class("mcprServer",
           ul <- private$.user_listeners[[sid_key]]
           if (!is.null(ul) && !nanonext::unresolved(ul)) {
             private$handle_session_listener_resolved(ul$data, sid_key, "user")
-            sock <- get_user_session(as.integer(sid_key))
-            if (!is.null(sock)) {
-              private$arm_user_session_listener(sid_key, sock, previous = ul)
+            if (is.character(ul$data)) {
+              # Re-arm only on valid response; dead sockets are dropped, not re-armed
+              sock <- get_user_session(as.integer(sid_key))
+              if (!is.null(sock)) {
+                private$arm_user_session_listener(sid_key, sock, previous = ul)
+              }
+            } else {
+              private$.user_listeners[[sid_key]] <- NULL
             }
           }
         }
@@ -316,7 +326,7 @@ mcprServer <- R6::R6Class("mcprServer",
           error = list(code = -32603, message = "Daemon socket not found")
         )))
       }
-      private$register_pending_request(data, client_id, "daemon")
+      private$register_pending_request(data, client_id)
       private$forward_to_socket(data, sock, label = "TO DAEMON")
     },
 
@@ -709,7 +719,7 @@ mcprServer <- R6::R6Class("mcprServer",
       if (is.null(private$.user_listeners[[sid_key]])) {
         private$arm_user_session_listener(sid_key, sock)
       }
-      private$register_pending_request(data, sid_key, "user")
+      private$register_pending_request(data, sid_key)
       private$forward_to_socket(data, sock, label = "TO USER SESSION")
     },
 
@@ -730,14 +740,16 @@ mcprServer <- R6::R6Class("mcprServer",
 
     # Record a forwarded request so sweep_pending_requests can detect hangs/timeouts.
     # session_key is the daemon client_id or the user session sid_key (as character).
-    register_pending_request = function(data, session_key, session_type) {
+    # Invariant: MCP clients are sequential (one tool/call round-trip at a time), so at
+    # most one request is in-flight per session. Concurrent calls to the same session are
+    # not supported and would silently overwrite the pending entry.
+    register_pending_request = function(data, session_key) {
       timeout_secs <- as.integer(
         data$params$arguments$timeout %||% private$.execution_timeout_secs
       )
       private$.pending_requests[[session_key]] <- list(
         client_request_id = data$id,
         session_key = session_key,
-        session_type = session_type,
         sent_at = Sys.time(),
         timeout_secs = timeout_secs
       )
@@ -803,9 +815,11 @@ mcprServer <- R6::R6Class("mcprServer",
               )
             )
           ))
-          # Track this id so any late response that eventually arrives is dropped
-          private$.timed_out_ids <- c(
-            private$.timed_out_ids, as.character(req$client_request_id)
+          # Track this id so any late response that eventually arrives is dropped.
+          # Cap at 500 to prevent unbounded growth over long server runs.
+          private$.timed_out_ids <- utils::tail(
+            c(private$.timed_out_ids, as.character(req$client_request_id)),
+            500L
           )
           private$.pending_requests[[key]] <- NULL
         }
