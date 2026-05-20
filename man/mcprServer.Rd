@@ -85,7 +85,9 @@ Initialize the MCP server with optional tools
 \if{html}{\out{<div class="r">}}\preformatted{mcprServer$new(
   registry = NULL,
   .tools_dir = NULL,
-  session_discovery = "explicit"
+  session_discovery = "explicit",
+  execution_timeout_secs = 300L,
+  resource_registry = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -97,6 +99,13 @@ Initialize the MCP server with optional tools
 \item{\code{.tools_dir}}{Internal parameter for specifying tools directory path}
 
 \item{\code{session_discovery}}{Session routing policy: \code{"explicit"} or \code{"auto"}.}
+
+\item{\code{execution_timeout_secs}}{Default seconds before a forwarded request is considered
+timed out (default: 300). Override per-call via the \code{timeout} argument in tools like
+\code{execute_r_code}.}
+
+\item{\code{resource_registry}}{An MCPResourceRegistry instance. If NULL (default), a built-in
+registry with the MCPR plot viewer is created automatically.}
 }
 \if{html}{\out{</div>}}
 }

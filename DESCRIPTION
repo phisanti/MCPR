@@ -67,6 +67,7 @@ Collate:
     'install-mcpr.R'
     'logger.R'
     'mcpr-base.R'
+    'mcp-resource-registry.R'
     'mcpr-client-tools.R'
     'type-conversion-serializers.R'
     'type-conversion-to-json.R'

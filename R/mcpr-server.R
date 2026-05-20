@@ -2,11 +2,9 @@
 # Core server class implementing Model Context Protocol for persistent R session management.
 # Handles JSON-RPC communication, tool discovery, and routing between MCP clients and R sessions.
 
-# MIME type for MCP App HTML resources
-MCPR_MCP_APP_MIME <- "text/html;profile=mcp-app"
-
 #' Detect MCP Apps support from client initialize params
 #'
+#' @include mcp-resource-registry.R
 #' @include mcpr-base.R
 #' @include mcpr-server-tools.R
 #' @include daemon-utils.R
@@ -86,9 +84,11 @@ mcprServer <- R6::R6Class("mcprServer",
     #' @param execution_timeout_secs Default seconds before a forwarded request is considered
     #'   timed out (default: 300). Override per-call via the `timeout` argument in tools like
     #'   `execute_r_code`.
+    #' @param resource_registry An MCPResourceRegistry instance. If NULL (default), a built-in
+    #'   registry with the MCPR plot viewer is created automatically.
     #' @return A new mcprServer instance
     initialize = function(registry = NULL, .tools_dir = NULL, session_discovery = "explicit",
-                          execution_timeout_secs = 300L) {
+                          execution_timeout_secs = 300L, resource_registry = NULL) {
       self$initialize_base("SERVER")
       private$.mcpr_version <- mcpr_package_version()
 
@@ -118,6 +118,14 @@ mcprServer <- R6::R6Class("mcprServer",
         }
       }
       set_server_tools(registry = registry)
+
+      if (!is.null(resource_registry) && !inherits(resource_registry, "MCPResourceRegistry")) {
+        cli::cli_abort("resource_registry must be an {.cls MCPResourceRegistry} instance")
+      }
+      if (is.null(resource_registry)) {
+        resource_registry <- make_default_mcp_resource_registry(private$.mcpr_version)
+      }
+      private$.resource_registry <- resource_registry
     },
 
     #' @description Start the MCP server and begin listening for connections
@@ -288,7 +296,7 @@ mcprServer <- R6::R6Class("mcprServer",
     .protocol_version = NULL,  # Negotiated protocol version for this connection
     .mcp_apps_supported = FALSE,
     .mcpr_version = "unknown",
-    .viewer_content_cache = NULL,
+    .resource_registry = NULL,
     .client_name = "unknown",
     .client_interface = "unknown",
     .session_reader = NULL,
@@ -488,46 +496,33 @@ mcprServer <- R6::R6Class("mcprServer",
           )
         },
         "resources/list" = function(data) {
-          resources <- list()
-          if (private$.mcp_apps_supported) {
-            resources <- list(list(
-              uri = "ui://mcpr/plots",
-              name = "MCPR Plot Viewer",
-              description = "Interactive plot viewer for R visualizations",
-              mimeType = MCPR_MCP_APP_MIME
-            ))
-          }
+          resources <- private$.resource_registry$list(private$.mcp_apps_supported)
           jsonrpc_response(data$id, list(resources = resources))
         },
         "resources/read" = function(data) {
           uri <- data$params$uri
-          if (identical(uri, "ui://mcpr/plots")) {
-            if (is.null(private$.viewer_content_cache)) {
-              viewer_path <- system.file("mcp_app/plot-viewer.html", package = "MCPR")
-              if (!nzchar(viewer_path) || !file.exists(viewer_path)) {
-                return(jsonrpc_response(
-                  data$id,
-                  error = list(code = -32002, message = "Plot viewer resource not found")
-                ))
-              }
-              viewer_content <- paste(readLines(viewer_path, warn = FALSE), collapse = "\n")
-              private$.viewer_content_cache <- gsub(
-                "__MCPR_VERSION__", private$.mcpr_version, viewer_content, fixed = TRUE
-              )
-            }
-            jsonrpc_response(data$id, list(
-              contents = list(list(
-                uri = uri,
-                mimeType = MCPR_MCP_APP_MIME,
-                text = private$.viewer_content_cache
-              ))
+          result <- tryCatch(
+            private$.resource_registry$read(uri, private$.mcp_apps_supported),
+            error = function(e) e
+          )
+          if (inherits(result, "error")) {
+            private$log_error(sprintf(
+              "Resource read failed for %s: %s", uri, conditionMessage(result)
             ))
-          } else {
-            jsonrpc_response(
+            return(jsonrpc_response(
               data$id,
-              error = list(code = -32002, message = paste("Resource not found:", uri))
-            )
+              error = list(code = -32603L, message = "Resource read failed",
+                           data = list(uri = uri))
+            ))
           }
+          if (is.null(result)) {
+            return(jsonrpc_response(
+              data$id,
+              error = list(code = -32002L, message = paste("Resource not found:", uri),
+                           data = list(uri = uri))
+            ))
+          }
+          jsonrpc_response(data$id, result)
         },
         "prompts/list" = function(data) {
           jsonrpc_response(
@@ -877,13 +872,17 @@ mcprServer <- R6::R6Class("mcprServer",
 #'   `"explicit"` (default) or `"auto"`.
 #' @param execution_timeout_secs Default seconds before a forwarded request is considered
 #'   timed out (default: 300). Individual tools can override via their `timeout` argument.
+#' @param resource_registry An MCPResourceRegistry instance for custom MCP resources.
+#'   If NULL (default), the built-in plot viewer registry is used.
 #' @return The server instance (invisibly)
 #' @export
-mcpr_server <- function(registry = NULL, session_discovery = "explicit",
+mcpr_server <- function(registry = NULL, resource_registry = NULL,
+                        session_discovery = "explicit",
                         execution_timeout_secs = 300L) {
   server <- mcprServer$new(
-    registry = registry,
-    session_discovery = session_discovery,
+    registry               = registry,
+    resource_registry      = resource_registry,
+    session_discovery      = session_discovery,
     execution_timeout_secs = execution_timeout_secs
   )
   server$start()

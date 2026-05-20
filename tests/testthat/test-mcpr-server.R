@@ -866,3 +866,80 @@ test_that("timed_out_ids is capped at 500 entries by sweep_pending_requests", {
   expect_lte(length(priv$.timed_out_ids), 500L)
   expect_true("999" %in% priv$.timed_out_ids)
 })
+
+# --- resource_registry integration -----------------------------------------
+
+test_that("mcprServer$new() accepts a valid MCPResourceRegistry", {
+  reg <- MCPResourceRegistry$new()
+  reg$register("data://x", "X", function() list(text = "hi", mimeType = "text/plain"))
+  expect_no_error(mcprServer$new(.tools_dir = tools_dir, resource_registry = reg))
+})
+
+test_that("mcprServer$new() rejects a non-MCPResourceRegistry object", {
+  expect_error(
+    mcprServer$new(.tools_dir = tools_dir, resource_registry = list()),
+    regexp = "MCPResourceRegistry"
+  )
+})
+
+# Helper: drive handle_message_from_client and capture the cat_json response.
+.capture_response <- function(server, request) {
+  captured <- NULL
+  ns <- asNamespace("MCPR")
+  original <- get("cat_json", envir = ns)
+  spy <- function(x) { captured <<- x; invisible(NULL) }
+  unlockBinding("cat_json", ns)
+  assign("cat_json", spy, envir = ns)
+  on.exit({
+    assign("cat_json", original, envir = ns)
+    lockBinding("cat_json", ns)
+  }, add = TRUE)
+  server$.__enclos_env__$private$handle_message_from_client(request)
+  captured
+}
+
+test_that("resources/list handler consults the injected registry", {
+  reg <- MCPResourceRegistry$new()
+  reg$register("data://hello", "Hello", description = "world",
+    function() list(text = "hi", mimeType = "text/plain"))
+  server <- mcprServer$new(.tools_dir = tools_dir, resource_registry = reg)
+  req  <- '{"jsonrpc":"2.0","id":11,"method":"resources/list"}'
+  resp <- .capture_response(server, req)
+  expect_false(is.null(resp))
+  uris <- vapply(resp$result$resources, function(r) r$uri, character(1))
+  expect_true("data://hello" %in% uris)
+})
+
+test_that("resources/read handler consults the injected registry", {
+  reg <- MCPResourceRegistry$new()
+  reg$register("data://hello", "Hello",
+    function() list(text = "payload", mimeType = "text/plain"))
+  server <- mcprServer$new(.tools_dir = tools_dir, resource_registry = reg)
+  req  <- '{"jsonrpc":"2.0","id":12,"method":"resources/read","params":{"uri":"data://hello"}}'
+  resp <- .capture_response(server, req)
+  expect_false(is.null(resp))
+  expect_null(resp$error)
+  expect_equal(resp$result$contents[[1]]$text, "payload")
+})
+
+test_that("resources/read returns -32002 for app-only resource when MCP Apps unsupported", {
+  reg <- MCPResourceRegistry$new()
+  reg$register("ui://only", "Only", function() list(text = "x"), mcp_app_only = TRUE)
+  server <- mcprServer$new(.tools_dir = tools_dir, resource_registry = reg)
+  req  <- '{"jsonrpc":"2.0","id":13,"method":"resources/read","params":{"uri":"ui://only"}}'
+  resp <- .capture_response(server, req)
+  expect_false(is.null(resp))
+  expect_equal(resp$error$code, -32002)
+})
+
+test_that("default plot viewer is registered and readable when MCP Apps supported", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  server$.__enclos_env__$private$.mcp_apps_supported <- TRUE
+  uri  <- MCPR:::MCPR_PLOT_VIEWER_RESOURCE_URI
+  req  <- sprintf('{"jsonrpc":"2.0","id":14,"method":"resources/read","params":{"uri":"%s"}}', uri)
+  resp <- .capture_response(server, req)
+  expect_false(is.null(resp))
+  expect_null(resp$error)
+  expect_equal(resp$result$contents[[1]]$mimeType, MCPR:::MCPR_MCP_APP_MIME)
+  expect_true(nzchar(resp$result$contents[[1]]$text))
+})

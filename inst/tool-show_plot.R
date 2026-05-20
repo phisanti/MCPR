@@ -74,7 +74,7 @@ show_plot <- function(plot, target = "user", session = NULL) {
 # Tool-level MCP Apps binding so clients can discover the UI resource via tools/list.
 .show_plot_annotations <- list(
   `_meta` = list(
-    ui = list(resourceUri = "ui://mcpr/plots")
+    ui = list(resourceUri = MCPR:::MCPR_PLOT_VIEWER_RESOURCE_URI)
   )
 )
 
