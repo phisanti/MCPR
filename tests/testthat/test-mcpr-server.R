@@ -943,3 +943,14 @@ test_that("default plot viewer is registered and readable when MCP Apps supporte
   expect_equal(resp$result$contents[[1]]$mimeType, MCPR:::MCPR_MCP_APP_MIME)
   expect_true(nzchar(resp$result$contents[[1]]$text))
 })
+
+test_that("resources/read returns -32603 when resource_reader throws", {
+  reg <- MCPResourceRegistry$new()
+  reg$register("data://boom", "Boom",
+    function() stop("reader exploded"))
+  server <- mcprServer$new(.tools_dir = tools_dir, resource_registry = reg)
+  req  <- '{"jsonrpc":"2.0","id":15,"method":"resources/read","params":{"uri":"data://boom"}}'
+  resp <- .capture_response(server, req)
+  expect_false(is.null(resp))
+  expect_equal(resp$error$code, -32603L)
+})

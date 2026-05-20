@@ -5,7 +5,8 @@
 #' @include mcpr-base.R
 NULL
 
-# MIME type for MCP App HTML resources
+#' MIME type used for MCP App HTML resources (profile=mcp-app)
+#' @noRd
 MCPR_MCP_APP_MIME <- "text/html;profile=mcp-app"
 
 #' Canonical URI for the built-in MCPR plot viewer resource

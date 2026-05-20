@@ -140,3 +140,26 @@ test_that("list() descriptor shape includes required fields and omits NULL optio
   expect_equal(desc2$size, 42)
   expect_equal(desc2[["_meta"]], list(k = "v"))
 })
+
+test_that("register() rejects a resource_reader with formal arguments", {
+  reg <- MCPResourceRegistry$new()
+  expect_error(
+    reg$register("data://x", "X", function(arg) list(text = "hi")),
+    regexp = "zero-argument"
+  )
+})
+
+test_that("read() passes through advanced list(contents=...) shape after validating items", {
+  reg <- MCPResourceRegistry$new()
+  reg$register(
+    "data://full", "Full",
+    resource_reader = function() {
+      list(contents = list(
+        list(uri = "data://full", text = "hello", mimeType = "text/plain")
+      ))
+    }
+  )
+  result <- reg$read("data://full")
+  expect_equal(result$contents[[1]]$text, "hello")
+  expect_equal(result$contents[[1]]$mimeType, "text/plain")
+})

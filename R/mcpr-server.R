@@ -2,8 +2,6 @@
 # Core server class implementing Model Context Protocol for persistent R session management.
 # Handles JSON-RPC communication, tool discovery, and routing between MCP clients and R sessions.
 
-#' Detect MCP Apps support from client initialize params
-#'
 #' @include mcp-resource-registry.R
 #' @include mcpr-base.R
 #' @include mcpr-server-tools.R
@@ -11,6 +9,10 @@
 #' @include protocol.R
 #' @include tool-register.R
 #' @include utils.R
+NULL
+
+#' Detect MCP Apps support from client initialize params
+#'
 #' Checks capabilities.experimental.mcpApps first (spec-driven),
 #' then falls back to clientInfo.name matching known UI hosts.
 #'
@@ -430,7 +432,8 @@ mcprServer <- R6::R6Class("mcprServer",
       }
 
       tool_name <- data$params$name %||% ""
-      identical(tool_name, "select_r_session")
+      action    <- data$params$arguments$action %||% ""
+      identical(tool_name, "manage_r_sessions") && identical(action, "join")
     },
 
     # Handle incoming messages from MCP clients
