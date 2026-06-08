@@ -174,8 +174,10 @@ MCPResourceRegistry <- R6::R6Class("MCPResourceRegistry",
   )
 )
 
-# Internal helper: builds the default registry with the built-in MCP App plot viewer.
-# mcpr_version is captured by the reader closure.
+#' Internal helper: builds the default registry with the built-in MCP App plot viewer.
+#'
+#' `mcpr_version` is captured by the reader closure.
+#' @noRd
 make_default_mcp_resource_registry <- function(mcpr_version) {
   reg <- MCPResourceRegistry$new()
   cache <- NULL

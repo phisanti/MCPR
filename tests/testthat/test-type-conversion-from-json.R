@@ -172,6 +172,26 @@ test_that("from_mcpr_json reconstructs data frames with complex column types", {
   expect_true(inherits(result$timestamp, "POSIXct"))
 })
 
+test_that("data frames round-trip through JSON with MCP type marker", {
+  df <- data.frame(
+    x = 1:3,
+    y = c("a", "b", "c"),
+    z = c(TRUE, FALSE, TRUE),
+    stringsAsFactors = FALSE
+  )
+
+  json <- MCPR:::mcpr_serialize(df)
+  parsed <- jsonlite::fromJSON(json, simplifyVector = FALSE)
+  result <- MCPR:::mcpr_deserialize(json)
+
+  expect_equal(parsed[["_mcp_type"]][[1]], "data.frame")
+  expect_true(is.data.frame(result))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$x, 1:3)
+  expect_equal(result$y, c("a", "b", "c"))
+  expect_equal(result$z, c(TRUE, FALSE, TRUE))
+})
+
 # Multi-dimensional arrays with regular values and attributes
 test_that("from_mcpr_json reconstructs complex multi-dimensional arrays", {
   # Create 3D array with regular values and dimnames

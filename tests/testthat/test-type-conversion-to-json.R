@@ -218,8 +218,8 @@ test_that("Data frames are converted correctly", {
   expect_equal(result$x, 1:3)
   expect_equal(result$y, c("a", "b", "c"))
   expect_equal(result$z, c(TRUE, FALSE, TRUE))
-  expect_equal(attr(result, "_mcp_type"), "data.frame")
-  expect_equal(attr(result, "_mcp_nrow"), 3)
+  expect_equal(result[["_mcp_type"]], "data.frame")
+  expect_equal(result[["_mcp_nrow"]], 3)
 })
 
 # Test for Lists
@@ -235,7 +235,7 @@ test_that("Lists are recursively converted", {
   expect_equal(result$a, 1:3)
   expect_equal(result$b$x, jsonlite::unbox("hello"))
   expect_equal(result$b$y, jsonlite::unbox(TRUE))
-  expect_equal(attr(result$c, "_mcp_type"), "data.frame")
+  expect_equal(result$c[["_mcp_type"]], "data.frame")
 })
 
 # Test for S3 Objects

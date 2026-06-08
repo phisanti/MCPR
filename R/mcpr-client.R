@@ -80,7 +80,7 @@ mcprClient <- R6::R6Class("mcprClient",
           )
         )
 
-        private$add_mcpr_server(process = process, name = name_i)
+        private$add_mcp_server(process = process, name = name_i)
       }
 
       invisible(self)

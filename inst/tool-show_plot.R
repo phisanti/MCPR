@@ -68,7 +68,7 @@ show_plot <- function(plot, target = "user", session = NULL) {
 
   # Delegate to channel_plot
   mcp_apps <- .mcp_apps_supported()
-  MCPR:::channel_plot(plot_obj, mcp_apps_supported = mcp_apps, target = target)
+  MCPR::channel_plot(plot_obj, mcp_apps_supported = mcp_apps, target = target)
 }
 
 # Tool-level MCP Apps binding so clients can discover the UI resource via tools/list.

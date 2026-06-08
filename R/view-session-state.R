@@ -40,7 +40,7 @@ view_session <- function(max_lines = 100) {
         result <- paste0(result, "\n\nVisible objects (first ", n_show, "):")
 
         # Get object types for better relevance
-        for (i in 1:n_show) {
+        for (i in seq_len(n_show)) {
           obj_name <- visible_objects[i]
           obj_info <- safe_eval(
             {
@@ -374,8 +374,8 @@ view_terminal <- function(max_lines = 100) {
       }
 
       # Show last computed value if available
-      if (exists(".Last.value", envir = .GlobalEnv)) {
-        last_val <- get(".Last.value", envir = .GlobalEnv)
+      if (exists(".Last.value", envir = .BaseNamespaceEnv)) {
+        last_val <- get(".Last.value", envir = .BaseNamespaceEnv)
         if (!is.null(last_val)) {
           result <- paste0(result, "\n\nLast computed value:")
           if (is.atomic(last_val) && length(last_val) <= 5) {
@@ -397,7 +397,7 @@ view_terminal <- function(max_lines = 100) {
       if (!is.null(last_warnings) && length(last_warnings) > 0) {
         result <- paste0(result, "\n\nRecent warnings:")
         n_warnings <- min(3, length(last_warnings))
-        for (i in 1:n_warnings) {
+        for (i in seq_len(n_warnings)) {
           warning_msg <- names(last_warnings)[i]
           if (is.null(warning_msg)) warning_msg <- as.character(last_warnings[[i]])
           result <- paste0(result, "\n", sprintf("  %d: %s", i, warning_msg))
@@ -536,7 +536,7 @@ view_warnings <- function(max_lines = 100) {
       n_show <- min(max_lines %/% 2, length(last_warnings), 20)
       result <- paste0(result, "\n\nWarnings (showing first ", n_show, "):")
 
-      for (i in 1:n_show) {
+      for (i in seq_len(n_show)) {
         warning_msg <- names(last_warnings)[i]
         if (is.null(warning_msg)) {
           warning_msg <- as.character(last_warnings[[i]])
@@ -666,14 +666,14 @@ view_workspace <- function(max_lines = 100) {
 view_last_value <- function(max_lines = 100) {
   result <- "Last Computed Value"
 
-  if (!exists(".Last.value", envir = .GlobalEnv)) {
+  if (!exists(".Last.value", envir = .BaseNamespaceEnv)) {
     result <- paste0(result, "\nNo .Last.value available (no expressions evaluated yet)")
     return(result)
   }
 
   tryCatch(
     {
-      last_val <- get(".Last.value", envir = .GlobalEnv)
+      last_val <- get(".Last.value", envir = .BaseNamespaceEnv)
 
       # Object metadata
       obj_class <- paste(class(last_val), collapse = ", ")

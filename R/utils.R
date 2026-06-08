@@ -119,12 +119,20 @@ compact_list <- function(x) {
 #' @return Character string with IDE name
 #' @noRd
 infer_ide <- function() {
-  first_cmd_arg <- commandArgs()[1]
+  first_cmd_arg <- mcpr_command_args()[1]
   switch(first_cmd_arg,
     ark = "Positron",
     RStudio = "RStudio",
     first_cmd_arg
   )
+}
+
+#' Return command-line arguments for environment detection
+#'
+#' @return Character vector from base command argument parsing.
+#' @noRd
+mcpr_command_args <- function() {
+  commandArgs()
 }
 
 #' Null Coalescing Operator
@@ -352,9 +360,3 @@ format_table_for_agent <- function(df, empty_message = "No data found.") {
   # Combine header, separator, and rows
   paste(c(header, separator, rows), collapse = "\n")
 }
-
-# Mocking for testing
-interactive <- NULL
-basename <- NULL
-getwd <- NULL
-commandArgs <- NULL

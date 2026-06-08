@@ -61,6 +61,9 @@ from_mcpr_json <- function(json) {
     # Check for MCP type markers
     if (is.list(obj)) {
       mcp_type <- obj[["_mcp_type"]]
+      if (is.list(mcp_type) && length(mcp_type) == 1) {
+        mcp_type <- mcp_type[[1]]
+      }
 
       if (!is.null(mcp_type)) {
         if (mcp_type == "matrix") {
@@ -94,7 +97,19 @@ from_mcpr_json <- function(json) {
           # Reconstruct data frame
           obj[["_mcp_type"]] <- NULL
           obj[["_mcp_nrow"]] <- NULL
-          df <- as.data.frame(lapply(obj, reconstruct))
+          cols <- lapply(obj, reconstruct)
+          cols <- lapply(cols, function(col) {
+            if (is.list(col) && !is.data.frame(col)) {
+              scalar_items <- vapply(col, function(item) {
+                is.null(item) || (!is.list(item) && length(item) <= 1)
+              }, logical(1))
+              if (all(scalar_items)) {
+                return(unlist(col, recursive = FALSE, use.names = FALSE))
+              }
+            }
+            col
+          })
+          df <- as.data.frame(cols)
           return(df)
         } else if (mcp_type == "S3") {
           # Reconstruct S3 object

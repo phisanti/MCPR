@@ -284,7 +284,9 @@ NULL
 }
 
 # Handle data frames
-.mcpr_convert_dataframe <- function(x, auto_stream = TRUE, stream_threshold = 500, ...) {
+.mcpr_convert_dataframe <- function(x, auto_stream = TRUE, stream_threshold = 500,
+                                    auto_unbox = TRUE, size_limit = 1e6,
+                                    custom_serializers = list(), ...) {
   if (!is.data.frame(x)) {
     return(NULL)
   }
@@ -299,9 +301,15 @@ NULL
     ))
   }
 
-  result <- as.list(x)
-  attr(result, "_mcp_type") <- "data.frame"
-  attr(result, "_mcp_nrow") <- nrow(x)
+  result <- lapply(
+    as.list(x),
+    to_mcpr_json,
+    auto_unbox = auto_unbox,
+    size_limit = size_limit,
+    custom_serializers = custom_serializers
+  )
+  result[["_mcp_type"]] <- "data.frame"
+  result[["_mcp_nrow"]] <- nrow(x)
   result
 }
 
@@ -447,7 +455,12 @@ to_mcpr_json <- function(x, auto_unbox = TRUE, size_limit = 1e6, custom_serializ
   } else if (is.matrix(x) || is.array(x)) {
     return(.mcpr_convert_matrix_array(x))
   } else if (is.data.frame(x)) {
-    return(.mcpr_convert_dataframe(x))
+    return(.mcpr_convert_dataframe(
+      x,
+      auto_unbox = auto_unbox,
+      size_limit = size_limit,
+      custom_serializers = custom_serializers
+    ))
   } else if (isS4(x)) {
     return(.mcpr_convert_S4(x, auto_unbox = auto_unbox, size_limit = size_limit, custom_serializers = custom_serializers))
   } else if (is.object(x)) {

@@ -176,6 +176,14 @@ test_that("mcprClient connect_servers handles empty config", {
   expect_no_error(client$connect_servers())
 })
 
+test_that("mcprClient connect_servers calls the existing add_mcp_server helper", {
+  client <- mcprClient$new()
+  body_text <- paste(deparse(body(client$connect_servers)), collapse = "\n")
+
+  expect_true(grepl("private\\$add_mcp_server", body_text))
+  expect_false(grepl("private\\$add_mcpr_server", body_text))
+})
+
 test_that("mcprClient handles server operations", {
   client <- mcprClient$new()
 

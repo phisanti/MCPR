@@ -54,7 +54,7 @@ view_installed_packages <- function(max_lines = 100) {
       if (nrow(priority_pkgs) > 0) {
         result <- paste0(result, "\n\nBase R packages (", nrow(priority_pkgs), "):")
         n_show_priority <- min(8, nrow(priority_pkgs), remaining_lines %/% 3)
-        for (i in 1:n_show_priority) {
+        for (i in seq_len(n_show_priority)) {
           pkg <- priority_pkgs[i, ]
           result <- paste0(result, "\n  ", pkg$Package, " (", pkg$Version, ")")
         }
@@ -83,7 +83,7 @@ view_installed_packages <- function(max_lines = 100) {
         if (nrow(common_found) > 0 && remaining_lines > 3) {
           result <- paste0(result, "\n  Common packages:")
           n_common <- min(nrow(common_found), remaining_lines %/% 2)
-          for (i in 1:n_common) {
+          for (i in seq_len(n_common)) {
             pkg <- common_found[i, ]
             result <- paste0(result, "\n    ", pkg$Package, " (", pkg$Version, ")")
           }
@@ -97,7 +97,7 @@ view_installed_packages <- function(max_lines = 100) {
         if (nrow(other_pkgs) > 0 && remaining_lines > 3) {
           n_show_other <- min(10, nrow(other_pkgs), remaining_lines - 2)
           result <- paste0(result, "\n  Other packages (showing ", n_show_other, " of ", nrow(other_pkgs), "):")
-          for (i in 1:n_show_other) {
+          for (i in seq_len(n_show_other)) {
             pkg <- other_pkgs[i, ]
             result <- paste0(result, "\n    ", pkg$Package, " (", pkg$Version, ")")
           }
@@ -143,7 +143,7 @@ view_search_path <- function(max_lines = 100) {
       max_entries <- min(max_lines - 10, length(search_path))
 
       result <- paste0(result, "\n\nSearch path (showing first ", max_entries, "):")
-      for (i in 1:max_entries) {
+      for (i in seq_len(max_entries)) {
         entry <- search_path[i]
 
         # Add context about what each entry is

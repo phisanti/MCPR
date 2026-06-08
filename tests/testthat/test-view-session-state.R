@@ -1,6 +1,18 @@
 # Unit tests for view session state functions
 # Tests individual helper functions in view-session-state.R
 
+local_last_value <- function(value) {
+  test_env <- parent.frame()
+  old_value <- get(".Last.value", envir = .BaseNamespaceEnv)
+  unlockBinding(".Last.value", .BaseNamespaceEnv)
+  withr::defer({
+    unlockBinding(".Last.value", .BaseNamespaceEnv)
+    assign(".Last.value", old_value, envir = .BaseNamespaceEnv)
+    lockBinding(".Last.value", .BaseNamespaceEnv)
+  }, envir = test_env)
+  assign(".Last.value", value, envir = .BaseNamespaceEnv)
+}
+
 test_that("view_session returns formatted session info", {
   result <- MCPR:::view_session(20)
 
@@ -154,8 +166,7 @@ test_that("parse_radian_history handles malformed input", {
 })
 
 test_that("view_last_value returns info when .Last.value exists", {
-  assign(".Last.value", 42, envir = .GlobalEnv)
-  on.exit(rm(".Last.value", envir = .GlobalEnv), add = TRUE)
+  local_last_value(42)
 
   result <- MCPR:::view_last_value(100)
   expect_type(result, "character")
@@ -165,8 +176,7 @@ test_that("view_last_value returns info when .Last.value exists", {
 })
 
 test_that("view_last_value handles data frame last value", {
-  assign(".Last.value", data.frame(a = 1:3, b = letters[1:3]), envir = .GlobalEnv)
-  on.exit(rm(".Last.value", envir = .GlobalEnv), add = TRUE)
+  local_last_value(data.frame(a = 1:3, b = letters[1:3]))
 
   result <- MCPR:::view_last_value(100)
   expect_type(result, "character")

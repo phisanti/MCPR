@@ -473,6 +473,15 @@ test_that("inspect_dispatch does not error on S4 object", {
   removeClass("TestS4Class", where = .GlobalEnv)
 })
 
+# ---- R6 generator lookup ----
+
+test_that("find_r6_generator returns generators from package namespaces", {
+  generator <- MCPR:::find_r6_generator("mcprClient")
+
+  expect_s3_class(generator, "R6ClassGenerator")
+  expect_identical(generator, MCPR::mcprClient)
+})
+
 # ---- Edge cases ----
 
 test_that("inspect_dispatch does not error on NULL-like objects", {

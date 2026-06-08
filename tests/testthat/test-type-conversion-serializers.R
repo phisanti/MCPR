@@ -117,10 +117,9 @@ test_that("mcpr_serialize produces valid JSON and round-trip works", {
   json_str <- mcpr_serialize(df)
   reconstructed <- mcpr_deserialize(json_str)
 
-  # The structure might be slightly different but data should be same
-  expect_true(is.list(reconstructed))
-  expect_equal(reconstructed$x, as.list(1:3))
-  expect_equal(reconstructed$y, as.list(letters[1:3]))
+  expect_true(is.data.frame(reconstructed))
+  expect_equal(reconstructed$x, 1:3)
+  expect_equal(reconstructed$y, letters[1:3])
 })
 
 # Test for Complex Object Serialization
@@ -159,10 +158,11 @@ test_that("Mixed data frames with special types work", {
   json_str <- mcpr_serialize(df)
   expect_type(json_str, "character")
 
-  # The reconstruction might not perfectly preserve the data frame structure
-  # due to how special types are handled, but the data should be recoverable
   reconstructed <- mcpr_deserialize(json_str)
-  expect_true(is.list(reconstructed))
+  expect_true(is.data.frame(reconstructed))
+  expect_true(inherits(reconstructed$date, "Date"))
+  expect_true(is.infinite(reconstructed$value[2]))
+  expect_true(is.factor(reconstructed$category))
 })
 
 test_that("Custom serializers work with to_mcpr_json", {

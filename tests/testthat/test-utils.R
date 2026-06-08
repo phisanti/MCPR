@@ -134,19 +134,19 @@ test_that("compact removes empty elements from list", {
 })
 
 test_that("infer_ide detects IDE from command args", {
-  # Mock commandArgs for different IDEs
+  # Mock command arguments for different IDEs through the MCPR wrapper.
   with_mocked_bindings(
-    `commandArgs` = function() c("ark", "other", "args"),
+    `mcpr_command_args` = function() c("ark", "other", "args"),
     expect_equal(MCPR:::infer_ide(), "Positron")
   )
 
   with_mocked_bindings(
-    `commandArgs` = function() c("RStudio", "other", "args"),
+    `mcpr_command_args` = function() c("RStudio", "other", "args"),
     expect_equal(MCPR:::infer_ide(), "RStudio")
   )
 
   with_mocked_bindings(
-    `commandArgs` = function() c("some_other_ide", "args"),
+    `mcpr_command_args` = function() c("some_other_ide", "args"),
     expect_equal(MCPR:::infer_ide(), "some_other_ide")
   )
 })

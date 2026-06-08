@@ -617,6 +617,26 @@ inspect_model <- function(x) {
 
 # ---- R6 Objects ----
 
+#' Find an R6 class generator by class name
+#'
+#' @param gen_name R6 class generator name.
+#' @return R6 class generator or NULL.
+#' @noRd
+find_r6_generator <- function(gen_name) {
+  if (exists(gen_name, envir = .GlobalEnv, inherits = FALSE)) {
+    return(get(gen_name, envir = .GlobalEnv))
+  }
+
+  for (ns in loadedNamespaces()) {
+    ns_env <- asNamespace(ns)
+    if (exists(gen_name, envir = ns_env, inherits = FALSE)) {
+      return(get(gen_name, envir = ns_env))
+    }
+  }
+
+  NULL
+}
+
 #' @noRd
 inspect_r6 <- function(x) {
   obj_class <- class(x)
@@ -624,20 +644,7 @@ inspect_r6 <- function(x) {
 
   # Get the class generator for method/field info
   generator <- tryCatch(
-    {
-      gen_name <- obj_class[1]
-      if (exists(gen_name, envir = .GlobalEnv)) {
-        get(gen_name, envir = .GlobalEnv)
-      } else {
-        # Try to find in loaded namespaces
-        for (ns in loadedNamespaces()) {
-          if (exists(gen_name, envir = asNamespace(ns))) {
-            get(gen_name, envir = asNamespace(ns))
-            break
-          }
-        }
-      }
-    },
+    find_r6_generator(obj_class[1]),
     error = function(e) NULL
   )
 
