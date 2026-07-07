@@ -142,17 +142,10 @@ create_tool_request <- function(id, tool, arguments = list()) {
   )
 }
 
-#' Create MCP Capabilities Response
+#' Resolve MCPR package version
 #'
-#' @title Create MCP Capabilities Response
-#' @description Creates capabilities response for MCP initialization handshake with protocol version.
-#' Provides server capability information for MCP client negotiation including supported
-#' features and protocol compliance. Enables proper MCP protocol establishment.
-#'
-#' @param version Protocol version string (e.g., "2025-11-25"). Must be in SUPPORTED_VERSIONS.
-#' @param server_name Server name for serverInfo (default: "R MCPR server")
-#' @param server_version Server version for serverInfo (default: installed MCPR version)
-#' @return Capabilities list with protocol version and feature support
+#' @param default Fallback version string when the package version cannot be resolved.
+#' @return Installed MCPR package version, or `default`.
 #' @noRd
 mcpr_package_version <- function(default = "unknown") {
   version <- tryCatch(
@@ -222,6 +215,13 @@ clear_mcpr_request_context <- function() {
   invisible(NULL)
 }
 
+#' Create MCP Capabilities Response
+#'
+#' @title Create MCP Capabilities Response
+#' @description Creates capabilities response for MCP initialization handshake with protocol version.
+#' Provides server capability information for MCP client negotiation including supported
+#' features and protocol compliance. Enables proper MCP protocol establishment.
+#'
 #' @param version Protocol version string (e.g., "2025-11-25"). Must be in SUPPORTED_VERSIONS.
 #' @param server_name Server name for serverInfo (default: "R MCPR server")
 #' @param server_version Server version for serverInfo (default: installed MCPR version)

@@ -899,6 +899,10 @@ mcprServer <- R6::R6Class("mcprServer",
 #' @param resource_registry An MCPResourceRegistry instance for custom MCP resources.
 #'   If NULL (default), the built-in plot viewer registry is used.
 #' @return The server instance (invisibly)
+#' @examples
+#' \dontrun{
+#' MCPR::mcpr_server()
+#' }
 #' @export
 mcpr_server <- function(registry = NULL, resource_registry = NULL,
                         execution_timeout_secs = 300L) {

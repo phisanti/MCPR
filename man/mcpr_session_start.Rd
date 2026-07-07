@@ -21,3 +21,8 @@ For MCPR-owned headless/secondary sessions, use \code{\link[=mcp_session]{mcp_se
 \details{
 Make R Session Available to MCP Server
 }
+\examples{
+\dontrun{
+mcpr_session_start()
+}
+}

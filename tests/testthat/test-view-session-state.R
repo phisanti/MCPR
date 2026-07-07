@@ -133,13 +133,27 @@ test_that("view_session handles objects with different types", {
 })
 
 test_that("view_session respects max_lines parameter", {
+  old_names <- ls(envir = .GlobalEnv, all.names = TRUE)
+  saved <- mget(old_names, envir = .GlobalEnv)
+  rm(list = old_names, envir = .GlobalEnv)
+  on.exit({
+    rm(list = ls(envir = .GlobalEnv, all.names = TRUE), envir = .GlobalEnv)
+    list2env(saved, envir = .GlobalEnv)
+  }, add = TRUE)
+
+  for (i in seq_len(30)) {
+    assign(sprintf("test_obj_%02d", i), i, envir = .GlobalEnv)
+  }
+
   result_short <- MCPR:::view_session(5)
   result_long <- MCPR:::view_session(100)
 
   expect_type(result_short, "character")
   expect_type(result_long, "character")
-  # Short version should be more constrained
-  expect_true(nchar(result_short) <= nchar(result_long))
+  expect_true(grepl("Visible objects \\(first 1\\):", result_short))
+  expect_true(grepl("\\.\\.\\. and 29 more visible objects", result_short))
+  expect_true(grepl("Visible objects \\(first 15\\):", result_long))
+  expect_true(grepl("\\.\\.\\. and 15 more visible objects", result_long))
 })
 
 test_that("view_workspace handles empty directory", {

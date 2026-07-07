@@ -367,6 +367,10 @@ mcp_apps_supported <- function() {
 #'
 #' @param timeout_seconds Timeout in seconds before session cleanup (default: 900)
 #' @return mcprSession instance (invisibly)
+#' @examples
+#' \dontrun{
+#' mcpr_session_start()
+#' }
 #' @export
 mcpr_session_start <- function(timeout_seconds = 900) {
   if (!rlang::is_interactive()) {
@@ -388,6 +392,8 @@ mcpr_session_start <- function(timeout_seconds = 900) {
 #' secondary sessions started through server session management.
 #'
 #' @return None (invisible)
+#' @examples
+#' mcpr_session_stop()
 #' @export
 mcpr_session_stop <- function() {
   if (!is.null(the$mcpr_session)) {
@@ -414,6 +420,10 @@ mcpr_session_stop <- function() {
 #'   If FALSE, block in event loop until session stops (for interactive use). Default FALSE.
 #'
 #' @return The mcprSession instance (invisibly).
+#' @examples
+#' \dontrun{
+#' mcp_session()
+#' }
 #' @export
 mcp_session <- function(session_id = NULL, timeout_seconds = 900, working_dir = NULL, daemon = FALSE) {
   if (!is.null(working_dir)) {

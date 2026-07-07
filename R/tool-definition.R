@@ -144,7 +144,7 @@ convert_argument_types <- function(arguments) {
 #' @param arguments Named list of argument type definitions
 #' @param convert Automatic JSON type conversion flag (default: TRUE)
 #' @param annotations Additional metadata for tool behavior hints
-#' @noRd
+#' @export
 ToolDef <- R6::R6Class("ToolDef",
   public = list(
     #' @description Initialize ToolDef with validation

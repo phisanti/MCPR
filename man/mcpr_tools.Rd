@@ -20,3 +20,8 @@ Creates MCP tools using the modern ToolDef system.
 \item \strong{ToolDef objects}: Returns modern ToolDef objects instead of legacy formats
 }
 }
+\examples{
+\dontrun{
+tools <- mcpr_tools()
+}
+}

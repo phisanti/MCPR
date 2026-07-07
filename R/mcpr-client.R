@@ -389,6 +389,10 @@ mcprClient <- R6::R6Class("mcprClient",
 #'
 #' @param config Path to configuration file (uses default location if NULL)
 #' @return List of ToolDef objects
+#' @examples
+#' \dontrun{
+#' tools <- mcpr_tools()
+#' }
 #' @export
 mcpr_tools <- function(config = NULL) {
   client <- mcprClient$new(config = config)

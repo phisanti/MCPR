@@ -22,3 +22,6 @@ The expression is not evaluated when captured. Instead, \code{print()} re-runs i
 in the original calling environment when the plot is displayed through
 \code{show_plot()} or \code{channel_plot()}.
 }
+\examples{
+captured <- capture_plot(plot(cars))
+}

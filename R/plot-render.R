@@ -44,6 +44,8 @@ detect_local_device <- function() {
 #'
 #' @param expr A plotting expression to defer for later rendering.
 #' @return An object of class `captured_plot`.
+#' @examples
+#' captured <- capture_plot(plot(cars))
 #' @export
 capture_plot <- function(expr) {
   if (missing(expr)) {
@@ -407,6 +409,11 @@ response_image <- function(file, mime_type = "image/png") {
 #' @param mcp_apps_supported Logical; whether the client supports MCP App structuredContent
 #' @param target Character; who sees the plot: "user" (display) or "agent" (base64 for analysis)
 #' @return Varies by path: text confirmation, structuredContent list, or image response
+#' @examples
+#' \dontrun{
+#' captured <- capture_plot(plot(cars))
+#' channel_plot(captured)
+#' }
 #' @export
 channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
                          target = c("user", "agent")) {

@@ -22,3 +22,9 @@ Central routing function for displaying R plot objects.
 Validates the plot object class, then routes to the appropriate
 rendering path based on target audience and MCP App support.
 }
+\examples{
+\dontrun{
+captured <- capture_plot(plot(cars))
+channel_plot(captured)
+}
+}

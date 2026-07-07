@@ -17,3 +17,6 @@ secondary sessions started through server session management.
 \details{
 Stop MCP Session
 }
+\examples{
+mcpr_session_stop()
+}

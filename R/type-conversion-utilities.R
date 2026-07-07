@@ -188,13 +188,6 @@ abort_unsupported_mcpr_definition_type <- function(type_str,
 #'   when the tool should receive flexible list payloads instead of a homogenous
 #'   typed vector declared with `type_array()`.
 #'
-#' * `type_from_schema()` allows you to specify the full schema that you want to
-#'   get back from the LLM as a JSON schema. This is useful if you have a
-#'   pre-defined schema that you want to use directly without manually creating
-#'   the type using the `type_*()` functions. You can point to a file with the
-#'   `path` argument or provide a JSON string with `text`. The schema must be a
-#'   valid JSON schema object.
-#'
 #' @param description,.description The purpose of the component. This is
 #'   used by the LLM to determine what values to pass to the tool or what
 #'   values to extract in the structured data, so the more detail that you can
@@ -221,33 +214,33 @@ abort_unsupported_mcpr_definition_type <- function(type_str,
 #' ))
 #'
 #' # There's no specific type for dates, but you use a string with the
-#' # requested format in the description (it's not gauranteed that you'll
+#' # requested format in the description (it is not guaranteed that you will
 #' # get this format back, but you should most of the time)
 #' type_string("The creation date, in YYYY-MM-DD format.")
 #' type_string("The update date, in dd/mm/yyyy format.")
-#' @noRd
+#' @export
 type_boolean <- function(description = NULL, required = TRUE, error = NULL) {
   structure(list(type = "boolean", description = description, required = required, error = error), class = "mcpr_type")
 }
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_integer <- function(description = NULL, required = TRUE, error = NULL) {
   structure(list(type = "integer", description = description, required = required, error = error), class = "mcpr_type")
 }
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_number <- function(description = NULL, required = TRUE, error = NULL) {
   structure(list(type = "number", description = description, required = required, error = error), class = "mcpr_type")
 }
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_string <- function(description = NULL, required = TRUE, error = NULL) {
   structure(list(type = "string", description = description, required = required, error = error), class = "mcpr_type")
 }
 
 #' @param values Character vector of permitted values.
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_enum <- function(values, description = NULL, required = TRUE, error = NULL) {
   structure(list(type = "enum", values = values, description = description, required = required, error = error), class = "mcpr_type")
 }
@@ -255,7 +248,7 @@ type_enum <- function(values, description = NULL, required = TRUE, error = NULL)
 #' @param items The type of the array items. Can be created by any of the
 #'   `type_` function.
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_array <- function(items, description = NULL, required = TRUE, error = NULL) {
   structure(list(type = "array", items = items, description = description, required = required, error = error), class = "mcpr_type")
 }
@@ -265,7 +258,7 @@ type_array <- function(items, description = NULL, required = TRUE, error = NULL)
 #' @param .additional_properties Can the object have arbitrary additional
 #'   properties that are not explicitly listed? Only supported by Claude.
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_object <- function(
   .description = NULL,
   ...,
@@ -284,7 +277,7 @@ type_object <- function(
 }
 
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_json_object <- function(description = NULL, required = TRUE, error = NULL) {
   structure(
     list(type = "json_object", description = description, required = required, error = error),
@@ -293,7 +286,7 @@ type_json_object <- function(description = NULL, required = TRUE, error = NULL) 
 }
 
 #' @rdname type_boolean
-#' @noRd
+#' @export
 type_json_array <- function(description = NULL, required = TRUE, error = NULL) {
   structure(
     list(type = "json_array", description = description, required = required, error = error),

@@ -30,3 +30,8 @@ blocking event loop with automatic tool discovery and registration.
 \details{
 Start MCP Server
 }
+\examples{
+\dontrun{
+MCPR::mcpr_server()
+}
+}

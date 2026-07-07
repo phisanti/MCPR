@@ -34,3 +34,8 @@ interactive R session.
 \details{
 Launch Headless MCP Session
 }
+\examples{
+\dontrun{
+mcp_session()
+}
+}

@@ -191,6 +191,23 @@ normalize_args_by_type <- function(args, schema) {
   args
 }
 
+#' Apply a default MCP content audience annotation
+#'
+#' @param item MCP content item.
+#' @param default_audience Audience to add when the item has no audience annotation.
+#' @return MCP content item with an audience annotation.
+#' @noRd
+apply_default_audience <- function(item, default_audience = "assistant") {
+  if (is.null(item$annotations$audience)) {
+    if (is.null(item$annotations)) {
+      item$annotations <- list(audience = list(default_audience))
+    } else {
+      item$annotations$audience <- list(default_audience)
+    }
+  }
+  item
+}
+
 #' @title Encode Tool Results
 #' @description
 #' Formats R function results into MCP-compatible response structures,
@@ -238,17 +255,6 @@ normalize_args_by_type <- function(args, schema) {
 #' @keywords internal
 #' @seealso \code{\link{mcpr_serialize}} for complex object serialization
 #' @noRd
-apply_default_audience <- function(item, default_audience = "assistant") {
-  if (is.null(item$annotations$audience)) {
-    if (is.null(item$annotations)) {
-      item$annotations <- list(audience = list(default_audience))
-    } else {
-      item$annotations$audience <- list(default_audience)
-    }
-  }
-  item
-}
-
 encode_tool_results <- function(data, result) {
   is_error <- FALSE
 
