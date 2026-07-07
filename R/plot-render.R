@@ -238,14 +238,15 @@ show_plotly_via_mcp_app <- function(widget) {
   )
 }
 
-#' Create graphics device for plot generation
+#' Create standard graphics device for plot generation
 #'
-#' Uses httpgd if available, otherwise falls back to standard R graphics devices.
+#' Uses standard R graphics devices for agent-facing static image capture.
+#' The user-facing display path handles httpgd separately.
 #'
 #' @param format Output format: "png", "jpeg", "pdf", or "svg"
 #' @param width Width for the device
 #' @param height Height for the device
-#' @return A list with `type` ("httpgd" or "standard") and `file` (temp file path)
+#' @return A list with `type` ("standard") and `file` (temp file path)
 #' @noRd
 setup_graphics_device <- function(format = "png", width = 800, height = 600) {
   file_ext <- switch(format,
@@ -257,18 +258,13 @@ setup_graphics_device <- function(format = "png", width = 800, height = 600) {
 
   tmp <- tempfile(fileext = file_ext)
 
-  if (requireNamespace("httpgd", quietly = TRUE)) {
-    httpgd::hgd(width = width, height = height, silent = TRUE)
-    return(list(type = "httpgd", file = tmp))
-  } else {
-    switch(format,
-      "png" = grDevices::png(tmp, width = width, height = height),
-      "jpeg" = grDevices::jpeg(tmp, width = width, height = height, quality = 90),
-      "pdf" = grDevices::pdf(tmp, width = width / 100, height = height / 100),
-      "svg" = grDevices::svg(tmp, width = width / 100, height = height / 100)
-    )
-    return(list(type = "standard", file = tmp))
-  }
+  switch(format,
+    "png" = grDevices::png(tmp, width = width, height = height),
+    "jpeg" = grDevices::jpeg(tmp, width = width, height = height, quality = 90),
+    "pdf" = grDevices::pdf(tmp, width = width / 100, height = height / 100),
+    "svg" = grDevices::svg(tmp, width = width / 100, height = height / 100)
+  )
+  list(type = "standard", file = tmp)
 }
 
 #' Get plot data from a graphics device with token calculation

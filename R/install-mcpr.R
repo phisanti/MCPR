@@ -540,34 +540,12 @@ write_config <- function(config, path, format = "json") {
 #' @param path Destination path for configuration file
 #' @noRd
 write_json_config <- function(config, path) {
-  temp_path <- paste0(path, ".tmp")
-
-  tryCatch(
-    {
-      # Write to temporary file first
-      jsonlite::write_json(config, temp_path,
-        pretty = TRUE,
-        auto_unbox = TRUE
-      )
-
-      # Atomic move to final location
-      file.rename(temp_path, path)
-    },
-    error = function(e) {
-      # Clean up temp file on error
-      if (file.exists(temp_path)) {
-        unlink(temp_path)
-      }
-
-      cli::cli_abort(
-        c(
-          "Failed to write configuration file: {.path {path}}",
-          "x" = "Error: {e$message}",
-          "i" = "Check file permissions and disk space"
-        )
-      )
-    }
-  )
+  write_config_atomically(path, function(temp_path) {
+    jsonlite::write_json(config, temp_path,
+      pretty = TRUE,
+      auto_unbox = TRUE
+    )
+  })
 }
 
 # Unified path function

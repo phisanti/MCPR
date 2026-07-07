@@ -57,9 +57,8 @@ VignetteBuilder: knitr
 SystemRequirements: Unix sockets (Unix), Named pipes (Windows)
 Collate:
     'aaa.R'
-    'utils.R'
-    'mcpr-server-daemon.R'
     'inspect-object.R'
+    'utils.R'
     'install-mcpr-toml.R'
     'type-conversion-from-json.R'
     'protocol.R'
@@ -75,6 +74,7 @@ Collate:
     'tool-definition.R'
     'mcpr-client.R'
     'mcpr-package.R'
+    'mcpr-server-daemon.R'
     'tool-registry-helpers.R'
     'tool-register.R'
     'mcpr-server-tools.R'

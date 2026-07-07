@@ -5,6 +5,7 @@
 #' Register a secondary session
 #'
 #' @description Adds a key -> session_id mapping to the legacy secondary-session registry.
+#' @include utils.R
 #' @param client_id Character. Internal registry key for this secondary session.
 #' @param session_id Integer. The nanonext socket port number for this secondary session.
 #' @return Called for side effects; returns NULL invisibly.

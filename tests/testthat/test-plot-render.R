@@ -222,7 +222,7 @@ test_that("channel_plot target='agent' returns image response for ggplot", {
 test_that("setup_graphics_device returns expected structure", {
   device_info <- MCPR:::setup_graphics_device("png", 400, 300)
   expect_true(is.list(device_info))
-  expect_true(device_info$type %in% c("httpgd", "standard"))
+  expect_equal(device_info$type, "standard")
   expect_match(device_info$file, "\\.png$")
 
   # Clean up the open device

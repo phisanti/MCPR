@@ -105,6 +105,7 @@ compact <- function(.x) {
 #' @return List with NULL values removed
 #' @noRd
 compact_list <- function(x) {
+  # Unlike compact(), this preserves zero-length non-NULL values.
   Filter(Negate(is.null), x)
 }
 
@@ -268,10 +269,48 @@ check_session_socket <- function(verbose = TRUE) {
 #' @noRd
 get_system_socket_url <- function() {
   # Use global state (set by .onLoad) with fallback to platform detection
-  the$socket_url %||% switch(Sys.info()[["sysname"]],
+  the$socket_url %||% default_socket_url()
+}
+
+#' Get Default Socket URL Base
+#'
+#' @return Character string with platform-appropriate socket URL base
+#' @noRd
+default_socket_url <- function() {
+  switch(Sys.info()[["sysname"]],
     Linux = "abstract://MCPR-socket",
     Windows = "ipc://MCPR-socket",
     "ipc:///tmp/MCPR-socket"
+  )
+}
+
+#' Write a Configuration File Atomically
+#'
+#' @param path Destination path for configuration file
+#' @param write_fn Function that writes content to a temporary path
+#' @return Logical result from `file.rename()`
+#' @noRd
+write_config_atomically <- function(path, write_fn) {
+  temp_path <- paste0(path, ".tmp")
+
+  tryCatch(
+    {
+      write_fn(temp_path)
+      file.rename(temp_path, path)
+    },
+    error = function(e) {
+      if (file.exists(temp_path)) {
+        unlink(temp_path)
+      }
+
+      cli::cli_abort(
+        c(
+          "Failed to write configuration file: {.path {path}}",
+          "x" = "Error: {e$message}",
+          "i" = "Check file permissions and disk space"
+        )
+      )
+    }
   )
 }
 

@@ -3,6 +3,7 @@
 # Uses surgical text manipulation to preserve existing configuration and comments.
 
 #' Read TOML configuration restricted to MCP sections
+#' @include utils.R
 #' @param path Path to TOML configuration file
 #' @return List with `mcp` element containing server entries
 #' @noRd
@@ -32,38 +33,20 @@ read_toml_config <- function(path) {
 #' @param path Destination path for configuration file
 #' @noRd
 write_toml_config <- function(config, path) {
-  temp_path <- paste0(path, ".tmp")
+  write_config_atomically(path, function(temp_path) {
+    existing_lines <- if (file.exists(path)) readLines(path, warn = FALSE) else character(0)
+    preserved_lines <- remove_all_mcp_sections(existing_lines)
+    mcp_config <- if (is.null(config[["mcp"]])) list() else config[["mcp"]]
+    mcp_lines <- format_mcp_sections(mcp_config)
 
-  tryCatch(
-    {
-      existing_lines <- if (file.exists(path)) readLines(path, warn = FALSE) else character(0)
-      preserved_lines <- remove_all_mcp_sections(existing_lines)
-      mcp_config <- if (is.null(config[["mcp"]])) list() else config[["mcp"]]
-      mcp_lines <- format_mcp_sections(mcp_config)
-
-      combined <- if (length(preserved_lines) > 0 && length(mcp_lines) > 0) {
-        c(preserved_lines, "", mcp_lines)
-      } else {
-        c(preserved_lines, mcp_lines)
-      }
-
-      writeLines(combined, temp_path)
-      file.rename(temp_path, path)
-    },
-    error = function(e) {
-      if (file.exists(temp_path)) {
-        unlink(temp_path)
-      }
-
-      cli::cli_abort(
-        c(
-          "Failed to write configuration file: {.path {path}}",
-          "x" = "Error: {e$message}",
-          "i" = "Check file permissions and disk space"
-        )
-      )
+    combined <- if (length(preserved_lines) > 0 && length(mcp_lines) > 0) {
+      c(preserved_lines, "", mcp_lines)
+    } else {
+      c(preserved_lines, mcp_lines)
     }
-  )
+
+    writeLines(combined, temp_path)
+  })
 }
 
 #' Extract MCP server sections from TOML lines

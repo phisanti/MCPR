@@ -8,6 +8,7 @@
 #'
 #' @title MCPR Package
 #' @include aaa.R
+#' @include utils.R
 #' @include logger.R
 #' @description Configures platform-specific socket URLs when package loads into R session
 #'
@@ -20,11 +21,7 @@
 "_PACKAGE"
 
 .onLoad <- function(libname, pkgname) {
-  the$socket_url <- switch(Sys.info()[["sysname"]],
-    Linux = "abstract://MCPR-socket",
-    Windows = "ipc://MCPR-socket",
-    "ipc:///tmp/MCPR-socket"
-  )
+  the$socket_url <- default_socket_url()
 
   # Cache Rscript path for daemon spawning (mirai pattern)
   the$rscript_path <- switch(Sys.info()[["sysname"]],
