@@ -64,7 +64,7 @@ articles:
   - getting-started
   - mcp-setup
   - architecture
-  - read-instructions
+  - tool-composition
 
 footer:
   structure:
@@ -79,4 +79,3 @@ footer:
       [Source Code](https://github.com/phisanti/MCPR)
     license: |
       [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-

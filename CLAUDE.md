@@ -21,7 +21,7 @@ MCPR envisions a paradigm shift toward **interactive AI-R collaboration** where:
 - **`mcpr-session.R` / `mcpr-client.R`** — `mcprSession` manages the R-side nanonext socket listener that receives forwarded tool calls and executes them in the live session; `mcprClient` is the symmetric counterpart for programmatic server connections
 - **`tool-definition.R` / `tool-register.R` / `tool-registry-helpers.R`** — `ToolDef` R6 class defines tools with typed arguments; `ToolRegistry` auto-discovers tools from roxygen2 tags and converts them to JSON Schema for MCP `tools/list`
 - **`protocol.R` / `type-conversion-*.R`** — JSON-RPC 2.0 message construction and bidirectional R ↔ JSON serialization with type restoration (factors, dates, matrices, S3/S4/R6)
-- **`inst/tool-*.R`** — built-in MCP tools shipped with the package: `execute_r_code`, `show_plot`, `view`, `inspect_object`, `manage_r_sessions`, `read_instructions`
+- **`inst/tool-*.R`** — built-in MCP tools shipped with the package: `execute_r_code`, `show_plot`, `view`, `inspect_object`, `manage_r_sessions`
 
 ## R Library Contexts
 

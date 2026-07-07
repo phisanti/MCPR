@@ -58,7 +58,6 @@ SystemRequirements: Unix sockets (Unix), Named pipes (Windows)
 Collate:
     'aaa.R'
     'utils.R'
-    'create_instruction.R'
     'mcpr-server-daemon.R'
     'inspect-object.R'
     'install-mcpr-toml.R'

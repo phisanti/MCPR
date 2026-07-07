@@ -288,21 +288,6 @@ test_that("format_table_for_agent handles empty data frames", {
   expect_equal(result_default, "No data found.")
 })
 
-test_that("format_table_for_agent handles single row data frames", {
-  single_df <- data.frame(Tool = "read_instructions", Status = "active")
-  
-  result <- MCPR:::format_table_for_agent(single_df)
-  
-  expect_type(result, "character")
-  expect_true(grepl("Tool", result))
-  expect_true(grepl("Status", result))
-  expect_true(grepl("read_instructions", result))
-  expect_true(grepl("active", result))
-  
-  lines <- strsplit(result, "\n")[[1]]
-  expect_equal(length(lines), 3) # header + separator + 1 data row
-})
-
 test_that("format_table_for_agent handles varying column widths correctly", {
   wide_df <- data.frame(
     Short = c("A", "B"),

@@ -33,9 +33,8 @@ registry$get_tool_summary()
 #> 1     execute_r_code     Execute R code in the active R session and ...          2  /path/MCPR
 #> 2     inspect_object     Inspect an R object in the active session ...          3  /path/MCPR
 #> 3 manage_r_sessions      Manage R sessions: list, join, or get info...          2  /path/MCPR
-#> 4 read_instructions  Read the instructions file for the current R ...          0  /path/MCPR
-#> 5          show_plot     Generate and display R plots as base64 PNG...          4  /path/MCPR
-#> 6               view     View the current state of the R session, t...          2  /path/MCPR
+#> 4          show_plot     Generate and display R plots as base64 PNG...          4  /path/MCPR
+#> 5               view     View the current state of the R session, t...          2  /path/MCPR
 ```
 
 That's the right default for a general-purpose R assistant. But a domain package like `mypackage` wants a narrower surface: its own tools, maybe optional attachment controls, and definitely *not* `execute_r_code` — which would let an LLM run arbitrary code in a production pipeline.
@@ -112,10 +111,9 @@ registry$filter(exclude = c("execute_r_code", "show_plot", "inspect_object"))
 registry$get_tool_summary()
 #>                 name         ...   source_dir
 #> 1 manage_r_sessions         ...   /path/MCPR
-#> 2 read_instructions         ...   /path/MCPR
-#> 3              view         ...   /path/MCPR
-#> 4               add         ...   /path/mypackage
-#> 5          subtract         ...   /path/mypackage
+#> 2              view         ...   /path/MCPR
+#> 3               add         ...   /path/mypackage
+#> 4          subtract         ...   /path/mypackage
 
 server <- mcprServer$new(registry = registry)
 ```
