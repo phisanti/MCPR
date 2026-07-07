@@ -4,16 +4,16 @@
 \alias{mcprServer}
 \title{MCP Server}
 \description{
-Implements Model Context Protocol server for persistent R session management.
-Operates through nanonext sockets for non-blocking message handling between JSON-RPC
-clients and R sessions, enabling tool execution routing and workspace state persistence.
+Implements a Model Context Protocol server with a private R runtime.
+Ordinary tools execute in the server process by default. When \code{manage_r_sessions}
+is registered, the server can optionally attach to human or secondary R sessions.
 }
 \details{
 Server operates through layered message handling:
 \itemize{
 \item \strong{Client Layer}: Handles JSON-RPC communication with MCP clients
-\item \strong{Server Layer}: Manages tool execution and session routing
-\item \strong{Session Layer}: Forwards requests to active R sessions
+\item \strong{Server Layer}: Manages tool execution and active session state
+\item \strong{Session Layer}: Optionally forwards requests to attached R sessions
 }
 }
 \note{
@@ -55,6 +55,10 @@ mcpr_server(registry = registry)
 \item \href{#method-mcprServer-get_tools}{\code{mcprServer$get_tools()}}
 \item \href{#method-mcprServer-get_capabilities}{\code{mcprServer$get_capabilities()}}
 \item \href{#method-mcprServer-mcp_apps_supported}{\code{mcprServer$mcp_apps_supported()}}
+\item \href{#method-mcprServer-session_manager}{\code{mcprServer$session_manager()}}
+\item \href{#method-mcprServer-session_management_enabled}{\code{mcprServer$session_management_enabled()}}
+\item \href{#method-mcprServer-active_session_binding}{\code{mcprServer$active_session_binding()}}
+\item \href{#method-mcprServer-active_session_label}{\code{mcprServer$active_session_label()}}
 \item \href{#method-mcprServer-clone}{\code{mcprServer$clone()}}
 }
 }
@@ -85,7 +89,6 @@ Initialize the MCP server with optional tools
 \if{html}{\out{<div class="r">}}\preformatted{mcprServer$new(
   registry = NULL,
   .tools_dir = NULL,
-  session_discovery = "explicit",
   execution_timeout_secs = 300L,
   resource_registry = NULL
 )}\if{html}{\out{</div>}}
@@ -97,8 +100,6 @@ Initialize the MCP server with optional tools
 \item{\code{registry}}{A ToolRegistry instance to use for tool discovery}
 
 \item{\code{.tools_dir}}{Internal parameter for specifying tools directory path}
-
-\item{\code{session_discovery}}{Session routing policy: \code{"explicit"} or \code{"auto"}.}
 
 \item{\code{execution_timeout_secs}}{Default seconds before a forwarded request is considered
 timed out (default: 300). Override per-call via the \code{timeout} argument in tools like
@@ -210,6 +211,58 @@ Check if the connected client supports MCP Apps
 
 \subsection{Returns}{
 Logical indicating MCP Apps support
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-mcprServer-session_manager"></a>}}
+\if{latex}{\out{\hypertarget{method-mcprServer-session_manager}{}}}
+\subsection{Method \code{session_manager()}}{
+Return the server-owned session manager.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{mcprServer$session_manager()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+A mcprSessionManager instance.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-mcprServer-session_management_enabled"></a>}}
+\if{latex}{\out{\hypertarget{method-mcprServer-session_management_enabled}{}}}
+\subsection{Method \code{session_management_enabled()}}{
+Return whether this server exposes session-management capability.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{mcprServer$session_management_enabled()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Logical scalar.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-mcprServer-active_session_binding"></a>}}
+\if{latex}{\out{\hypertarget{method-mcprServer-active_session_binding}{}}}
+\subsection{Method \code{active_session_binding()}}{
+Return the active session binding owned by this server.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{mcprServer$active_session_binding()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+An environment describing the active binding.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-mcprServer-active_session_label"></a>}}
+\if{latex}{\out{\hypertarget{method-mcprServer-active_session_label}{}}}
+\subsection{Method \code{active_session_label()}}{
+Return the active session label owned by this server.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{mcprServer$active_session_label()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Character scalar.
 }
 }
 \if{html}{\out{<hr>}}

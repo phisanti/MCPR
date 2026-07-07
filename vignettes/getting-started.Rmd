@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 
 # Getting Started with MCPR: Your First Session
 
-MCPR (Model Context Protocol for R) enables persistent, stateful collaboration between you and your AI assistant within live R sessions. Instead of losing context between interactions, your AI can work with variables, models, and data that persist throughout your conversation.
+MCPR (Model Context Protocol for R) gives your AI assistant a persistent R workspace. By default, that workspace is the private R process running `MCPR::mcpr_server()`. When you want the agent to work inside an existing interactive R console, you can make that console attachable with `mcpr_session_start()` and switch the active session with `manage_r_sessions()`.
 
 ## Installation and Setup
 
@@ -34,42 +34,32 @@ install_mcpr(agent = "claude")
 
 Let's walk through a basic session to see how MCPR works in practice.
 
-### Step 1: Start Your First R Session
+### Step 1: Use the Private Session
 
 ```{r eval=FALSE}
-# In your R console
-library(MCPR)
-mcpr_session_start()
+# Your MCP client launches this through its configuration
+MCPR::mcpr_server()
 ```
 
-You'll see output like:
-```
-✓ MCPR session started successfully
-✓ Session ID: 1
-✓ Ready for AI agent connections
-```
+The MCP server process is also the agent's private R session. Variables created by ordinary tools persist there until the server process exits.
 
-### Step 2: Check Available Sessions
+### Step 2: Check the Workspace
 
 Now you can ask your AI assistant:
 
-> **You:** "How many R sessions do I have running? What variables are in the workspace?"
+> **You:** "What variables are in the R workspace?"
 
 Your AI will use MCPR tools to respond:
 
 ```r
-# Check available sessions
-manage_r_sessions("list")
-# Shows: Session 1 - /Users/you/projects - R framework
-
 # Check current variables
 ls()
-# Shows existing variables: x = 327, my_data (data.frame with 10 rows, 2 columns)
+# Shows objects in the private session
 ```
 
 ### Step 3: Create Some Variables
 
-> **You:** "Can you create some random variables in this session?"
+> **You:** "Can you create some random variables?"
 
 Your AI assistant executes:
 
@@ -88,42 +78,34 @@ random_df <- data.frame(
 ls()
 ```
 
-**Key insight:** All these variables now persist in your R session and remain available for future operations.
+**Key insight:** All these variables now persist in the private session and remain available for future operations.
 
-### Step 4: Start a Second Session
+### Step 4: Optionally Attach a Live R Session
 
-> **You:** "I want to start a second R session for different work"
+> **You:** "I want you to work inside my existing R console"
 
-In a new R console, run:
+In that R console, run:
 ```{r eval=FALSE}
-mcpr_session_start()  # Creates Session 2
+library(MCPR)
+mcpr_session_start()
 ```
 
-Now ask your AI:
+Then ask your AI:
 
-> **You:** "List all my sessions and check what variables are in each one"
+> **You:** "List attachable sessions and join mine"
 
 Your AI will:
 
 ```r
-# List all sessions
 manage_r_sessions("list")
-# Shows: Session 1 and Session 2
-
-# Check Session 1 variables  
 manage_r_sessions("join", session = 1)
-ls()
-# Shows: x, my_data, random_numbers, random_matrix, random_names, random_df
-
-# Check Session 2 variables
-manage_r_sessions("join", session = 2)
-ls()
-# Shows: different variables (or empty if newly created)
 ```
+
+Ordinary tool calls still omit `session`; after joining, MCPR sends them to the active attached session. Use `manage_r_sessions("detach")` to return to the private session.
 
 ### Step 5: Session Independence
 
-**Key discovery:** Each session maintains completely independent workspaces. Variables in Session 1 don't interfere with Session 2, allowing you to work on multiple projects simultaneously.
+**Key discovery:** The private session, human sessions, and MCPR-owned secondary sessions maintain independent workspaces. Attaching changes the active execution target; it does not merge workspaces.
 
 ## Core MCPR Tools
 
@@ -134,11 +116,14 @@ manage_r_sessions("list")
 
 # Join a specific session
 manage_r_sessions("join", session = 2)
+
+# Return to the private session
+manage_r_sessions("detach")
 ```
 
 ### Code Execution
 ```{r eval=FALSE}
-# Execute R code in the current session
+# Execute R code in the active session
 execute_r_code("
   summary(random_df)
   plot(random_numbers)
@@ -169,9 +154,9 @@ show_plot("
 
 This little demo aims to show the capabilities of MCPR. It provides a persistent R environment that bridges the gap between traditional scripting and interactive AI agent collaboration:
 
-- **Stateful Programming**: Your AI agent maintains context across sessions, understanding your data and previous work
-- **Parallel Workflows**: Multiple independent environments let you compartmentalize different projects  
-- **Seamless Context Switching**: Move between sessions while your AI agent tracks workspace contents
+- **Stateful Programming**: Your AI agent maintains context in a persistent private workspace
+- **Parallel Workflows**: Private, human, and secondary sessions let you compartmentalize different projects
+- **Controlled Attachment**: Move between sessions with `manage_r_sessions` while ordinary tools stay simple
 - **Interactive Analysis**: Discuss data, iterate on visualizations, and explore findings conversationally
 - **Persistent Collaboration**: Build complex analyses incrementally with your AI agent as a programming partner
 
@@ -179,16 +164,16 @@ MCPR transforms R from isolated script execution into a collaborative workspace 
 
 ## Troubleshooting
 
-**"No sessions found"**: Start a session with `mcpr_session_start()`
+**"No attachable sessions found"**: If you want to attach to a live R console, start one with `mcpr_session_start()`
 
 **"Connection failed"**: Verify MCPR installation with `install_mcpr()`
 
-**"Variables not found"**: Check you're in the correct session with `manage_r_sessions("list")`
+**"Variables not found"**: Check the active session with `manage_r_sessions("list")`, or detach back to private/local execution with `manage_r_sessions("detach")`
 
 ## Next Steps
 
 - **[AI Agent Integration](ai-agent-integration.html)**: Configure your specific AI agent
-- **[Tool Development](tool-development.html)**: Create custom tools for your workflow  
+- **[Tool Development](tool-development.html)**: Create custom tools for your workflow
 - **[Architecture Overview](architecture.html)**: Understand how MCPR works internally
 
 You're now ready to use MCPR for persistent, collaborative R programming with your AI assistant!

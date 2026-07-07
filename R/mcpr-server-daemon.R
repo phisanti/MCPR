@@ -1,24 +1,24 @@
-# Daemon Session Utilities
-# Registry functions for managing agent-owned background R sessions.
-# Provides spawn, register, unregister, and lookup for daemon lifecycle management.
+# MCP Server Secondary Session Transport
+# Server-side helpers for MCPR-owned secondary sessions and joined user sockets.
+# Used by mcprServer to spawn, connect, register, and clean attached session transports.
 
-#' Register a daemon session
+#' Register a secondary session
 #'
-#' @description Adds a client_id -> session_id mapping to the daemon registry.
-#' @param client_id Character. Identifies the agent or client owning this daemon.
-#' @param session_id Integer. The nanonext socket port number for this daemon.
+#' @description Adds a key -> session_id mapping to the legacy secondary-session registry.
+#' @param client_id Character. Internal registry key for this secondary session.
+#' @param session_id Integer. The nanonext socket port number for this secondary session.
 #' @return Called for side effects; returns NULL invisibly.
 #' @noRd
 register_daemon <- function(client_id, session_id) {
   the$daemon_sessions[[client_id]] <- as.integer(session_id)
 }
 
-#' Unregister a daemon session
+#' Unregister a secondary session
 #'
-#' @description Removes a client from all three daemon registries, closes the
+#' @description Removes a key from all three legacy secondary-session registries, closes the
 #' nanonext socket, and kills the process if it is still alive. Safe to call
-#' on an unknown client_id (no-op).
-#' @param client_id Character. The client to remove.
+#' on an unknown registry key (no-op).
+#' @param client_id Character. The internal registry key to remove.
 #' @return Called for side effects; returns NULL invisibly.
 #' @noRd
 unregister_daemon <- function(client_id) {
@@ -40,47 +40,7 @@ unregister_daemon <- function(client_id) {
   the$daemon_processes[[client_id]] <- NULL
 }
 
-#' Look up a daemon session ID by client ID
-#'
-#' @description Returns the session ID (socket port number) for a registered daemon, or NULL.
-#' @param client_id Character. The client to look up.
-#' @return Integer(1) or NULL.
-#' @noRd
-get_daemon_session <- function(client_id) {
-  if (client_id %in% names(the$daemon_sessions)) {
-    the$daemon_sessions[[client_id]]
-  } else {
-    NULL
-  }
-}
-
-#' List all registered daemon sessions
-#'
-#' @description Returns the full daemon session registry as a named integer vector.
-#' @return Named integer vector (client_id -> session_id). May be length-0.
-#' @noRd
-list_daemon_sessions <- function() {
-  the$daemon_sessions
-}
-
-#' Find daemon registry key by session ID value
-#'
-#' @description Scans the daemon_sessions registry for an entry whose value
-#' matches the given session_id. Returns the key (client_id) or NULL.
-#' Used for reverse lookup when the session port number is known but the key is not
-#' (e.g. when closing the default auto-spawned daemon by session ID).
-#' @param session_id Integer. The session port number to look up.
-#' @return Character(1) key or NULL.
-#' @noRd
-find_daemon_key_by_session <- function(session_id) {
-  sessions <- the$daemon_sessions
-  if (length(sessions) == 0L) return(NULL)
-  match_idx <- which(sessions == as.integer(session_id))
-  if (length(match_idx) == 0L) return(NULL)
-  names(sessions)[match_idx[[1L]]]
-}
-
-#' Build a process label for a daemon session
+#' Build a process label for a secondary session
 #'
 #' @description Returns "MCPR-{session_id}" for use in Activity Monitor / ps output.
 #' @param session_id Integer. The session port number.
@@ -90,7 +50,7 @@ daemon_process_label <- function(session_id) {
   sprintf("MCPR-%d", as.integer(session_id))
 }
 
-#' Find an available daemon socket port
+#' Find an available secondary-session socket port
 #'
 #' @description Scans ports 2..1023 via nanonext::listen to find the first
 #' unoccupied slot. Port 1 is reserved for user session connections.
@@ -112,19 +72,22 @@ find_daemon_port <- function() {
       return(i)
     }
   }
-  cli::cli_abort("No available socket ports found for daemon session.")
+  cli::cli_abort("No available socket ports found for secondary session.")
 }
 
-#' Spawn a daemon R session
+#' Spawn a secondary R session
 #'
-#' @description Launches a new R process running MCPR::mcp_session() in daemon mode.
+#' @description Launches a new R process running MCPR::mcp_session() in secondary mode.
 #' Uses Rscript with --no-init-file --no-site-file to avoid .Rprofile/renv delays.
 #' Stores the process handle in the$daemon_processes.
-#' @param client_id Character. The owning client identifier.
-#' @param session_id Integer. The port number the daemon will listen on.
-#' @param working_dir Character. Working directory for the daemon process.
+#' @param client_id Character. Internal registry key for this secondary session.
+#' @param session_id Integer. The port number the secondary session will listen on.
+#' @param working_dir Character. Working directory for the secondary process.
 #' @return The processx::process object.
 #' @noRd
+# Spawned secondary sessions stay owned by the daemon registries until cleanup.
+# The process handle and session key are tracked together so teardown can unwind
+# them without guessing which resources were created.
 spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
   rscript <- the$rscript_path %||% file.path(R.home("bin"), "Rscript")
   r_expr <- sprintf(
@@ -150,7 +113,7 @@ spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
 
   the$daemon_processes[[client_id]] <- proc
   cli::cli_inform(c(
-    "i" = "Daemon session {session_id} spawned (PID {proc$get_pid()})"
+    "i" = "Secondary session {session_id} spawned (PID {proc$get_pid()})"
   ))
   proc
 }
@@ -158,12 +121,14 @@ spawn_daemon <- function(client_id, session_id, working_dir = getwd()) {
 #' Connect to any session via IPC socket
 #'
 #' @description Dials the session's IPC URL and waits for a pipe connection using
-#'   the pipe_notify + until pattern. Works for both interactive and daemon sessions.
+#'   the pipe_notify + until pattern. Works for both interactive and secondary sessions.
 #'   Returns a connected socket on success, or NULL on timeout.
 #' @param session_id Integer. The session port number to connect to.
 #' @param timeout_ms Integer. Connection timeout in milliseconds (default: 15000).
 #' @return A nanonext socket object, or NULL if connection failed.
 #' @noRd
+# Dial the session URL and wait for the pipe-notify handshake before returning.
+# Callers only receive a socket once the remote session is actually listening.
 connect_ipc_socket <- function(session_id, timeout_ms = 15000L) {
   url <- sprintf("%s%d", get_system_socket_url(), as.integer(session_id))
   sock <- nanonext::socket("poly")
@@ -211,14 +176,4 @@ unregister_user_session <- function(session_id) {
   sock <- the$user_sessions[[key]]
   if (!is.null(sock)) tryCatch(nanonext::reap(sock), error = function(e) NULL)
   the$user_sessions[[key]] <- NULL
-}
-
-#' List all registered user session IDs
-#'
-#' @description Returns the session IDs for all registered user sessions.
-#' @return Integer vector of session IDs. May be length-0.
-#' @noRd
-list_user_sessions <- function() {
-  if (length(the$user_sessions) == 0L) return(integer(0))
-  as.integer(names(the$user_sessions))
 }

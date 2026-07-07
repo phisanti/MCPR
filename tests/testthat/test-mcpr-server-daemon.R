@@ -1,6 +1,6 @@
-# Tests for daemon session utilities
-# Tests registry functions and daemon lifecycle management.
-# Verifies spawn, register, unregister, and lookup operations.
+# MCP Server Secondary Session Transport
+# Tests registry functions and secondary session lifecycle management.
+# Verifies spawn, register, unregister, and transport helper operations.
 
 library(MCPR)
 
@@ -26,36 +26,6 @@ test_that("register_daemon adds entry to the$daemon_sessions", {
 
   MCPR:::register_daemon("agent-a", 5L)
   expect_equal(the$daemon_sessions, c("agent-a" = 5L))
-})
-
-test_that("get_daemon_session returns session ID for registered client", {
-  old_sessions <- the$daemon_sessions
-  on.exit(the$daemon_sessions <- old_sessions, add = TRUE)
-
-  the$daemon_sessions <- c("agent-a" = 5L, "agent-b" = 6L)
-
-  expect_equal(MCPR:::get_daemon_session("agent-a"), 5L)
-  expect_equal(MCPR:::get_daemon_session("agent-b"), 6L)
-  expect_null(MCPR:::get_daemon_session("agent-c"))
-})
-
-test_that("list_daemon_sessions returns the registry", {
-  old_sessions <- the$daemon_sessions
-  on.exit(the$daemon_sessions <- old_sessions, add = TRUE)
-
-  the$daemon_sessions <- c("agent-a" = 5L, "agent-b" = 6L)
-  result <- MCPR:::list_daemon_sessions()
-  expect_equal(result, c("agent-a" = 5L, "agent-b" = 6L))
-})
-
-test_that("list_daemon_sessions returns empty when no daemons", {
-  old_sessions <- the$daemon_sessions
-  on.exit(the$daemon_sessions <- old_sessions, add = TRUE)
-
-  the$daemon_sessions <- integer(0)
-  result <- MCPR:::list_daemon_sessions()
-  expect_length(result, 0)
-  expect_type(result, "integer")
 })
 
 test_that("unregister_daemon removes from all registries", {
@@ -121,10 +91,10 @@ test_that("register_daemon then unregister_daemon round-trips cleanly", {
   the$daemon_processes <- list()
 
   MCPR:::register_daemon("test-client", 10L)
-  expect_equal(MCPR:::get_daemon_session("test-client"), 10L)
+  expect_equal(the$daemon_sessions[["test-client"]], 10L)
 
   MCPR:::unregister_daemon("test-client")
-  expect_null(MCPR:::get_daemon_session("test-client"))
+  expect_false("test-client" %in% names(the$daemon_sessions))
   expect_length(the$daemon_sessions, 0)
 })
 
@@ -202,15 +172,4 @@ test_that("await_daemon_ready returns NULL on timeout for non-existent session",
 
   sock <- MCPR:::await_daemon_ready(999L, timeout_ms = 1000)
   expect_null(sock)
-})
-
-test_that("find_daemon_key_by_session finds key by session ID value", {
-  old_sessions <- the$daemon_sessions
-  on.exit(the$daemon_sessions <- old_sessions, add = TRUE)
-
-  the$daemon_sessions <- c("default" = 5L, "daemon-6" = 6L)
-
-  expect_equal(MCPR:::find_daemon_key_by_session(5L), "default")
-  expect_equal(MCPR:::find_daemon_key_by_session(6L), "daemon-6")
-  expect_null(MCPR:::find_daemon_key_by_session(99L))
 })

@@ -4,6 +4,6 @@
 \alias{daemon_sockets}
 \title{Daemon Socket Registry}
 \description{
-Named list of nanonext sockets for daemon communication.
-Keys are client IDs, values are nanonext socket objects.
+Named list of nanonext sockets for MCPR-owned secondary sessions.
+Keys are internal secondary-session IDs, values are nanonext socket objects.
 }

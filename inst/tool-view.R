@@ -8,10 +8,9 @@
 #' @param what character What to view. Options: "session" (R objects and session info), "terminal" (recent commands and output), "last_error" (most recent error details), "installed_packages" (installed R packages), "workspace" (current directory structure), "search_path" (package search path), "warnings" (recent warnings), "last_value" (inspect last computed R result), "help" (parsed help page, requires topic parameter)
 #' @param max_lines integer Maximum number of lines to display in output (default: 100). Controls output length for terminal history, error traces, package lists, file listings, etc.
 #' @param topic character Help topic to look up. Required when what="help". Supports "function_name" or "package::function_name" format.
-#' @param session integer Required when no interactive session is joined. Target a specific daemon session by ID (obtained from manage_r_sessions with action="start"). Omitting session when no interactive session is joined returns an error listing currently active sessions.
 #' @keywords mcpr_tool
 #' @return Formatted information about the requested aspect of the R session
-view <- function(what = "session", max_lines = 100, topic = NULL, session = NULL) {
+view <- function(what = "session", max_lines = 100, topic = NULL) {
   # Input validation and argument matching
   if (!is.character(what) || length(what) != 1) {
     cli::cli_abort("'what' must be a single character string")

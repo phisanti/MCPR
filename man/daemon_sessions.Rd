@@ -4,6 +4,6 @@
 \alias{daemon_sessions}
 \title{Daemon Session Registry}
 \description{
-Named integer vector tracking agent-owned daemon sessions.
-Keys are client IDs, values are session IDs (nanonext socket port numbers).
+Named integer vector tracking MCPR-owned secondary sessions.
+Keys are internal secondary-session IDs, values are session socket IDs.
 }

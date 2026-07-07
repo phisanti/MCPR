@@ -7,7 +7,6 @@
 mcpr_server(
   registry = NULL,
   resource_registry = NULL,
-  session_discovery = "explicit",
   execution_timeout_secs = 300L
 )
 }
@@ -16,9 +15,6 @@ mcpr_server(
 
 \item{resource_registry}{An MCPResourceRegistry instance for custom MCP resources.
 If NULL (default), the built-in plot viewer registry is used.}
-
-\item{session_discovery}{Session routing policy passed to \code{mcprServer$new()}.
-\code{"explicit"} (default) or \code{"auto"}.}
 
 \item{execution_timeout_secs}{Default seconds before a forwarded request is considered
 timed out (default: 300). Individual tools can override via their \code{timeout} argument.}

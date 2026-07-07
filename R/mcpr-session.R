@@ -300,8 +300,8 @@ mcprSession <- R6::R6Class("mcprSession",
     },
 
     # Append a session context footer to a tool response's content array.
-    # Tells the agent which session its code ran in so it can carry the
-    # session ID forward without a separate manage_r_sessions call.
+    # This reports where attached-session execution happened without making
+    # ordinary tools accept per-call session routing.
     append_session_footer = function(response) {
       session_id <- private$.session_id
       if (is.null(session_id) || is.null(response$result) || is.null(response$result$content)) {

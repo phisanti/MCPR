@@ -196,13 +196,13 @@ mcprClient <- R6::R6Class("mcprClient",
 
     # Create function reference for remote tool execution
     tool_ref = function(server, tool, arguments) {
-      f <- function() {}
-      formals(f) <- stats::setNames(
+      fn <- function() {}
+      formals(fn) <- stats::setNames(
         rep(list(quote(expr = )), length(arguments)),
         arguments
       )
 
-      body(f) <- substitute(
+      body(fn) <- substitute(
         {
           call_info <- match.call()
           tool_args <- lapply(call_info[-1], eval)
@@ -214,7 +214,7 @@ mcprClient <- R6::R6Class("mcprClient",
         list(server_val = server, tool_val = tool)
       )
 
-      f
+      fn
     },
 
     # Create JSON-RPC initialize request message

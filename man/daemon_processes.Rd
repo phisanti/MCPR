@@ -4,6 +4,6 @@
 \alias{daemon_processes}
 \title{Daemon Process Registry}
 \description{
-Named list of processx process handles for daemon lifecycle management.
-Keys are client IDs, values are processx::process objects.
+Named list of processx process handles for secondary-session lifecycle management.
+Keys are internal secondary-session IDs, values are processx::process objects.
 }

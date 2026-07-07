@@ -4,7 +4,7 @@
 
 #' Read User-Provided Instruction Files
 #'
-#' @description Read user-provided instruction files for domain-specific R analysis guidance. Two-call pattern: (1) Call without parameters to list available instruction files with their keywords and descriptions. (2) Call with instruction_type to retrieve the full content of a specific instruction file. Searches relative to the current R session's working directory (.mcpr_instructions/). For multi-session environments, use manage_r_sessions() to view and switch between sessions.
+#' @description Read user-provided instruction files for domain-specific R analysis guidance. Two-call pattern: (1) Call without parameters to list available instruction files with their keywords and descriptions. (2) Call with instruction_type to retrieve the full content of a specific instruction file. Searches relative to the current R session's working directory (.mcpr_instructions/).
 #' @param instruction_type character Type of instruction to read (optional - if empty, lists all available)
 #' @keywords mcpr_tool
 #' @return Character string with instruction content or formatted table of available instructions
@@ -64,7 +64,7 @@ list_available_instructions <- function() {
       "x" = "No {.path .mcpr_instructions/} directory found in current session",
       "i" = "Current working directory: {.path {current_dir}}",
       "i" = "Create {.path .mcpr_instructions/} with {.file .md} instruction files",
-      "i" = "To switch sessions: {.code manage_r_sessions(action = \"join\", session = N)}{session_hint}"
+      "i" = "To inspect attachable sessions: {.code manage_r_sessions(action = \"list\")}{session_hint}"
     ))
 
     return(msg)

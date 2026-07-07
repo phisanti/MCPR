@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 
 # Building Domain-Specific MCP Servers on MCPR
 
-MCPR is designed to be a substrate. It handles transport, sessions, and tool schemas so that domain packages can focus on what they know: their own tools. This vignette shows how `ToolRegistry` supports that through multi-directory discovery and filtering.
+MCPR is designed to be a substrate. It handles transport, private-session execution, optional session attachment, and tool schemas so that domain packages can focus on what they know: their own tools. This vignette shows how `ToolRegistry` supports that through multi-directory discovery and filtering.
 
 ## The Problem
 
@@ -38,7 +38,7 @@ registry$get_tool_summary()
 #> 6               view     View the current state of the R session, t...          2  /path/MCPR
 ```
 
-That's the right default for a general-purpose R assistant. But a domain package like `mypackage` wants a narrower surface: its own tools, maybe session management, and definitely *not* `execute_r_code` — which would let an LLM run arbitrary code in a production pipeline.
+That's the right default for a general-purpose R assistant. But a domain package like `mypackage` wants a narrower surface: its own tools, maybe optional attachment controls, and definitely *not* `execute_r_code` — which would let an LLM run arbitrary code in a production pipeline.
 
 Two mechanisms solve this: **multi-directory discovery** and **filtering**.
 
@@ -92,11 +92,11 @@ registry$search_tools()
 server <- mcprServer$new(registry = registry)
 ```
 
-No MCPR built-in tools are loaded. Your server exposes exactly what your package defines.
+No MCPR built-in tools are loaded. Your server exposes exactly what your package defines and runs local-only in the private MCP server process. There is no hidden session discovery or attachment behavior.
 
 ## Case 4: Cherry-Pick from MCPR + All of Your Package
 
-This is the most common real-world pattern. You want session management from MCPR (so the LLM can switch between R sessions), but not `execute_r_code` or other open-ended tools.
+This is the most common real-world pattern. You want MCPR's optional session-management control plane, but not `execute_r_code` or other open-ended tools.
 
 Two approaches, same result:
 
@@ -277,7 +277,7 @@ Two important caveats:
    only when `what = \"help\"`" or "required for most plot types". Keep those
    constraints in the `@param` description and enforce them at runtime.
 
-Place your tool files in `inst/tools/` (or any subdirectory convention you prefer) and point `ToolRegistry` at it. That's it — MCPR handles roxygen parsing, schema generation, JSON-RPC dispatch, and session routing.
+Place your tool files in `inst/tools/` (or any subdirectory convention you prefer) and point `ToolRegistry` at it. That's it — MCPR handles roxygen parsing, schema generation, JSON-RPC dispatch, private execution, and optional attachment when `manage_r_sessions` is registered.
 
 **Note on paths:** `system.file(package = "pkg")` returns the *installed* package root, where `inst/` contents are lifted to the top level. During development with `devtools::load_all()`, tool files remain under `inst/` — use the source path directly in that case.
 
@@ -289,9 +289,9 @@ A downstream package typically exposes a convenience function:
 # In mypackage/R/server.R
 
 #' Start the mypackage MCP Server
-#' @param include_session_tools Include MCPR session management tools (default: TRUE)
+#' @param include_session_tools Include MCPR session management tools (default: FALSE)
 #' @export
-calc_server <- function(include_session_tools = TRUE) {
+calc_server <- function(include_session_tools = FALSE) {
   dirs <- system.file("tools", package = "mypackage")
 
   if (include_session_tools) {
@@ -306,13 +306,13 @@ calc_server <- function(include_session_tools = TRUE) {
     registry$filter(exclude = c("execute_r_code", "show_plot"))
   }
 
-  # session_discovery = "auto": tool calls with no session= arg automatically
-  # route to a lazily-spawned daemon, so callers never need to manage sessions.
-  MCPR::mcpr_server(registry = registry, session_discovery = "auto")
+  # Ordinary package tools run in the private MCP server process.
+  # If manage_r_sessions is included, attachment is controlled explicitly.
+  MCPR::mcpr_server(registry = registry)
 }
 ```
 
-Users of the package get a focused, domain-specific MCP server — in this case exposing only the calculator tools (`add`, `subtract`, `multiply`, `divide`) plus optional session management — without needing to understand MCPR internals.
+Users of the package get a focused, domain-specific MCP server — in this case exposing only the calculator tools (`add`, `subtract`, `multiply`, `divide`) plus optional attachment controls — without needing to understand MCPR internals.
 
 ## Summary
 

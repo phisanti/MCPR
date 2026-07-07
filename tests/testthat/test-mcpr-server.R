@@ -57,6 +57,32 @@ test_that("mcprServer$stop sets the running flag to FALSE", {
   expect_false(server$is_running(), "stop() should set the server's running state to FALSE")
 })
 
+test_that("mcprServer$stop does not clean up sessions owned by another server", {
+  .the <- get("the", envir = asNamespace("MCPR"))
+  old_daemon_sessions <- .the$daemon_sessions
+  old_daemon_sockets <- .the$daemon_sockets
+  old_daemon_processes <- .the$daemon_processes
+  old_user_sessions <- .the$user_sessions
+  on.exit({
+    .the$daemon_sessions <- old_daemon_sessions
+    .the$daemon_sockets <- old_daemon_sockets
+    .the$daemon_processes <- old_daemon_processes
+    .the$user_sessions <- old_user_sessions
+  }, add = TRUE)
+
+  .the$daemon_sessions <- c("other-daemon" = 77L)
+  .the$daemon_sockets <- list()
+  .the$daemon_processes <- list()
+  .the$user_sessions <- list("88" = new.env(parent = emptyenv()))
+
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  server$.__enclos_env__$private$.running <- TRUE
+  server$stop()
+
+  expect_equal(.the$daemon_sessions, c("other-daemon" = 77L))
+  expect_true("88" %in% names(.the$user_sessions))
+})
+
 test_that("mcprServer accepts ToolRegistry", {
   # Create a minimal ToolRegistry instance
   registry <- ToolRegistry$new()
@@ -207,28 +233,7 @@ test_that("mcprServer private method handle_message_from_session handles non-cha
   expect_no_error(server$.__enclos_env__$private$handle_message_from_session(list()))
 })
 
-test_that("mcprServer only refreshes the session listener for join requests", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
-  join_request <- list(
-    method = "tools/call",
-    params = list(
-      name = "manage_r_sessions",
-      arguments = list(action = "join", session = 1L)
-    )
-  )
-  list_request <- list(
-    method = "tools/call",
-    params = list(
-      name = "manage_r_sessions",
-      arguments = list(action = "list")
-    )
-  )
-
-  expect_true(server$.__enclos_env__$private$should_refresh_session_listener(join_request))
-  expect_false(server$.__enclos_env__$private$should_refresh_session_listener(list_request))
-})
-
-test_that("mcprServer re-arms the session listener after join refresh", {
+test_that("mcprServer arm_session_listener can replace an existing reader", {
   server <- mcprServer$new(.tools_dir = tools_dir)
   fake_socket <- nanonext::socket("poly")
   fake_cv <- nanonext::cv()
@@ -599,12 +604,9 @@ test_that("mcprServer has mcp_apps_supported accessor", {
   expect_false(server$mcp_apps_supported())
 })
 
-# --- mandatory session enforcement ---
-# These tests send execute_r_code without a session arg and verify the server
-# returns -32602 with an informative message instead of spawning a daemon.
-# A disconnected fake socket is injected via server$state_set("server_socket")
-# so the path-2 "joined session?" check (nanonext::stat(the$server_socket, "pipes") > 0)
-# returns FALSE without hanging. daemon_sessions is cleared the same way.
+# --- local ordinary tool execution ---
+# Phase 1 removes the public per-call session routing contract. Ordinary tools
+# without a session argument execute through the server's local handler.
 
 make_execute_request <- function(id = 1L, extra_args = list()) {
   args <- c(list(code = "1+1"), extra_args)
@@ -616,22 +618,14 @@ make_execute_request <- function(id = 1L, extra_args = list()) {
   ), auto_unbox = TRUE)
 }
 
-test_that("execute_r_code without session returns session-required error", {
+test_that("execute_r_code without session executes locally", {
   inst_dir <- system.file(package = "MCPR")
   server <- mcprServer$new(.tools_dir = inst_dir)
   tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
   skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
 
-  # Inject a disconnected socket so path-2 (joined session check) returns FALSE.
   # cat_json uses nanonext::write_stdout (raw fd, bypasses capture.output), so
   # we intercept it with local_mocked_bindings to capture the response object.
-  fake_socket <- nanonext::socket("poly")
-  on.exit(nanonext::reap(fake_socket), add = TRUE)
-  original_daemons <- server$state_get("daemon_sessions")
-  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
-  server$state_set("server_socket", fake_socket)
-  server$state_set("daemon_sessions", list())
-
   captured <- NULL
   local_mocked_bindings(
     cat_json = function(x) { captured <<- x },
@@ -640,82 +634,17 @@ test_that("execute_r_code without session returns session-required error", {
 
   server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 1L))
 
-  expect_equal(captured$error$code, -32602L)
-  expect_match(captured$error$message, "session is required", fixed = TRUE)
-  expect_match(captured$error$message, "Active sessions: none", fixed = TRUE)
+  expect_null(captured$error)
+  expect_match(captured$result$content[[1]]$text, "Code executed successfully", fixed = TRUE)
+  expect_match(captured$result$content[[1]]$text, "Result:", fixed = TRUE)
 })
 
-test_that("session-required error lists active daemon sessions by port", {
+test_that("mcprServer initialize no longer accepts session_discovery", {
   inst_dir <- system.file(package = "MCPR")
-  server <- mcprServer$new(.tools_dir = inst_dir)
-  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
-  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
-
-  fake_socket <- nanonext::socket("poly")
-  on.exit(nanonext::reap(fake_socket), add = TRUE)
-  original_daemons <- server$state_get("daemon_sessions")
-  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
-  server$state_set("server_socket", fake_socket)
-  server$state_set("daemon_sessions", list("daemon-9" = 9L))
-
-  captured <- NULL
-  local_mocked_bindings(
-    cat_json = function(x) { captured <<- x },
-    .package = "MCPR"
+  expect_error(
+    mcprServer$new(.tools_dir = inst_dir, session_discovery = "auto"),
+    "unused argument"
   )
-
-  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 2L))
-
-  expect_equal(captured$error$code, -32602L)
-  expect_match(captured$error$message, "Active sessions: 9", fixed = TRUE)
-})
-
-test_that("session_discovery='auto' routes no-session call to daemon without error", {
-  inst_dir <- system.file(package = "MCPR")
-  server <- mcprServer$new(.tools_dir = inst_dir, session_discovery = "auto")
-  tools_found <- any(vapply(server$get_tools(), function(t) t$name == "execute_r_code", logical(1)))
-  skip_if(!tools_found, "execute_r_code tool not discoverable in this environment")
-
-  fake_socket <- nanonext::socket("poly")
-  on.exit(nanonext::reap(fake_socket), add = TRUE)
-  original_daemons <- server$state_get("daemon_sessions")
-  on.exit(server$state_set("daemon_sessions", original_daemons), add = TRUE)
-  server$state_set("server_socket", fake_socket)
-  server$state_set("daemon_sessions", list())
-
-  ensure_called <- FALSE
-  forward_called <- FALSE
-
-  priv <- server$.__enclos_env__$private
-  unlockBinding("ensure_daemon_session", priv)
-  unlockBinding("forward_request_to_daemon", priv)
-  original_ensure <- priv$ensure_daemon_session
-  original_forward <- priv$forward_request_to_daemon
-  on.exit({
-    unlockBinding("ensure_daemon_session", priv)
-    unlockBinding("forward_request_to_daemon", priv)
-    priv$ensure_daemon_session <- original_ensure
-    priv$forward_request_to_daemon <- original_forward
-  }, add = TRUE)
-
-  priv$ensure_daemon_session <- function(client_id) {
-    ensure_called <<- TRUE
-  }
-  priv$forward_request_to_daemon <- function(data, client_id) {
-    forward_called <<- TRUE
-  }
-
-  captured <- NULL
-  local_mocked_bindings(
-    cat_json = function(x) { captured <<- x },
-    .package = "MCPR"
-  )
-
-  server$.__enclos_env__$private$handle_message_from_client(make_execute_request(id = 99L))
-
-  expect_true(ensure_called, label = "ensure_daemon_session was called")
-  expect_true(forward_called, label = "forward_request_to_daemon was called")
-  expect_null(captured, label = "no cat_json output emitted in auto mode")
 })
 
 # --- two-tier session timeout ---
@@ -729,6 +658,61 @@ make_pending_request <- function(session_key, id = 42L, timeout_secs = 300L,
     timeout_secs = timeout_secs
   )
 }
+
+test_that("ordinary local tool calls do not register pending remote requests", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+  skip_if(!"execute_r_code" %in% names(MCPR:::get_mcptools_tools()),
+          "execute_r_code tool not discoverable in this environment")
+
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  priv$handle_message_from_client(make_execute_request(id = 61L))
+
+  expect_null(captured$error)
+  expect_length(priv$.pending_requests, 0L)
+})
+
+test_that("attached forwarding registers pending remote requests", {
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  forwarded <- NULL
+  unlockBinding("forward_to_socket", priv)
+  original <- priv$forward_to_socket
+  on.exit({
+    unlockBinding("forward_to_socket", priv)
+    priv$forward_to_socket <- original
+  }, add = TRUE)
+  priv$forward_to_socket <- function(data, sock, label = "TO TARGET") {
+    forwarded <<- list(data = data, sock = sock, label = label)
+    invisible(NULL)
+  }
+  priv$.user_listeners[["52"]] <- TRUE
+
+  request <- list(
+    jsonrpc = "2.0",
+    id = 62L,
+    method = "tools/call",
+    params = list(
+      name = "execute_r_code",
+      arguments = list(code = "1 + 1", timeout = 7L)
+    )
+  )
+
+  priv$forward_request_to_user(request, 52L, sock = "fake-socket")
+
+  pending <- priv$.pending_requests[["52"]]
+  expect_false(is.null(pending))
+  expect_equal(pending$client_request_id, 62L)
+  expect_equal(pending$session_key, "52")
+  expect_equal(pending$timeout_secs, 7L)
+  expect_equal(forwarded$label, "TO USER SESSION")
+})
 
 test_that("handle_session_listener_resolved sends dead-session error for non-character data", {
   server <- mcprServer$new(.tools_dir = tools_dir)

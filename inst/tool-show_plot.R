@@ -26,11 +26,10 @@
 #'   (ggplot, plotly, recordedplot, grob, gtable, trellis, htmlwidget,
 #'   or captured_plot)
 #' @param target string Who sees the plot: 'user' (default) or 'agent'
-#' @param session integer Required when no interactive session is joined. Target a specific daemon session by ID (obtained from manage_r_sessions with action="start"). Omitting session when no interactive session is joined returns an error listing currently active sessions.
 #' @keywords mcpr_tool
 #' @return For target='user': a text confirmation or structuredContent. For target='agent': image
 #'   response with base64-encoded plot and optimization metadata.
-show_plot <- function(plot, target = "user", session = NULL) {
+show_plot <- function(plot, target = "user") {
   # Validate: must be a single non-empty string
   if (!is.character(plot) || length(plot) != 1 || nchar(trimws(plot)) == 0) {
     cli::cli_abort("`plot` must be a non-empty variable name string")

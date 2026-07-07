@@ -6,10 +6,9 @@
 #'
 #' @description Deep analysis of a specific R object. Auto-detects the object type (data frame, vector, list, factor, matrix, function, S3/S4/R6, formula, date/time, environment) and returns a detailed structural and statistical summary. Use this for understanding data structures, examining function definitions, analyzing models, or inspecting any named R object. For session state, errors, terminal output, packages, or help docs, use the view tool instead.
 #' @param object_name character The name of the R object to inspect. Must be an existing object in the current R environment (e.g., "mtcars", "my_model", "my_function").
-#' @param session integer Required when no interactive session is joined. Target a specific daemon session by ID (obtained from manage_r_sessions with action="start"). Omitting session when no interactive session is joined returns an error listing currently active sessions.
 #' @keywords mcpr_tool
 #' @return Detailed formatted analysis of the specified R object
-inspect_object <- function(object_name, session = NULL) {
+inspect_object <- function(object_name) {
   if (!is.character(object_name) || length(object_name) != 1) {
     cli::cli_abort("Object name must be a single character string")
   }
