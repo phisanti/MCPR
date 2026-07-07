@@ -143,32 +143,3 @@ execute_r_code <- function(code, timeout = 300L) {
 
   return(paste(response_parts, collapse = "\n\n"))
 }
-
-# LEGACY ELLMER TOOL DEFINITION (commented out for Phase 2 migration)
-# This will be removed in Phase 3 after full migration validation
-#
-# #' The ellmer tool definition for executing R code
-# #'
-# #' This tool allows AI agents to execute arbitrary R code within the current
-# #' session, enabling stateful interactions and iterative development.
-# execute_r_code_tool <- ellmer::tool(
-#   .fun = execute_r_code,
-#   .description = paste(
-#     "Execute R code in the current R session.",
-#     "This tool allows you to run any valid R code and see the results.",
-#     "The code will be executed in the global environment, so variables",
-#     "and objects created will persist for future tool calls.",
-#     "Use this tool to perform data analysis, create visualizations,",
-#     "load packages, manipulate data, or any other R operation.",
-#     "The tool will return the results, any output, warnings, and errors.",
-#     "For complex multi-line code, ensure proper syntax and use semicolons",
-#     "or newlines to separate statements."
-#   ),
-#   code = ellmer::type_string(
-#     "The R code to execute. Can be a single expression or multiple statements.",
-#     required = TRUE
-#   )
-# )
-
-#' @export
-execute_r_code <- execute_r_code

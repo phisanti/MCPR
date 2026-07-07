@@ -31,15 +31,5 @@
     Windows = file.path(R.home("bin"), "Rscript.exe"),
     file.path(R.home("bin"), "Rscript")
   )
-
-  # Initialize diagnostic logger for execution tracing
-  tryCatch(
-    {
-      initialize_diagnostic_logger()
-    },
-    error = function(e) {
-      # Silently continue if logger initialization fails
-    }
-  )
 }
 # nocov end

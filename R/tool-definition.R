@@ -390,7 +390,7 @@ tool_reject <- function(
 ) {
   check_string(reason)
 
-  rlang::abort(
+  cli::cli_abort(
     paste("Tool call rejected.", reason),
     class = "mcpr_tool_reject"
   )

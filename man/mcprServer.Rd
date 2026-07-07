@@ -25,15 +25,9 @@ This method should only be called in non-interactive contexts because it blocks 
 server <- mcprServer$new()
 server$start() # Blocking call
 
-# Server with custom tools
-my_tool <- tool(
-  function(x) mean(x),
-  name = "mean",
-  description = "Calculate arithmetic mean",
-  arguments = list(x = "number")
-)
-registry <- ToolRegistry$new()
-registry$add_tool(my_tool)
+# Server with tools discovered from a package or directory
+registry <- ToolRegistry$new(tools_dir = "path/to/tools")
+registry$search_tools()
 server <- mcprServer$new(registry = registry)
 server$start()
 

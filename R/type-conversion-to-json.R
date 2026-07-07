@@ -9,14 +9,6 @@ NULL
 
 # Helper functions for type conversion ----------------------------------------
 
-# Handle NULL values
-.mcpr_convert_null <- function(x, ...) {
-  if (is.null(x)) {
-    return(NULL)
-  }
-  NULL
-}
-
 # Handle custom serializers
 .mcpr_convert_custom <- function(x, custom_serializers, ...) {
   obj_class <- class(x)[1]

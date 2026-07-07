@@ -139,12 +139,7 @@ parse_radian_history <- function(radian_lines, session_start_time = NULL, max_co
 
   # If no session start time provided, get R session start time
   if (is.null(session_start_time)) {
-    # Approximate R session start time (when R process started)
-    # This is imperfect but better than showing all historical commands
-    session_start_time <- Sys.time() - as.difftime(as.numeric(Sys.time() - .POSIXct(0)), units = "secs")
-
-    # Try to get more accurate session start from .GlobalEnv creation time
-    # or use a conservative approach (last 4 hours)
+    # Use a conservative fallback when exact process start time is unavailable.
     session_start_time <- Sys.time() - as.difftime(4, units = "hours")
   }
 
@@ -204,29 +199,11 @@ parse_radian_history <- function(radian_lines, session_start_time = NULL, max_co
 #' @return POSIXct timestamp of estimated session start
 #' @noRd
 get_session_start_time <- function() {
-  # Strategy 1: Check if we can get process start time
-  tryCatch(
-    {
-      # Try to get R process start time using ps (Unix-like systems)
-      if (.Platform$OS.type == "unix") {
-        pid <- Sys.getpid()
-        ps_result <- system(paste0("ps -o lstart= -p ", pid), intern = TRUE)
-        if (length(ps_result) > 0 && nzchar(ps_result)) {
-          # This is system-dependent and may not always work
-          # Fallback to conservative estimate
-        }
-      }
-    },
-    error = function(e) {
-      # ps command failed or not available
-    }
-  )
-
-  # Strategy 2: Conservative estimate - assume session started recently
-  # Use a reasonable window (last 2 hours) to avoid showing too much history
+  # Conservative estimate - assume session started recently.
+  # Use a reasonable window to avoid showing too much history.
   session_start <- Sys.time() - as.difftime(2, units = "hours")
 
-  # Strategy 3: If there are objects in GlobalEnv, session has been active
+  # If there are objects in GlobalEnv, session has been active.
   global_objects <- ls(envir = .GlobalEnv, all.names = TRUE)
   if (length(global_objects) > 0) {
     # If we have many objects, session might be longer running

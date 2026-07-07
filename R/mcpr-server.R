@@ -58,15 +58,9 @@ detect_mcp_apps_support <- function(params) {
 #' server <- mcprServer$new()
 #' server$start() # Blocking call
 #'
-#' # Server with custom tools
-#' my_tool <- tool(
-#'   function(x) mean(x),
-#'   name = "mean",
-#'   description = "Calculate arithmetic mean",
-#'   arguments = list(x = "number")
-#' )
-#' registry <- ToolRegistry$new()
-#' registry$add_tool(my_tool)
+#' # Server with tools discovered from a package or directory
+#' registry <- ToolRegistry$new(tools_dir = "path/to/tools")
+#' registry$search_tools()
 #' server <- mcprServer$new(registry = registry)
 #' server$start()
 #'
@@ -96,7 +90,6 @@ mcprServer <- R6::R6Class("mcprServer",
 
       if (!is.null(registry) && !inherits(registry, "ToolRegistry")) {
         error_msg <- "registry must be a ToolRegistry instance"
-        private$log_error(error_msg)
         cli::cli_abort(error_msg)
       }
       if (is.null(registry)) {

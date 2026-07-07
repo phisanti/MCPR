@@ -57,7 +57,7 @@ MCPRLogger <- R6::R6Class("MCPRLogger",
     #' @description Log error message
     #' @param msg Message text
     #' @param comp Optional component override
-    error = function(msg, comp = NULL) self$log(msg, "ERRO", comp),
+    error = function(msg, comp = NULL) self$log(msg, "ERROR", comp),
 
     #' @description Log debug message
     #' @param msg Message text
