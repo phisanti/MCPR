@@ -45,6 +45,132 @@
 }
 
 #' @noRd
+.normalize_scalar_arg <- function(value, spec, path) {
+  if (is.list(value) && is.null(names(value))) {
+    value <- unlist(value, use.names = FALSE)
+  }
+
+  switch(spec$type,
+    "string" = {
+      if (!(is.character(value) && length(value) == 1 && !is.na(value))) {
+        .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a string."))
+      }
+      value
+    },
+    "number" = {
+      if (!(is.numeric(value) && length(value) == 1 && !is.na(value))) {
+        .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a number."))
+      }
+      as.numeric(value)
+    },
+    "integer" = {
+      if (!(is.numeric(value) && length(value) == 1 && !is.na(value) && isTRUE(all.equal(value, round(value))))) {
+        .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be an integer."))
+      }
+      as.integer(round(value))
+    },
+    "boolean" = {
+      if (!(is.logical(value) && length(value) == 1 && !is.na(value))) {
+        .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be true or false."))
+      }
+      value
+    }
+  )
+}
+
+#' @noRd
+.normalize_enum_arg <- function(value, spec, path) {
+  if (!(is.character(value) && length(value) == 1 && !is.na(value) && value %in% spec$values)) {
+    .mcpr_type_error(
+      spec,
+      path,
+      paste0("Parameter ", path, " should be one of: ", paste(spec$values, collapse = ", "), ".")
+    )
+  }
+
+  value
+}
+
+#' @noRd
+.normalize_json_object_arg <- function(value, spec, path) {
+  parsed <- .parse_container_json(value, "a JSON object / named list", path, spec)
+  if (!is.list(parsed) || is.null(names(parsed))) {
+    .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a JSON object / named list."))
+  }
+
+  from_mcpr_json(list(`_mcp_type` = "json_object", value = parsed))
+}
+
+#' @noRd
+.normalize_json_array_arg <- function(value, spec, path) {
+  parsed <- .parse_container_json(value, "a JSON array / list", path, spec)
+  if (is.atomic(parsed) && !is.null(parsed)) {
+    parsed <- as.list(parsed)
+  }
+  if (!is.list(parsed)) {
+    .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a JSON array / list."))
+  }
+
+  from_mcpr_json(list(`_mcp_type` = "json_array", value = parsed))
+}
+
+#' @noRd
+.normalize_object_arg <- function(value, spec, path) {
+  parsed <- .parse_container_json(value, "an object with named fields", path, spec)
+  parsed <- from_mcpr_json(parsed)
+  if (!is.list(parsed) || is.null(names(parsed))) {
+    .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be an object with named fields."))
+  }
+
+  properties <- spec$properties %||% list()
+  required_names <- names(properties)[vapply(properties, function(prop) isTRUE(prop$required), logical(1))]
+  missing_required <- setdiff(required_names, names(parsed))
+  if (length(missing_required) > 0) {
+    cli::cli_abort(
+      "Parameter {.field {path}} is missing required field(s): {.val {missing_required}}.",
+      call = NULL
+    )
+  }
+
+  extra_fields <- setdiff(names(parsed), names(properties))
+  if (!isTRUE(spec$additional_properties) && length(extra_fields) > 0) {
+    cli::cli_abort(
+      "Parameter {.field {path}} contains unexpected field(s): {.val {extra_fields}}.",
+      call = NULL
+    )
+  }
+
+  for (name in intersect(names(parsed), names(properties))) {
+    parsed[[name]] <- normalize_arg_by_type(parsed[[name]], properties[[name]], path = paste0(path, ".", name))
+  }
+
+  parsed
+}
+
+#' @noRd
+.normalize_array_arg <- function(value, spec, path) {
+  parsed <- .parse_container_json(value, "an array", path, spec)
+  parsed <- from_mcpr_json(parsed)
+  if (is.atomic(parsed) && !is.null(parsed)) {
+    parsed <- as.list(parsed)
+  }
+  if (!is.list(parsed)) {
+    .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be an array."))
+  }
+
+  item_spec <- spec$items
+  parsed <- lapply(seq_along(parsed), function(i) {
+    normalize_arg_by_type(parsed[[i]], item_spec, path = paste0(path, "[", i, "]"))
+  })
+
+  if (inherits(item_spec, "mcpr_type") && item_spec$type %in% c("string", "number", "integer", "boolean")) {
+    return(unlist(parsed, use.names = FALSE))
+  }
+
+  parsed
+}
+
+#' @noRd
 normalize_arg_by_type <- function(value, spec, path = "value") {
   if (!inherits(spec, "mcpr_type")) {
     return(value)
@@ -54,123 +180,18 @@ normalize_arg_by_type <- function(value, spec, path = "value") {
     return(NULL)
   }
 
-  if (is.list(value) && is.null(names(value)) && spec$type %in% c("string", "number", "integer", "boolean")) {
-    value <- unlist(value, use.names = FALSE)
-  }
-
-  if (spec$type == "string") {
-    if (!(is.character(value) && length(value) == 1 && !is.na(value))) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a string."))
-    }
-    return(value)
-  }
-
-  if (spec$type == "number") {
-    if (!(is.numeric(value) && length(value) == 1 && !is.na(value))) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a number."))
-    }
-    return(as.numeric(value))
-  }
-
-  if (spec$type == "integer") {
-    if (!(is.numeric(value) && length(value) == 1 && !is.na(value) && isTRUE(all.equal(value, round(value))))) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be an integer."))
-    }
-    return(as.integer(round(value)))
-  }
-
-  if (spec$type == "boolean") {
-    if (!(is.logical(value) && length(value) == 1 && !is.na(value))) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be true or false."))
-    }
-    return(value)
-  }
-
-  if (spec$type == "enum") {
-    if (!(is.character(value) && length(value) == 1 && !is.na(value) && value %in% spec$values)) {
-      .mcpr_type_error(
-        spec,
-        path,
-        paste0("Parameter ", path, " should be one of: ", paste(spec$values, collapse = ", "), ".")
-      )
-    }
-    return(value)
-  }
-
-  if (spec$type == "json_object") {
-    parsed <- .parse_container_json(value, "a JSON object / named list", path, spec)
-    if (!is.list(parsed) || is.null(names(parsed))) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a JSON object / named list."))
-    }
-    return(from_mcpr_json(list(`_mcp_type` = "json_object", value = parsed)))
-  }
-
-  if (spec$type == "json_array") {
-    parsed <- .parse_container_json(value, "a JSON array / list", path, spec)
-    if (is.atomic(parsed) && !is.null(parsed)) {
-      parsed <- as.list(parsed)
-    }
-    if (!is.list(parsed)) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be a JSON array / list."))
-    }
-    return(from_mcpr_json(list(`_mcp_type` = "json_array", value = parsed)))
-  }
-
-  if (spec$type == "object") {
-    parsed <- .parse_container_json(value, "an object with named fields", path, spec)
-    parsed <- from_mcpr_json(parsed)
-    if (!is.list(parsed) || is.null(names(parsed))) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be an object with named fields."))
-    }
-
-    properties <- spec$properties %||% list()
-    required_names <- names(properties)[vapply(properties, function(prop) isTRUE(prop$required), logical(1))]
-    missing_required <- setdiff(required_names, names(parsed))
-    if (length(missing_required) > 0) {
-      cli::cli_abort(
-        "Parameter {.field {path}} is missing required field(s): {.val {missing_required}}.",
-        call = NULL
-      )
-    }
-
-    extra_fields <- setdiff(names(parsed), names(properties))
-    if (!isTRUE(spec$additional_properties) && length(extra_fields) > 0) {
-      cli::cli_abort(
-        "Parameter {.field {path}} contains unexpected field(s): {.val {extra_fields}}.",
-        call = NULL
-      )
-    }
-
-    for (name in intersect(names(parsed), names(properties))) {
-      parsed[[name]] <- normalize_arg_by_type(parsed[[name]], properties[[name]], path = paste0(path, ".", name))
-    }
-
-    return(parsed)
-  }
-
-  if (spec$type == "array") {
-    parsed <- .parse_container_json(value, "an array", path, spec)
-    parsed <- from_mcpr_json(parsed)
-    if (is.atomic(parsed) && !is.null(parsed)) {
-      parsed <- as.list(parsed)
-    }
-    if (!is.list(parsed)) {
-      .mcpr_type_error(spec, path, paste0("Parameter ", path, " should be an array."))
-    }
-
-    item_spec <- spec$items
-    parsed <- lapply(seq_along(parsed), function(i) {
-      normalize_arg_by_type(parsed[[i]], item_spec, path = paste0(path, "[", i, "]"))
-    })
-
-    if (inherits(item_spec, "mcpr_type") && item_spec$type %in% c("string", "number", "integer", "boolean")) {
-      return(unlist(parsed, use.names = FALSE))
-    }
-
-    return(parsed)
-  }
-
-  value
+  switch(spec$type,
+    "string" = ,
+    "number" = ,
+    "integer" = ,
+    "boolean" = .normalize_scalar_arg(value, spec, path),
+    "enum" = .normalize_enum_arg(value, spec, path),
+    "json_object" = .normalize_json_object_arg(value, spec, path),
+    "json_array" = .normalize_json_array_arg(value, spec, path),
+    "object" = .normalize_object_arg(value, spec, path),
+    "array" = .normalize_array_arg(value, spec, path),
+    value
+  )
 }
 
 #' @noRd
@@ -206,6 +227,34 @@ apply_default_audience <- function(item, default_audience = "assistant") {
     }
   }
   item
+}
+
+#' Encode a Single MCP Content Item Response
+#'
+#' @param id JSON-RPC request identifier.
+#' @param item MCP content item.
+#' @param meta Optional MCP `_meta` payload.
+#' @param annotations Optional content annotations.
+#' @param default_audience Audience to add when annotations omit one.
+#' @param is_error Whether the tool result is an error.
+#' @return JSON-RPC response object.
+#' @noRd
+encode_content_item_response <- function(id,
+                                         item,
+                                         meta = NULL,
+                                         annotations = NULL,
+                                         default_audience = "assistant",
+                                         is_error = FALSE) {
+  if (!is.null(annotations)) item$annotations <- annotations
+  item <- apply_default_audience(item, default_audience)
+
+  response_result <- list(
+    content = list(item),
+    isError = is_error
+  )
+  if (!is.null(meta)) response_result[["_meta"]] <- meta
+
+  jsonrpc_response(id, response_result)
 }
 
 #' @title Encode Tool Results
@@ -284,14 +333,14 @@ encode_tool_results <- function(data, result) {
       data = result$data,
       mimeType = result$mimeType %||% "image/png"
     ))
-    if (!is.null(result$annotations)) item$annotations <- result$annotations
-    item <- apply_default_audience(item, default_audience)
-    response_result <- list(
-      content = list(item),
-      isError = is_error
-    )
-    if (!is.null(result$`_meta`)) response_result[["_meta"]] <- result$`_meta`
-    return(jsonrpc_response(data$id, response_result))
+    return(encode_content_item_response(
+      data$id,
+      item,
+      meta = result$`_meta`,
+      annotations = result$annotations,
+      default_audience = default_audience,
+      is_error = is_error
+    ))
   }
 
   # Text content with metadata: tool returned list(type="text", content=..., _meta=...)
@@ -299,14 +348,14 @@ encode_tool_results <- function(data, result) {
       !is.null(result$content) && is.character(result$content)) {
     default_audience <- if (!is.null(result$`_meta`)) "user" else "assistant"
     item <- list(type = "text", text = result$content)
-    if (!is.null(result$annotations)) item$annotations <- result$annotations
-    item <- apply_default_audience(item, default_audience)
-    response_result <- list(
-      content = list(item),
-      isError = is_error
-    )
-    if (!is.null(result$`_meta`)) response_result[["_meta"]] <- result$`_meta`
-    return(jsonrpc_response(data$id, response_result))
+    return(encode_content_item_response(
+      data$id,
+      item,
+      meta = result$`_meta`,
+      annotations = result$annotations,
+      default_audience = default_audience,
+      is_error = is_error
+    ))
   }
 
   # For simple text results

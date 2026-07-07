@@ -46,7 +46,49 @@ install_mcpr <- function(agent = NULL,
                          scope = NULL,
                          server_name = "mcpr",
                          force = FALSE) {
-  # Agent validation
+  args <- normalize_install_mcpr_args(agent, scope, server_name, force)
+  agent <- args$agent
+  scope <- args$scope
+  server_name <- args$server_name
+  force <- args$force
+
+  scope_msg <- install_mcpr_scope_message(agent, scope)
+  cli::cli_alert_info("Configuring MCPR for {.strong {agent}} using {scope_msg}...")
+
+  result <- tryCatch(
+    {
+      agent_spec <- get_agent_specification(agent)
+      config_result <- get_agent_config_path(agent, scope = scope)
+
+      install_mcpr_unified(
+        agent_name = agent,
+        config_path = config_result$path,
+        config_metadata = install_mcpr_config_metadata(agent, config_result),
+        agent_spec = agent_spec,
+        server_name = server_name,
+        force = force,
+        scope = scope
+      )
+    },
+    error = function(e) {
+      cli::cli_alert_danger("Failed to configure {.val {agent}}: {e$message}")
+      list(success = FALSE, error = e$message)
+    }
+  )
+
+  install_mcpr_report_success(agent, result)
+
+  invisible(result)
+}
+
+#' Normalize install_mcpr() arguments
+#' @param agent Agent name supplied to install_mcpr()
+#' @param scope Configuration scope supplied to install_mcpr()
+#' @param server_name MCP server name supplied to install_mcpr()
+#' @param force Whether to overwrite existing configuration
+#' @return List of validated and defaulted arguments
+#' @noRd
+normalize_install_mcpr_args <- function(agent, scope, server_name, force) {
   if (is.null(agent) || length(agent) == 0) {
     cli::cli_abort(
       c(
@@ -80,7 +122,6 @@ install_mcpr <- function(agent = NULL,
   }
 
   if (!agent %in% c("claude", "gemini", "copilot", "codex")) {
-    # Handle invalid agent
     cli::cli_abort(
       c(
         "!" = "Invalid agent: {.val {agent}}",
@@ -89,122 +130,129 @@ install_mcpr <- function(agent = NULL,
     )
   }
 
-  # Handle scope validation and defaults for all agents
-  if (!is.null(scope)) {
-    valid_scopes <- switch(agent,
-      "claude" = c("local", "project", "user"),
-      "copilot" = c("workspace", "user", "remote"),
-      "gemini" = c("global", "project", "ide", "local"),
-      "codex" = c("global"),
-      cli::cli_abort("Internal error: unknown agent in scope validation", .internal = TRUE)
-    )
+  validate_install_mcpr_scope(agent, scope)
+  scope <- scope %||% default_install_mcpr_scope(agent)
 
-    if (!scope %in% valid_scopes) {
-      scope_guidance <- switch(agent,
-        "claude" = c(
-          "i" = "For Claude, scope determines the configuration file location:",
-          "*" = "{.strong local} (default) - Claude Desktop config for general use",
-          "*" = "{.strong project} - Local .mcp.json file for this project only",
-          "*" = "{.strong user} - Claude Code user config (~/.config/claude/)"
-        ),
-        "copilot" = c(
-          "i" = "For Copilot, scope determines VS Code configuration location:",
-          "*" = "{.strong workspace} (default) - VS Code workspace config (.vscode/mcp.json)",
-          "*" = "{.strong user} - VS Code user profile config (global to all workspaces)",
-          "*" = "{.strong remote} - Remote development server config"
-        ),
-        "gemini" = c(
-          "i" = "For Gemini, scope determines configuration location:",
-          "*" = "{.strong global} (default) - Global settings (~/.gemini/settings.json)",
-          "*" = "{.strong local} - Local project settings (./.gemini/settings.json)",
-          "*" = "{.strong project} - Project extension (~/.gemini/extensions/mcpr/)",
-          "*" = "{.strong ide} - IDE-specific config (IntelliJ mcp.json)"
-        ),
-        "codex" = c(
-          "i" = "For Codex, scope determines configuration location:",
-          "*" = "{.strong global} (default) - Global settings (~/.codex/config.toml)"
-        )
-      )
-
-      cli::cli_abort(c(
-        "!" = "Invalid scope for {.strong {agent}}: {.val {scope}}",
-        " " = "",
-        scope_guidance
-      ))
-    }
-  }
-
-  # Set default scopes for each agent if not specified
-  if (is.null(scope)) {
-    scope <- switch(agent,
-      "claude" = "local", # Claude Desktop
-      "copilot" = "workspace", # VS Code workspace
-      "gemini" = "global", # Global settings
-      "codex" = "global", # Codex global settings
-      "local" # fallback
-    )
-  }
   check_string(server_name, arg = "server_name")
   check_bool(force, arg = "force")
 
-  # Configure the single agent with scope-aware messaging
-  scope_msg <- switch(paste(agent, scope, sep = "_"),
-    # Claude scopes
+  list(agent = agent, scope = scope, server_name = server_name, force = force)
+}
+
+#' Validate install_mcpr() scope
+#' @param agent Agent name
+#' @param scope Configuration scope
+#' @noRd
+validate_install_mcpr_scope <- function(agent, scope) {
+  if (is.null(scope)) {
+    return()
+  }
+
+  valid_scopes <- switch(agent,
+    "claude" = c("local", "project", "user"),
+    "copilot" = c("workspace", "user", "remote"),
+    "gemini" = c("global", "project", "ide", "local"),
+    "codex" = c("global"),
+    cli::cli_abort("Internal error: unknown agent in scope validation", .internal = TRUE)
+  )
+
+  if (!scope %in% valid_scopes) {
+    cli::cli_abort(c(
+      "!" = "Invalid scope for {.strong {agent}}: {.val {scope}}",
+      " " = "",
+      install_mcpr_scope_guidance(agent)
+    ))
+  }
+}
+
+#' Get scope guidance for install_mcpr() errors
+#' @param agent Agent name
+#' @return cli bullet vector
+#' @noRd
+install_mcpr_scope_guidance <- function(agent) {
+  switch(agent,
+    "claude" = c(
+      "i" = "For Claude, scope determines the configuration file location:",
+      "*" = "{.strong local} (default) - Claude Desktop config for general use",
+      "*" = "{.strong project} - Local .mcp.json file for this project only",
+      "*" = "{.strong user} - Claude Code user config (~/.config/claude/)"
+    ),
+    "copilot" = c(
+      "i" = "For Copilot, scope determines VS Code configuration location:",
+      "*" = "{.strong workspace} (default) - VS Code workspace config (.vscode/mcp.json)",
+      "*" = "{.strong user} - VS Code user profile config (global to all workspaces)",
+      "*" = "{.strong remote} - Remote development server config"
+    ),
+    "gemini" = c(
+      "i" = "For Gemini, scope determines configuration location:",
+      "*" = "{.strong global} (default) - Global settings (~/.gemini/settings.json)",
+      "*" = "{.strong local} - Local project settings (./.gemini/settings.json)",
+      "*" = "{.strong project} - Project extension (~/.gemini/extensions/mcpr/)",
+      "*" = "{.strong ide} - IDE-specific config (IntelliJ mcp.json)"
+    ),
+    "codex" = c(
+      "i" = "For Codex, scope determines configuration location:",
+      "*" = "{.strong global} (default) - Global settings (~/.codex/config.toml)"
+    )
+  )
+}
+
+#' Get the recommended default scope for install_mcpr()
+#' @param agent Agent name
+#' @return Scope string
+#' @noRd
+default_install_mcpr_scope <- function(agent) {
+  switch(agent,
+    "claude" = "local",
+    "copilot" = "workspace",
+    "gemini" = "global",
+    "codex" = "global",
+    "local"
+  )
+}
+
+#' Get user-facing scope message for install_mcpr()
+#' @param agent Agent name
+#' @param scope Configuration scope
+#' @return Scope description
+#' @noRd
+install_mcpr_scope_message <- function(agent, scope) {
+  switch(paste(agent, scope, sep = "_"),
     "claude_local" = "Claude Desktop configuration",
     "claude_project" = "local project configuration (.mcp.json)",
     "claude_user" = "Claude Code user configuration",
-    # Copilot scopes
     "copilot_workspace" = "VS Code workspace configuration (.vscode/mcp.json)",
     "copilot_user" = "VS Code user profile configuration",
     "copilot_remote" = "remote development configuration",
-    # Gemini scopes
     "gemini_global" = "global settings configuration (~/.gemini/settings.json)",
     "gemini_local" = "local project settings configuration (./.gemini/settings.json)",
     "gemini_project" = "project extension configuration",
     "gemini_ide" = "IDE-specific configuration",
-    # Codex scopes
     "codex_global" = "global settings configuration (~/.codex/config.toml)",
-    # Fallback
     paste(scope, "configuration")
   )
+}
 
-  cli::cli_alert_info("Configuring MCPR for {.strong {agent}} using {scope_msg}...")
+#' Build install_mcpr() configuration metadata
+#' @param agent Agent name
+#' @param config_result Result from get_agent_config_path()
+#' @return Metadata list for install_mcpr_unified()
+#' @noRd
+install_mcpr_config_metadata <- function(agent, config_result) {
+  if (agent == "copilot") {
+    list(config_location = config_result$type)
+  } else {
+    list(config_type = config_result$type)
+  }
+}
 
-  result <- tryCatch(
-    {
-      agent_spec <- get_agent_specification(agent)
-
-      # Get agent configuration path with scope
-      config_result <- get_agent_config_path(agent, scope = scope)
-
-      # Handle metadata key difference
-      config_metadata <- if (agent == "copilot") {
-        list(config_location = config_result$type)
-      } else {
-        list(config_type = config_result$type)
-      }
-
-      install_mcpr_unified(
-        agent_name = agent,
-        config_path = config_result$path,
-        config_metadata = config_metadata,
-        agent_spec = agent_spec,
-        server_name = server_name,
-        force = force,
-        scope = scope
-      )
-    },
-    error = function(e) {
-      cli::cli_alert_danger("Failed to configure {.val {agent}}: {e$message}")
-      list(success = FALSE, error = e$message)
-    }
-  )
-
-  # Success messaging with configuration details
+#' Report successful install_mcpr() result
+#' @param agent Agent name
+#' @param result Installation result
+#' @noRd
+install_mcpr_report_success <- function(agent, result) {
   if (result$success) {
     cli::cli_alert_success("Successfully configured {.strong {agent}} MCPR server!")
-
-    # Show configuration file path
     cli::cli_alert_info("Configuration saved to: {.path {result$config_path}}")
 
     if (!is.null(result$test_command)) {
@@ -223,8 +271,6 @@ install_mcpr <- function(agent = NULL,
       "*" = "Your AI agent can now execute R code and access your workspace!"
     ))
   }
-
-  invisible(result)
 }
 
 

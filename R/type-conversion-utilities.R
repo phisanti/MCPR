@@ -315,85 +315,190 @@ map_type_schema <- function(type_str,
                             function_name = NULL,
                             file_path = NULL) {
   if (input_type == "json") {
-    # Handle JSON schema object input
-    schema <- type_str # Rename for clarity
-    extension_type <- schema[["x-mcpr-type"]] %||% NULL
-    description <- schema$description %||% NULL
-    required <- TRUE # Default to required for MCP compatibility
-    error <- schema[["x-mcpr-error"]] %||% NULL
+    return(map_json_type_schema(type_str))
+  }
 
-    if (!is.null(extension_type)) {
-      switch(extension_type,
-        "json_object" = return(type_json_object(description = description, required = required, error = error)),
-        "json_array" = return(type_json_array(description = description, required = required, error = error))
-      )
+  map_definition_type_schema(
+    type_str,
+    description = description,
+    parameter_name = parameter_name,
+    function_name = function_name,
+    file_path = file_path
+  )
+}
+
+#' @noRd
+map_json_type_schema <- function(schema) {
+  type_context <- json_type_context(schema)
+
+  if (!is.null(type_context$extension_type)) {
+    extension <- map_json_extension_type(type_context)
+    if (!is.null(extension)) {
+      return(extension)
     }
+  }
 
-    # Handle enum types
-    if (!is.null(schema$enum)) {
-      return(type_enum(schema$enum, description = description, required = required, error = error))
-    }
+  if (!is.null(schema$enum)) {
+    return(type_enum(
+      schema$enum,
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
+    ))
+  }
 
-    switch(schema$type %||% "string",
-      "string" = type_string(description = description, required = required, error = error),
-      "number" = type_number(description = description, required = required, error = error),
-      "integer" = type_integer(description = description, required = required, error = error),
-      "boolean" = type_boolean(description = description, required = required, error = error),
-      "array" = {
-        items_type <- if (!is.null(schema$items)) {
-          map_type_schema(schema$items, input_type = "json")
-        } else {
-          type_string()
-        }
-        type_array(items_type, description = description, required = required, error = error)
-      },
-      "object" = {
-        additional <- isTRUE(schema$additionalProperties)
-        if (!is.null(schema$properties)) {
-          props <- list()
-          for (prop_name in names(schema$properties)) {
-            props[[prop_name]] <- map_type_schema(schema$properties[[prop_name]], input_type = "json")
-          }
-          do.call(type_object, c(list(.description = description, .required = required, .additional_properties = additional, .error = error), props))
-        } else {
-          type_object(.description = description, .required = required, .additional_properties = additional, .error = error)
-        }
-      },
-      # Default fallback
-      type_string(description = description, required = required, error = error)
+  dispatch_json_type_schema(schema, type_context)
+}
+
+#' @noRd
+json_type_context <- function(schema) {
+  list(
+    extension_type = schema[["x-mcpr-type"]] %||% NULL,
+    description = schema$description %||% NULL,
+    required = TRUE,
+    error = schema[["x-mcpr-error"]] %||% NULL
+  )
+}
+
+#' @noRd
+map_json_extension_type <- function(type_context) {
+  switch(type_context$extension_type,
+    "json_object" = type_json_object(
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
+    ),
+    "json_array" = type_json_array(
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
+    ),
+    NULL
+  )
+}
+
+#' @noRd
+dispatch_json_type_schema <- function(schema, type_context) {
+  switch(schema$type %||% "string",
+    "string" = type_string(
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
+    ),
+    "number" = type_number(
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
+    ),
+    "integer" = type_integer(
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
+    ),
+    "boolean" = type_boolean(
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
+    ),
+    "array" = map_json_array_schema(schema, type_context),
+    "object" = map_json_object_schema(schema, type_context),
+    type_string(
+      description = type_context$description,
+      required = type_context$required,
+      error = type_context$error
     )
+  )
+}
+
+#' @noRd
+map_json_array_schema <- function(schema, type_context) {
+  items_type <- if (!is.null(schema$items)) {
+    map_type_schema(schema$items, input_type = "json")
   } else {
-    # Handle string-based type definition input (original logic)
-    description <- description %||% ""
-    lower_type <- tolower(type_str)
+    type_string()
+  }
 
-    if (!lower_type %in% mcpr_supported_definition_types(include_aliases = TRUE)) {
-      abort_unsupported_mcpr_definition_type(
-        type_str,
-        parameter_name = parameter_name,
-        function_name = function_name,
-        file_path = file_path
-      )
-    }
+  type_array(
+    items_type,
+    description = type_context$description,
+    required = type_context$required,
+    error = type_context$error
+  )
+}
 
-    switch(lower_type,
-      "json_object" = type_json_object(description = description),
-      "named_list" = type_json_object(description = description),
-      "list" = type_json_object(description = description),
-      "json_array" = type_json_array(description = description),
-      "character" = ,
-      "string" = type_string(description = description),
-      "numeric" = ,
-      "number" = type_number(description = description),
-      "integer" = ,
-      "int" = type_integer(description = description),
-      "logical" = ,
-      "boolean" = ,
-      "bool" = type_boolean(description = description),
-      "list" = ,
-      "object" = type_object(.description = description, .additional_properties = TRUE),
-      "array" = type_array(description = description, items = type_string()),
-      type_string(description = description)
+#' @noRd
+map_json_object_schema <- function(schema, type_context) {
+  additional <- isTRUE(schema$additionalProperties)
+  props <- map_json_object_properties(schema$properties)
+
+  do.call(
+    type_object,
+    c(
+      list(
+        .description = type_context$description,
+        .required = type_context$required,
+        .additional_properties = additional,
+        .error = type_context$error
+      ),
+      props
+    )
+  )
+}
+
+#' @noRd
+map_json_object_properties <- function(properties) {
+  if (is.null(properties)) {
+    return(list())
+  }
+
+  props <- list()
+  for (prop_name in names(properties)) {
+    props[[prop_name]] <- map_type_schema(properties[[prop_name]], input_type = "json")
+  }
+
+  props
+}
+
+#' @noRd
+map_definition_type_schema <- function(type_str,
+                                       description = NULL,
+                                       parameter_name = NULL,
+                                       function_name = NULL,
+                                       file_path = NULL) {
+  description <- description %||% ""
+  lower_type <- tolower(type_str)
+
+  if (!lower_type %in% mcpr_supported_definition_types(include_aliases = TRUE)) {
+    abort_unsupported_mcpr_definition_type(
+      type_str,
+      parameter_name = parameter_name,
+      function_name = function_name,
+      file_path = file_path
     )
   }
+
+  dispatch_definition_type_schema(lower_type, description)
+}
+
+#' @noRd
+dispatch_definition_type_schema <- function(lower_type, description) {
+  switch(lower_type,
+    "json_object" = type_json_object(description = description),
+    "named_list" = type_json_object(description = description),
+    "list" = type_json_object(description = description),
+    "json_array" = type_json_array(description = description),
+    "character" = ,
+    "string" = type_string(description = description),
+    "numeric" = ,
+    "number" = type_number(description = description),
+    "integer" = ,
+    "int" = type_integer(description = description),
+    "logical" = ,
+    "boolean" = ,
+    "bool" = type_boolean(description = description),
+    "list" = ,
+    "object" = type_object(.description = description, .additional_properties = TRUE),
+    "array" = type_array(description = description, items = type_string()),
+    type_string(description = description)
+  )
 }

@@ -246,20 +246,7 @@ mcprClient <- R6::R6Class("mcprClient",
 
     # Create JSON-RPC tool call request message
     mcp_request_tool_call = function(id, tool, arguments) {
-      if (length(arguments) == 0) {
-        params <- list(name = tool)
-      } else {
-        params <- list(
-          name = tool,
-          arguments = arguments
-        )
-      }
-      list(
-        jsonrpc = "2.0",
-        id = id,
-        method = "tools/call",
-        params = params
-      )
+      create_tool_request(id = id, tool = tool, arguments = arguments)
     },
 
     # Generate and increment JSON-RPC ID for server
