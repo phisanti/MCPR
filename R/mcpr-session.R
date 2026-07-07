@@ -308,7 +308,7 @@ mcprSession <- R6::R6Class("mcprSession",
         return(response)
       }
 
-      is_daemon <- startsWith(Sys.getenv("MCPR_CLIENT_ID", ""), "daemon-")
+      is_daemon <- is_secondary_session_key(Sys.getenv("MCPR_CLIENT_ID", ""))
       footer <- if (is_daemon) {
         sprintf("Session: %d (isolated).", session_id)
       } else {
@@ -360,10 +360,10 @@ mcp_apps_supported <- function() {
 #' Make R Session Available to MCP Server
 #'
 #' @title Make R Session Available to MCP Server
-#' @description Makes interactive R session discoverable by MCP server for tool execution.
-#' Creates nanonext socket and listens on unique URL for server communication.
-#' Enables AI assistants to execute code and tools within specific R session
-#' through persistent workspace collaboration.
+#' @description Makes an already-running interactive R session discoverable by
+#' the MCP server for tool execution. This is the user-facing lifecycle entry
+#' point for collaborative sessions and is paired with [mcpr_session_stop()].
+#' For MCPR-owned headless/secondary sessions, use [mcp_session()] instead.
 #'
 #' @param timeout_seconds Timeout in seconds before session cleanup (default: 900)
 #' @return mcprSession instance (invisibly)
@@ -383,9 +383,9 @@ mcpr_session_start <- function(timeout_seconds = 900) {
 #' Stop MCP Session
 #'
 #' @title Stop MCP Session
-#' @description Stops active MCP session and cleans up resources including socket
-#' connections and global state variables. Provides clean session termination
-#' for resource management and session lifecycle control.
+#' @description Stops the interactive session started by [mcpr_session_start()]
+#' and cleans up its socket and global state. This does not close MCPR-owned
+#' secondary sessions started through server session management.
 #'
 #' @return None (invisible)
 #' @export
@@ -401,9 +401,11 @@ mcpr_session_stop <- function() {
 #' Launch Headless MCP Session
 #'
 #' @title Launch MCP Session
-#' @description Starts an MCP session in the current process, optionally binding to a
-#'   specific session ID and working directory. Designed for non-interactive contexts
-#'   where the agent needs to provision an R session on demand.
+#' @description Starts an MCP session in the current process, optionally binding
+#'   to a specific session ID and working directory. This lower-level entry point
+#'   is used for non-interactive/headless sessions that the MCPR server provisions
+#'   on demand; ordinary users should prefer [mcpr_session_start()] in an
+#'   interactive R session.
 #'
 #' @param session_id Optional integer session/socket identifier to bind.
 #' @param timeout_seconds Session timeout before auto-cleanup (default: 900 seconds).

@@ -50,6 +50,37 @@ daemon_process_label <- function(session_id) {
   sprintf("MCPR-%d", as.integer(session_id))
 }
 
+#' Secondary-session registry key prefix
+#'
+#' @description Compatibility prefix used by current secondary-session
+#' registries and `MCPR_CLIENT_ID` values.
+#' @noRd
+secondary_session_key_prefix <- "daemon-"
+
+#' Build a registry key for an MCPR-owned secondary session
+#'
+#' @description Returns the canonical compatibility key used in server
+#' registries, environment variables, and session-manager bindings for
+#' secondary sessions.
+#' @param session_id Integer. The session port number.
+#' @return Character(1).
+#' @noRd
+secondary_session_key <- function(session_id) {
+  paste0(secondary_session_key_prefix, as.integer(session_id))
+}
+
+#' Test whether a session key identifies a secondary session
+#'
+#' @description Checks the canonical compatibility key prefix for
+#' secondary sessions.
+#' @param key Character scalar.
+#' @return Logical scalar.
+#' @noRd
+is_secondary_session_key <- function(key) {
+  is.character(key) && length(key) == 1L &&
+    startsWith(key, secondary_session_key_prefix)
+}
+
 #' Find an available secondary-session socket port
 #'
 #' @description Scans ports 2..1023 via nanonext::listen to find the first

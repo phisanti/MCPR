@@ -13,10 +13,10 @@ mcpr_session_start(timeout_seconds = 900)
 mcprSession instance (invisibly)
 }
 \description{
-Makes interactive R session discoverable by MCP server for tool execution.
-Creates nanonext socket and listens on unique URL for server communication.
-Enables AI assistants to execute code and tools within specific R session
-through persistent workspace collaboration.
+Makes an already-running interactive R session discoverable by
+the MCP server for tool execution. This is the user-facing lifecycle entry
+point for collaborative sessions and is paired with \code{\link[=mcpr_session_stop]{mcpr_session_stop()}}.
+For MCPR-owned headless/secondary sessions, use \code{\link[=mcp_session]{mcp_session()}} instead.
 }
 \details{
 Make R Session Available to MCP Server

@@ -76,6 +76,14 @@ test_that("daemon_process_label returns correct format", {
   expect_equal(MCPR:::daemon_process_label(42L), "MCPR-42")
 })
 
+test_that("secondary session keys use one canonical compatibility format", {
+  expect_equal(MCPR:::secondary_session_key(5L), "daemon-5")
+  expect_equal(MCPR:::secondary_session_key("42"), "daemon-42")
+  expect_true(MCPR:::is_secondary_session_key("daemon-5"))
+  expect_false(MCPR:::is_secondary_session_key("human-5"))
+  expect_false(MCPR:::is_secondary_session_key(c("daemon-5", "daemon-6")))
+})
+
 test_that("register_daemon then unregister_daemon round-trips cleanly", {
   old_sessions <- the$daemon_sessions
   old_sockets <- the$daemon_sockets

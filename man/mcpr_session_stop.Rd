@@ -10,9 +10,9 @@ mcpr_session_stop()
 None (invisible)
 }
 \description{
-Stops active MCP session and cleans up resources including socket
-connections and global state variables. Provides clean session termination
-for resource management and session lifecycle control.
+Stops the interactive session started by \code{\link[=mcpr_session_start]{mcpr_session_start()}}
+and cleans up its socket and global state. This does not close MCPR-owned
+secondary sessions started through server session management.
 }
 \details{
 Stop MCP Session

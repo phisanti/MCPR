@@ -317,7 +317,7 @@ mcprServer <- R6::R6Class("mcprServer",
       list(
         start_secondary = function(working_dir = getwd()) {
           session_id <- find_daemon_port()
-          key <- sprintf("daemon-%d", session_id)
+          key <- secondary_session_key(session_id)
           private$log_info(sprintf("Starting secondary session %d", session_id))
           proc <- spawn_daemon(key, session_id, working_dir = working_dir)
           register_daemon(key, session_id)

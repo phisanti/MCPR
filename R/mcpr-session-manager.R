@@ -333,7 +333,7 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
     },
 
     secondary_key = function(session_id) {
-      sprintf("daemon-%d", as.integer(session_id))
+      secondary_session_key(session_id)
     },
 
     normalize_key = function(key_or_session) {

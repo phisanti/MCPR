@@ -25,9 +25,11 @@ If FALSE, block in event loop until session stops (for interactive use). Default
 The mcprSession instance (invisibly).
 }
 \description{
-Starts an MCP session in the current process, optionally binding to a
-specific session ID and working directory. Designed for non-interactive contexts
-where the agent needs to provision an R session on demand.
+Starts an MCP session in the current process, optionally binding
+to a specific session ID and working directory. This lower-level entry point
+is used for non-interactive/headless sessions that the MCPR server provisions
+on demand; ordinary users should prefer \code{\link[=mcpr_session_start]{mcpr_session_start()}} in an
+interactive R session.
 }
 \details{
 Launch Headless MCP Session
