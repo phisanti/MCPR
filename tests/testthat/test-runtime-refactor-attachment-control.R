@@ -45,12 +45,21 @@ test_that("control actions still work after an attached binding is marked dead",
   expect_equal(manager$active_label(), "private (local)")
 })
 
-test_that("pending timeout resets an active attached binding to private/local", {
+test_that("pending timeout recycles an active secondary binding", {
   server <- mcprServer$new(.tools_dir = system.file(package = "MCPR", mustWork = TRUE))
   manager <- server$session_manager()
   manager_priv <- manager$.__enclos_env__$private
+  closed <- integer(0)
+  next_session_id <- 51L
   manager_priv$.callbacks <- list(
-    start_secondary = function(working_dir = getwd()) list(session_id = 51L, key = "daemon-51")
+    start_secondary = function(working_dir = getwd()) {
+      session_id <- next_session_id
+      next_session_id <<- next_session_id + 1L
+      list(session_id = session_id, key = MCPR:::secondary_session_key(session_id))
+    },
+    close_secondary = function(binding) {
+      closed <<- c(closed, binding$session_id)
+    }
   )
 
   manager$handle_control("start")
@@ -71,7 +80,9 @@ test_that("pending timeout resets an active attached binding to private/local", 
   priv$sweep_pending_requests()
 
   expect_equal(captured$error$code, -32603L)
-  expect_equal(manager$active_label(), "private (local)")
+  expect_match(captured$error$message, "recycled automatically", fixed = TRUE)
+  expect_equal(closed, 51L)
+  expect_equal(manager$active_label(), "52 (attached secondary)")
   expect_null(priv$.pending_requests[["daemon-51"]])
   expect_true("510" %in% priv$.timed_out_ids)
 })

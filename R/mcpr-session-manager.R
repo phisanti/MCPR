@@ -263,6 +263,92 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
       was_active
     },
 
+    #' @description Recover from a timed-out attached session.
+    #' @param key_or_session Session key or id.
+    #' @return A list describing the recovery action.
+    recover_timeout = function(key_or_session) {
+      key <- private$normalize_key(key_or_session)
+      if (is.null(key)) {
+        return(list(action = "none"))
+      }
+
+      binding <- private$.sessions[[key]]
+      if (is.null(binding)) {
+        self$mark_dead(key_or_session)
+        return(list(action = "marked_dead", key = key))
+      }
+
+      old_session_id <- binding$session_id
+      was_active <- identical(private$.active_binding$key, key)
+      private$.sessions[[key]] <- NULL
+      if (was_active) {
+        private$.active_binding <- private$.private_binding
+      }
+
+      if (identical(binding$type, "secondary") && isTRUE(binding$owned)) {
+        close_error <- tryCatch(
+          {
+            private$call_callback("close_secondary", binding)
+            NULL
+          },
+          error = function(e) e
+        )
+        if (inherits(close_error, "error")) {
+          cli::cli_warn(
+            "Failed to close timed-out secondary session {old_session_id}: {conditionMessage(close_error)}"
+          )
+        }
+
+        if (was_active) {
+          started <- tryCatch(self$start_secondary(), error = function(e) e)
+          if (!inherits(started, "error")) {
+            new_binding <- private$.active_binding
+            private$.last_dead_notice <- sprintf(
+              "Previous active session %s timed out and was recycled as session %s.",
+              old_session_id,
+              new_binding$session_id
+            )
+            return(list(
+              action = "recycled",
+              old_session_id = old_session_id,
+              new_session_id = new_binding$session_id,
+              key = key
+            ))
+          }
+          cli::cli_warn(
+            "Failed to restart timed-out secondary session {old_session_id}: {conditionMessage(started)}"
+          )
+        }
+
+        private$.last_dead_notice <- sprintf(
+          "Previous active session %s timed out and was closed.",
+          old_session_id
+        )
+        return(list(action = "closed", old_session_id = old_session_id, key = key))
+      }
+
+      if (identical(binding$type, "human") && !is.null(binding$socket)) {
+        detach_error <- tryCatch(
+          {
+            private$call_callback("detach_human", binding)
+            NULL
+          },
+          error = function(e) e
+        )
+        if (inherits(detach_error, "error")) {
+          cli::cli_warn(
+            "Failed to detach timed-out human session {old_session_id}: {conditionMessage(detach_error)}"
+          )
+        }
+      }
+
+      private$.last_dead_notice <- sprintf(
+        "Previous active session %s timed out and was detached.",
+        old_session_id
+      )
+      list(action = "detached", old_session_id = old_session_id, key = key)
+    },
+
     #' @description Clean up sessions owned or joined by this manager.
     #' @return Invisibly TRUE.
     # Tear down only the bindings this manager owns or has joined.

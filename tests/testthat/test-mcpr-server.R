@@ -808,7 +808,7 @@ test_that("sweep_pending_requests fires timeout error and tracks id after timeou
 
   expect_equal(captured$error$code, -32603L)
   expect_match(captured$error$message, "timed out after 60s", fixed = TRUE)
-  expect_match(captured$error$message, "manage_r_sessions", fixed = TRUE)
+  expect_match(captured$error$message, "marked dead", fixed = TRUE)
   expect_null(priv$.pending_requests[["daemon-5"]])
   expect_true("30" %in% priv$.timed_out_ids)
 })

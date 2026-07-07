@@ -173,6 +173,36 @@ test_that("dead active attached binding resets to private/local", {
   expect_match(listing, "Previous active session 46 is no longer responding.", fixed = TRUE)
 })
 
+test_that("timed-out active secondary is closed and recycled", {
+  started <- 46L
+  closed <- integer(0)
+  manager <- MCPR:::mcprSessionManager$new(
+    enabled = TRUE,
+    callbacks = list(
+      start_secondary = function(working_dir = getwd()) {
+        started <<- started + 1L
+        list(session_id = started, key = MCPR:::secondary_session_key(started))
+      },
+      close_secondary = function(binding) {
+        closed <<- c(closed, binding$session_id)
+      }
+    )
+  )
+
+  manager$handle_control("start")
+  recovery <- manager$recover_timeout("daemon-47")
+  listing <- manager$handle_control("list")
+
+  expect_equal(recovery$action, "recycled")
+  expect_equal(recovery$old_session_id, 47L)
+  expect_equal(recovery$new_session_id, 48L)
+  expect_equal(closed, 47L)
+  expect_equal(manager$active_binding()$type, "secondary")
+  expect_equal(manager$active_binding()$session_id, 48L)
+  expect_match(listing, "Active session: 48 (attached secondary)", fixed = TRUE)
+  expect_match(listing, "Previous active session 47 timed out and was recycled as session 48.", fixed = TRUE)
+})
+
 test_that("start_secondary callback receives current working directory", {
   original_wd <- getwd()
   temp_wd <- tempfile("mcpr-secondary-wd-")

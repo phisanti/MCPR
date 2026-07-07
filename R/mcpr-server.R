@@ -821,6 +821,18 @@ mcprServer <- R6::R6Class("mcprServer",
             "Request %s to session '%s' timed out after %ds",
             req$client_request_id, key, req$timeout_secs
           ))
+          recovery <- private$.session_manager$recover_timeout(key)
+          recovery_text <- switch(
+            recovery$action %||% "none",
+            recycled = sprintf(
+              "The timed-out worker was recycled automatically; future calls will use session '%s'.",
+              recovery$new_session_id
+            ),
+            closed = "The timed-out worker was closed automatically. Start a new session to continue attached execution.",
+            detached = "MCPR detached from the timed-out human-owned session to avoid killing user work.",
+            marked_dead = "The timed-out session was marked dead.",
+            "The timed-out session state was cleared."
+          )
           cat_json(jsonrpc_response(
             req$client_request_id,
             error = list(
@@ -829,9 +841,9 @@ mcprServer <- R6::R6Class("mcprServer",
                 paste0(
                   "Code execution timed out after %ds in session '%s'. ",
                   "For long-running computations, pass a larger timeout= value. ",
-                  "If the session appears stuck, use manage_r_sessions to inspect or restart it."
+                  "%s"
                 ),
-                req$timeout_secs, key
+                req$timeout_secs, key, recovery_text
               )
             )
           ))
@@ -841,7 +853,6 @@ mcprServer <- R6::R6Class("mcprServer",
             c(private$.timed_out_ids, as.character(req$client_request_id)),
             500L
           )
-          private$.session_manager$mark_dead(key)
           private$.pending_requests[[key]] <- NULL
         }
       }
