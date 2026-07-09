@@ -139,10 +139,21 @@ mcprServer <- R6::R6Class("mcprServer",
       client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
       private$setup_session_transport()
 
+      # Orphan guard: record the launcher (parent) PID at startup. If the client
+      # process dies without a clean stdin EOF, the server reparents to PID 1;
+      # nanonext never delivers that EOF, so poll for it here each loop tick.
+      launcher_pid <- private$parent_pid()
+
       private$.running <- TRUE
       while (TRUE) {
         # TRUE = event fired; FALSE = 5s sweep tick — either way check all listeners
         nanonext::until(private$.cv, 5000L)
+
+        # Parent-death guard: reparented to init (PID 1) or launcher gone -> exit.
+        if (private$is_orphaned(launcher_pid)) {
+          self$stop()
+          break
+        }
 
         if (!is.null(private$.session_reader) &&
             !nanonext::unresolved(private$.session_reader)) {
@@ -308,6 +319,26 @@ mcprServer <- R6::R6Class("mcprServer",
     .pending_requests = list(),     # session_key → pending request info (one per session)
     .timed_out_ids = character(0),  # JSON-RPC ids already sent a timeout error (to drop late responses)
     .execution_timeout_secs = 300L, # server-level default execution timeout
+
+    # Current parent (launcher) PID via a C-level ps call (no subprocess).
+    # Returns NA if it cannot be read; the caller then falls back to its belt.
+    parent_pid = function() {
+      ppid <- tryCatch(ps::ps_ppid(), error = function(e) NA_integer_)
+      if (length(ppid) != 1L) NA_integer_ else as.integer(ppid)
+    },
+
+    # Orphan detection: TRUE once the launcher is gone. Primary signal is
+    # reparent-to-init (current PPID == 1), robust against PID reuse. Belt:
+    # the recorded launcher PID no longer accepts signal 0.
+    is_orphaned = function(launcher_pid) {
+      ppid <- private$parent_pid()
+      if (!is.na(ppid) && ppid <= 1L) return(TRUE)
+      if (!is.na(launcher_pid) && launcher_pid > 1L &&
+          !isTRUE(tools::pskill(launcher_pid, signal = 0L))) {
+        return(TRUE)
+      }
+      FALSE
+    },
 
     has_session_capability = function() {
       "manage_r_sessions" %in% names(private$.tools)

@@ -951,3 +951,29 @@ test_that("resources/read returns -32603 when resource_reader throws", {
   expect_false(is.null(resp))
   expect_equal(resp$error$code, -32603L)
 })
+
+test_that("is_orphaned detects a dead launcher and reparent-to-init", {
+  skip_on_os("windows")
+  skip_if_not_installed("processx")
+
+  server <- mcprServer$new(.tools_dir = tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  # parent_pid() reads this test process's real, live parent PID.
+  expect_true(is.na(priv$parent_pid()) || priv$parent_pid() > 1L)
+
+  # A freshly-exited process gives a reliably-dead PID for the belt signal.
+  gone <- processx::process$new(Sys.which("true"))
+  gone$wait()
+  dead_pid <- gone$get_pid()
+
+  # Belt: recorded launcher gone (this process's real parent is alive & != 1).
+  expect_true(priv$is_orphaned(dead_pid))
+  # Live launcher (this process itself), not reparented -> not orphaned.
+  expect_false(priv$is_orphaned(Sys.getpid()))
+
+  # Primary: simulate reparent-to-init by mocking the parent-PID probe -> 1.
+  # Orphaned regardless of the launcher argument.
+  local_mocked_bindings(ps_ppid = function(...) 1L, .package = "ps")
+  expect_true(priv$is_orphaned(Sys.getpid()))
+})
