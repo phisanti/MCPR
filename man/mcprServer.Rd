@@ -83,6 +83,7 @@ Initialize the MCP server with optional tools
 \if{html}{\out{<div class="r">}}\preformatted{mcprServer$new(
   registry = NULL,
   .tools_dir = NULL,
+  log_file = NULL,
   execution_timeout_secs = 300L,
   resource_registry = NULL
 )}\if{html}{\out{</div>}}
@@ -94,6 +95,8 @@ Initialize the MCP server with optional tools
 \item{\code{registry}}{A ToolRegistry instance to use for tool discovery}
 
 \item{\code{.tools_dir}}{Internal parameter for specifying tools directory path}
+
+\item{\code{log_file}}{Optional log file path for the server logger}
 
 \item{\code{execution_timeout_secs}}{Default seconds before a forwarded request is considered
 timed out (default: 300). Override per-call via the \code{timeout} argument in tools like

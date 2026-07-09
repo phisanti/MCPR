@@ -7,6 +7,7 @@
 mcpr_server(
   registry = NULL,
   resource_registry = NULL,
+  log_file = NULL,
   execution_timeout_secs = 300L
 )
 }
@@ -15,6 +16,9 @@ mcpr_server(
 
 \item{resource_registry}{An MCPResourceRegistry instance for custom MCP resources.
 If NULL (default), the built-in plot viewer registry is used.}
+
+\item{log_file}{Optional log file path for the server logger. If NULL, the logger
+falls back to the package default.}
 
 \item{execution_timeout_secs}{Default seconds before a forwarded request is considered
 timed out (default: 300). Individual tools can override via their \code{timeout} argument.}

@@ -1,7 +1,7 @@
 Package: MCPR
 Type: Package
 Title: MCPR: Model Context Protocol Implementation for R Session Integration
-Version: 0.9.76
+Version: 0.9.77
 Authors@R: 
     person("Santiago", "Cano-Muniz", , "tisalon@outlook.com", role = c("aut", "cre"))
 Author: Santiago Cano-Muniz [aut, cre]
@@ -57,8 +57,8 @@ VignetteBuilder: knitr
 SystemRequirements: Unix sockets (Unix), Named pipes (Windows)
 Collate:
     'aaa.R'
-    'inspect-object.R'
     'inspect-object-classes.R'
+    'inspect-object.R'
     'utils.R'
     'install-mcpr-toml.R'
     'type-conversion-from-json.R'
@@ -87,3 +87,4 @@ Collate:
     'view-utils.R'
     'view-session-state.R'
     'view-system-info.R'
+    'view-vignette.R'

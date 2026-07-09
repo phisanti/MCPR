@@ -28,6 +28,21 @@ test_that("view help target errors without topic", {
   expect_error(view("help", topic = ""))
 })
 
+test_that("view vignette is a valid what option", {
+  testthat::skip_if_not_installed("dplyr")
+  info <- tryCatch(tools::getVignetteInfo("dplyr"), error = function(e) NULL)
+  testthat::skip_if(is.null(info) || nrow(info) == 0, "dplyr has no installed vignettes")
+
+  result <- view("vignette", topic = "dplyr", max_lines = 10)
+  expect_type(result, "character")
+  expect_true(grepl("View completed: vignette", result))
+})
+
+test_that("view vignette target errors without topic", {
+  expect_error(view("vignette"))
+  expect_error(view("vignette", topic = ""))
+})
+
 test_that("view rejects invalid arguments", {
   # Invalid what argument
   expect_error(view("invalid_option"), "should be one of")
