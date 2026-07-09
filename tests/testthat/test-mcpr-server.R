@@ -148,6 +148,19 @@ test_that("mcpr_server convenience function creates and returns a server instanc
   server_instance_empty <- mcpr_server(registry = empty_registry)
   expect_s3_class(server_instance_empty, "mcprServer")
   expect_true(server_instance_empty$is_running(), "Server with empty registry should be running")
+
+  # Test that a caller-supplied log file is used by the server logger
+  custom_log_file <- tempfile(fileext = ".log")
+  on.exit(unlink(custom_log_file), add = TRUE)
+
+  server_instance_custom <- mcpr_server(
+    registry = empty_registry,
+    log_file = custom_log_file
+  )
+  expect_s3_class(server_instance_custom, "mcprServer")
+  server_instance_custom$.__enclos_env__$private$.logger$info("Custom logfile message")
+  expect_true(file.exists(custom_log_file))
+  expect_true(any(grepl("Custom logfile message", readLines(custom_log_file))))
 })
 
 test_that("mcprServer get_tools returns tools in list format", {

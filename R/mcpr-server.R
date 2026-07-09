@@ -52,6 +52,7 @@ detect_mcp_apps_support <- function(params) {
 #' }
 #'
 #' @param registry A ToolRegistry instance for tool discovery and management
+#' @param log_file Optional log file path for the server logger
 #' @param .tools_dir Internal parameter for specifying tools directory path
 #' @examples
 #' \dontrun{
@@ -76,15 +77,16 @@ mcprServer <- R6::R6Class("mcprServer",
     #' @description Initialize the MCP server with optional tools
     #' @param registry A ToolRegistry instance to use for tool discovery
     #' @param .tools_dir Internal parameter for specifying tools directory path
+    #' @param log_file Optional log file path for the server logger
     #' @param execution_timeout_secs Default seconds before a forwarded request is considered
     #'   timed out (default: 300). Override per-call via the `timeout` argument in tools like
     #'   `execute_r_code`.
     #' @param resource_registry An MCPResourceRegistry instance. If NULL (default), a built-in
     #'   registry with the MCPR plot viewer is created automatically.
     #' @return A new mcprServer instance
-    initialize = function(registry = NULL, .tools_dir = NULL, execution_timeout_secs = 300L,
+    initialize = function(registry = NULL, .tools_dir = NULL, log_file = NULL, execution_timeout_secs = 300L,
                           resource_registry = NULL) {
-      self$initialize_base("SERVER")
+      self$initialize_base("SERVER", log_file = log_file)
       private$.mcpr_version <- mcpr_package_version()
 
       private$.execution_timeout_secs <- as.integer(execution_timeout_secs)
@@ -780,21 +782,24 @@ mcprServer <- R6::R6Class("mcprServer",
 #' blocking event loop with automatic tool discovery and registration.
 #'
 #' @param registry A ToolRegistry instance to use for tool discovery
-#' @param execution_timeout_secs Default seconds before a forwarded request is considered
-#'   timed out (default: 300). Individual tools can override via their `timeout` argument.
 #' @param resource_registry An MCPResourceRegistry instance for custom MCP resources.
 #'   If NULL (default), the built-in plot viewer registry is used.
+#' @param log_file Optional log file path for the server logger. If NULL, the logger
+#'   falls back to the package default.
+#' @param execution_timeout_secs Default seconds before a forwarded request is considered
+#'   timed out (default: 300). Individual tools can override via their `timeout` argument.
 #' @return The server instance (invisibly)
 #' @examples
 #' \dontrun{
 #' MCPR::mcpr_server()
 #' }
 #' @export
-mcpr_server <- function(registry = NULL, resource_registry = NULL,
+mcpr_server <- function(registry = NULL, resource_registry = NULL, log_file = NULL,
                         execution_timeout_secs = 300L) {
   server <- mcprServer$new(
     registry               = registry,
     resource_registry      = resource_registry,
+    log_file               = log_file,
     execution_timeout_secs = execution_timeout_secs
   )
   server$start()

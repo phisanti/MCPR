@@ -27,14 +27,15 @@ BaseMCPR <- R6::R6Class("BaseMCPR",
   public = list(
     #' @description Initialize base MCPR functionality with component identification
     #' @param component_name Component identifier for logging and state management
+    #' @param log_file Optional log file path to pass to the component logger
     #' @return New BaseMCPR instance
-    initialize_base = function(component_name) {
+    initialize_base = function(component_name, log_file = NULL) {
       if (missing(component_name) || !is.character(component_name) || length(component_name) != 1) {
         cli::cli_abort("component_name must be a single character string")
       }
 
       private$.component_name <- component_name
-      private$.logger <- MCPRLogger$new(component = component_name)
+      private$.logger <- MCPRLogger$new(file = log_file, component = component_name)
       private$.cleanup_registry <- list()
       private$.state_keys <- character(0)
       private$.initialized <- TRUE
