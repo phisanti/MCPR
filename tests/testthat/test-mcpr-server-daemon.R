@@ -130,10 +130,10 @@ test_that("find_daemon_port returns different ports on successive calls when por
   expect_true(port2 != port1)
 })
 
-# --- spawn_daemon / await_daemon_ready integration tests ---
+# --- spawn_daemon / connect_ipc_socket integration tests ---
 # These actually spawn R processes and need cleanup
 
-test_that("spawn_daemon creates a process and await_daemon_ready connects", {
+test_that("spawn_daemon creates a process and connect_ipc_socket connects", {
   skip_on_cran()
   skip_if_not_installed("processx")
 
@@ -165,7 +165,7 @@ test_that("spawn_daemon creates a process and await_daemon_ready connects", {
   expect_true(client_id %in% names(the$daemon_processes))
 
   # Wait for daemon - returns connected socket or NULL
-  sock <- MCPR:::await_daemon_ready(port, timeout_ms = 15000)
+  sock <- MCPR:::connect_ipc_socket(port, timeout_ms = 15000)
   on.exit(if (!is.null(sock)) nanonext::reap(sock), add = TRUE)
 
   expect_false(is.null(sock))
@@ -175,9 +175,9 @@ test_that("spawn_daemon creates a process and await_daemon_ready connects", {
   proc$kill()
 })
 
-test_that("await_daemon_ready returns NULL on timeout for non-existent session", {
+test_that("connect_ipc_socket returns NULL on timeout for non-existent session", {
   skip_on_cran()
 
-  sock <- MCPR:::await_daemon_ready(999L, timeout_ms = 1000)
+  sock <- MCPR:::connect_ipc_socket(999L, timeout_ms = 1000)
   expect_null(sock)
 })
