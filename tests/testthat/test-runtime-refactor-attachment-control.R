@@ -88,5 +88,5 @@ test_that("pending timeout recycles an active secondary binding", {
   expect_equal(closed, 51L)
   expect_equal(manager$active_label(), "52 (attached secondary)")
   expect_null(priv$.pending_requests[["daemon-51"]])
-  expect_true("510" %in% priv$.timed_out_ids)
+  expect_true("510" %in% priv$.terminal_wire_ids)
 })

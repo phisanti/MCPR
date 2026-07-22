@@ -1,16 +1,5 @@
 ## Modify server initialization tests to handle auto-discovery gracefully
-get_test_tools_dir <- function() {
-  # Try to find the tools directory relative to test location
-  if (dir.exists("../../inst")) {
-    return("../../inst")
-  } else if (dir.exists("inst")) {
-    return("inst")
-  } else {
-    return(tempdir()) # fallback
-  }
-}
-
-tools_dir <- get_test_tools_dir()
+tools_dir <- system.file(package = "MCPR", mustWork = TRUE)
 
 # Skip tests that require interactive mode or complex socket operations
 skip_if_interactive_required <- function() {
@@ -137,7 +126,6 @@ test_that("mcpr_server convenience function creates and returns a server instanc
   })
 
   # Test with explicit ToolRegistry (recommended approach)
-  tools_dir <- "/Users/santiago/projects/MCPR/inst" # or use get_test_tools_dir() helper
   registry <- ToolRegistry$new(tools_dir = tools_dir)
   server_instance_registry <- mcpr_server(registry = registry)
   expect_s3_class(server_instance_registry, "mcprServer")
@@ -700,15 +688,15 @@ test_that("attached forwarding registers pending remote requests", {
   priv <- server$.__enclos_env__$private
 
   forwarded <- NULL
-  unlockBinding("forward_to_socket", priv)
-  original <- priv$forward_to_socket
+  unlockBinding("send_active_request", priv)
+  original <- priv$send_active_request
   on.exit({
-    unlockBinding("forward_to_socket", priv)
-    priv$forward_to_socket <- original
+    unlockBinding("send_active_request", priv)
+    priv$send_active_request <- original
   }, add = TRUE)
-  priv$forward_to_socket <- function(data, sock, label = "TO TARGET") {
-    forwarded <<- list(data = data, sock = sock, label = label)
-    invisible(NULL)
+  priv$send_active_request <- function(session_key, sock, label = "TO TARGET") {
+    forwarded <<- list(session_key = session_key, sock = sock, label = label)
+    invisible(TRUE)
   }
   priv$.user_listeners[["52"]] <- TRUE
 
@@ -828,27 +816,27 @@ test_that("sweep_pending_requests fires timeout error and tracks id after timeou
   expect_match(captured$error$message, "timed out after 60s", fixed = TRUE)
   expect_match(captured$error$message, "marked dead", fixed = TRUE)
   expect_null(priv$.pending_requests[["daemon-5"]])
-  expect_true("30" %in% priv$.timed_out_ids)
+  expect_true("30" %in% priv$.terminal_wire_ids)
 })
 
 test_that("handle_message_from_session drops a late response for a timed-out id", {
   server <- mcprServer$new(.tools_dir = tools_dir)
   priv <- server$.__enclos_env__$private
 
-  priv$.timed_out_ids <- c("55", "99")
+  priv$.terminal_wire_ids <- c("55", "99")
 
   # The timed-out branch returns before write_stdout; nothing reaches fd 1.
   priv$handle_message_from_session('{"id":55,"result":"late"}', session_key = "daemon-5")
 
-  expect_false("55" %in% priv$.timed_out_ids, label = "timed-out id removed after late response")
-  expect_true("99" %in% priv$.timed_out_ids,  label = "unrelated id left intact")
+  expect_false("55" %in% priv$.terminal_wire_ids, label = "terminal wire id removed after late response")
+  expect_true("99" %in% priv$.terminal_wire_ids,  label = "unrelated id left intact")
 })
 
-test_that("timed_out_ids is capped at 500 entries by sweep_pending_requests", {
+test_that("terminal_wire_ids is capped at 500 entries by sweep_pending_requests", {
   server <- mcprServer$new(.tools_dir = tools_dir)
   priv <- server$.__enclos_env__$private
 
-  priv$.timed_out_ids <- as.character(seq_len(499))
+  priv$.terminal_wire_ids <- as.character(seq_len(499))
   priv$.pending_requests[["daemon-5"]] <- make_pending_request("daemon-5", id = 999L,
                                                                 timeout_secs = 1L,
                                                                 age_secs = 5)
@@ -859,8 +847,8 @@ test_that("timed_out_ids is capped at 500 entries by sweep_pending_requests", {
 
   priv$sweep_pending_requests()
 
-  expect_lte(length(priv$.timed_out_ids), 500L)
-  expect_true("999" %in% priv$.timed_out_ids)
+  expect_lte(length(priv$.terminal_wire_ids), 500L)
+  expect_true("999" %in% priv$.terminal_wire_ids)
 })
 
 # --- resource_registry integration -----------------------------------------

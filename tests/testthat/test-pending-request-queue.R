@@ -4,17 +4,7 @@
 # the older of two concurrent forwarded requests to the same session.
 # Drives the private methods directly on a freshly constructed, never-started mcprServer.
 
-get_test_tools_dir <- function() {
-  if (dir.exists("../../inst")) {
-    return("../../inst")
-  } else if (dir.exists("inst")) {
-    return("inst")
-  } else {
-    return(tempdir())
-  }
-}
-
-tools_dir <- get_test_tools_dir()
+.pending_tools_dir <- system.file(package = "MCPR", mustWork = TRUE)
 
 # Build a bare JSON-RPC tools/call request envelope. enqueue_pending_request only reads
 # data$id and data$params$arguments$timeout, so this is intentionally minimal.
@@ -34,7 +24,7 @@ make_request <- function(id, timeout = NULL) {
 # --- enqueue_pending_request ------------------------------------------------
 
 test_that("enqueue_pending_request activates the first request for a session", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   became_active <- priv$enqueue_pending_request(make_request(id = 1L), "daemon-1")
@@ -48,7 +38,7 @@ test_that("enqueue_pending_request activates the first request for a session", {
 })
 
 test_that("enqueue_pending_request queues a second concurrent request without a deadline", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   first  <- priv$enqueue_pending_request(make_request(id = 1L), "daemon-1")
@@ -68,7 +58,7 @@ test_that("enqueue_pending_request queues a second concurrent request without a 
 })
 
 test_that("two overlapping requests to the same session are BOTH tracked (regression: old single-slot bug lost one)", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   priv$enqueue_pending_request(make_request(id = "req-A"), "daemon-9")
@@ -87,7 +77,7 @@ test_that("two overlapping requests to the same session are BOTH tracked (regres
 })
 
 test_that("enqueue_pending_request respects a per-call timeout override, else falls back to server default", {
-  server <- mcprServer$new(.tools_dir = tools_dir, execution_timeout_secs = 300L)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir, execution_timeout_secs = 300L)
   priv <- server$.__enclos_env__$private
 
   priv$enqueue_pending_request(make_request(id = 1L, timeout = 15L), "daemon-1")
@@ -99,10 +89,161 @@ test_that("enqueue_pending_request respects a per-call timeout override, else fa
   expect_equal(state$waiting[[1L]]$timeout_secs, 300L)
 })
 
+test_that("forwarded requests use unique internal ids even when a client id is reused", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  priv$enqueue_pending_request(make_request(id = "reused"), "daemon-1")
+  priv$enqueue_pending_request(make_request(id = "reused"), "daemon-1")
+
+  state <- priv$.pending_requests[["daemon-1"]]
+  expect_equal(state$active$client_request_id, "reused")
+  expect_equal(state$waiting[[1L]]$client_request_id, "reused")
+  expect_false(identical(state$active$wire_request_id, state$waiting[[1L]]$wire_request_id))
+  expect_equal(state$active$data$id, state$active$wire_request_id)
+  expect_equal(state$waiting[[1L]]$data$id, state$waiting[[1L]]$wire_request_id)
+})
+
+test_that("enqueue_pending_request rejects invalid timeouts without creating state", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  accepted <- priv$enqueue_pending_request(make_request(id = 1L, timeout = 0L), "daemon-1")
+
+  expect_true(is.na(accepted))
+  expect_equal(captured$error$code, -32602L)
+  expect_null(priv$.pending_requests[["daemon-1"]])
+})
+
+test_that("enqueue_pending_request applies bounded backpressure", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  priv$.max_waiting_per_session <- 1L
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+
+  expect_true(priv$enqueue_pending_request(make_request(id = 1L), "daemon-1"))
+  expect_false(priv$enqueue_pending_request(make_request(id = 2L), "daemon-1"))
+  rejected <- priv$enqueue_pending_request(make_request(id = 3L), "daemon-1")
+
+  expect_true(is.na(rejected))
+  expect_equal(captured$id, 3L)
+  expect_equal(captured$error$code, -32000L)
+  expect_length(priv$.pending_requests[["daemon-1"]]$waiting, 1L)
+})
+
+test_that("unknown forwarded tools fail before pending state is created", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  priv$.user_listeners[["52"]] <- TRUE
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+  request <- make_request(id = 9L)
+  request$params$name <- "not_a_registered_tool"
+
+  priv$forward_request_to_user(request, 52L, sock = "unused")
+
+  expect_equal(captured$id, 9L)
+  expect_equal(captured$error$code, -32601L)
+  expect_null(priv$.pending_requests[["52"]])
+})
+
+test_that("an immediate send failure resolves active state", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  captured <- NULL
+  local_mocked_bindings(
+    cat_json = function(x) { captured <<- x },
+    .package = "MCPR"
+  )
+  prepared <- priv$prepare_forward_request(make_request(id = 10L))
+  priv$enqueue_pending_request(prepared, "daemon-1")
+
+  sent <- priv$send_active_request("daemon-1", sock = "not-a-socket")
+
+  expect_false(sent)
+  expect_equal(captured$id, 10L)
+  expect_match(captured$error$message, "Could not send request", fixed = TRUE)
+  expect_null(priv$.pending_requests[["daemon-1"]])
+})
+
+test_that("session responses translate internal ids back to client ids", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  prepared <- priv$prepare_forward_request(make_request(id = "client-id"))
+  priv$enqueue_pending_request(prepared, "daemon-1")
+  wire_id <- priv$.pending_requests[["daemon-1"]]$active$wire_request_id
+  emitted <- NULL
+  local_mocked_bindings(
+    write_stdout = function(x) { emitted <<- x },
+    .package = "nanonext"
+  )
+
+  priv$handle_message_from_session(
+    to_json(list(jsonrpc = "2.0", id = wire_id, result = list(value = 1L))),
+    session_key = "daemon-1"
+  )
+
+  response <- jsonlite::parse_json(emitted)
+  expect_equal(response$id, "client-id")
+  expect_null(priv$.pending_requests[["daemon-1"]])
+})
+
+test_that("malformed session response ids are dropped without disturbing active state", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  prepared <- priv$prepare_forward_request(make_request(id = 13L))
+  priv$enqueue_pending_request(prepared, "daemon-1")
+  emitted <- NULL
+  local_mocked_bindings(
+    write_stdout = function(x) { emitted <<- x },
+    .package = "nanonext"
+  )
+
+  priv$handle_message_from_session(
+    to_json(list(jsonrpc = "2.0", id = list("not", "scalar"), result = "wrong")),
+    session_key = "daemon-1"
+  )
+
+  expect_null(emitted)
+  expect_false(is.null(priv$.pending_requests[["daemon-1"]]$active))
+})
+
+test_that("session responses with unowned ids are dropped without clearing active state", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  prepared <- priv$prepare_forward_request(make_request(id = 12L))
+  priv$enqueue_pending_request(prepared, "daemon-1")
+  emitted <- NULL
+  local_mocked_bindings(
+    write_stdout = function(x) { emitted <<- x },
+    .package = "nanonext"
+  )
+
+  priv$handle_message_from_session(
+    to_json(list(jsonrpc = "2.0", id = "foreign-wire-id", result = "wrong")),
+    session_key = "daemon-1"
+  )
+
+  expect_null(emitted)
+  expect_false(is.null(priv$.pending_requests[["daemon-1"]]$active))
+})
+
 # --- sweep_pending_requests --------------------------------------------------
 
 test_that("sweep_pending_requests times out a stale active record but leaves a queued record alone", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   priv$.pending_requests[["daemon-1"]] <- list(
@@ -139,22 +280,22 @@ test_that("sweep_pending_requests times out a stale active record but leaves a q
   expect_length(captured, 2L)
   by_id <- stats::setNames(captured, vapply(captured, function(x) x$id, character(1)))
 
-  # The active id got a genuine timeout error and was recorded in .timed_out_ids so a late
+  # The active wire id got a genuine timeout error and was recorded so a late
   # response is dropped.
   expect_equal(by_id[["active-id"]]$error$code, -32603L)
   expect_match(by_id[["active-id"]]$error$message, "timed out after 30s", fixed = TRUE)
-  expect_true("active-id" %in% priv$.timed_out_ids)
+  expect_true("active-id" %in% priv$.terminal_wire_ids)
 
   # The queued id was never armed with a deadline, so it must NOT go through the timeout
   # message/bookkeeping - it is failed via the dead-session path instead (fail_pending_dead),
-  # and must not pollute .timed_out_ids (nothing will ever emit a late response for it).
+  # and must not pollute terminal wire ids (nothing will emit a late response for it).
   expect_match(by_id[["waiting-id"]]$error$message, "no longer responding", fixed = TRUE)
   expect_no_match(by_id[["waiting-id"]]$error$message, "timed out")
-  expect_false("waiting-id" %in% priv$.timed_out_ids)
+  expect_false("waiting-id" %in% priv$.terminal_wire_ids)
 })
 
 test_that("sweep_pending_requests is a no-op when only a queued record exists (no active deadline)", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   priv$.pending_requests[["daemon-1"]] <- list(
@@ -182,7 +323,7 @@ test_that("sweep_pending_requests is a no-op when only a queued record exists (n
 })
 
 test_that("sweep_pending_requests migrates the waiting queue and dispatches on a recycled recovery", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   priv$.pending_requests[["daemon-1"]] <- list(
@@ -247,7 +388,7 @@ test_that("sweep_pending_requests migrates the waiting queue and dispatches on a
 # --- handle_session_listener_resolved (dead path) ---------------------------
 
 test_that("handle_session_listener_resolved dead path fails BOTH the active and a queued record", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   priv$.pending_requests[["daemon-7"]] <- list(
@@ -277,6 +418,16 @@ test_that("handle_session_listener_resolved dead path fails BOTH the active and 
   priv$fail_pending_dead <- function(record, session_key) {
     failed_ids <<- c(failed_ids, as.character(record$client_request_id))
   }
+  retired_key <- NULL
+  unlockBinding("retire_session_transport", priv)
+  original_retire <- priv$retire_session_transport
+  on.exit({
+    unlockBinding("retire_session_transport", priv)
+    priv$retire_session_transport <- original_retire
+  }, add = TRUE)
+  priv$retire_session_transport <- function(session_key) {
+    retired_key <<- session_key
+  }
 
   # Non-character data (e.g. a nanonext error object/integer) signals a dead peer.
   priv$handle_session_listener_resolved(1L, "daemon-7", "daemon")
@@ -284,13 +435,14 @@ test_that("handle_session_listener_resolved dead path fails BOTH the active and 
   # Both the active record and the single queued record must be failed exactly once each.
   expect_length(failed_ids, 2L)
   expect_setequal(failed_ids, c("active-id", "waiting-id"))
+  expect_equal(retired_key, "daemon-7")
 
   # The session entry must be fully cleared afterward - nothing left to leak or re-sweep.
   expect_null(priv$.pending_requests[["daemon-7"]])
 })
 
 test_that("handle_session_listener_resolved dead path emits two cat_json error responses via the real fail_pending_dead", {
-  server <- mcprServer$new(.tools_dir = tools_dir)
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
   priv <- server$.__enclos_env__$private
 
   priv$.pending_requests[["daemon-8"]] <- list(

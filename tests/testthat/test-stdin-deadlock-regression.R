@@ -9,9 +9,26 @@ test_that("server subprocess answers a Sys.sleep-yielding tools/call within a bo
   skip_on_os("windows")
   skip_if_not_installed("processx")
 
+  # `devtools::test()` runs this file against a pkgload namespace, but an ordinary
+  # `MCPR::mcpr_server()` child would resolve the stale installed copy from renv.
+  # Load the checkout explicitly in that case so local results exercise this code;
+  # package checks continue to use their freshly installed candidate normally.
+  server_command <- if (pkgload::is_dev_package("MCPR")) {
+    source_root <- find.package("MCPR")
+    sprintf(
+      paste0(
+        "pkgload::load_all(%s, quiet = TRUE); ",
+        "server <- MCPR:::mcprServer$new(.tools_dir = %s); server$start()"
+      ),
+      encodeString(source_root, quote = '"'),
+      encodeString(file.path(source_root, "inst"), quote = '"')
+    )
+  } else {
+    "MCPR::mcpr_server()"
+  }
   proc <- processx::process$new(
     file.path(R.home("bin"), "Rscript"),
-    c("-e", "MCPR::mcpr_server()"),
+    c("-e", server_command),
     stdin = "|", stdout = "|", stderr = "|"
   )
   on.exit({
@@ -84,5 +101,34 @@ test_that("server subprocess answers a Sys.sleep-yielding tools/call within a bo
     expect_true(is.null(call_resp$error))
     text <- call_resp$result$content[[1]]$text
     expect_match(text, "MCPRSEQ:OK", fixed = TRUE)
+  }
+
+  # 4. Force the native reader's accumulator to grow beyond its initial 4 KiB.
+  # A cancellation cleanup bug previously retained the original pointer across
+  # realloc(), causing a double free when a server that had read a long line shut
+  # down. Receiving this response and then terminating the process exercises both
+  # the growth and cleanup paths in one real subprocess.
+  padding <- strrep("x", 6000L)
+  send_line(list(
+    jsonrpc = "2.0", id = 3, method = "tools/call",
+    params = list(
+      name = "execute_r_code",
+      arguments = list(code = sprintf('padding <- "%s"; cat("MCPRSEQ:LONG\\n")', padding))
+    )
+  ))
+
+  long_resp <- read_response(20)
+  expect_false(
+    is.null(long_resp),
+    label = sprintf(
+      "server did not answer a tools/call larger than 4 KiB (alive=%s; stderr=%s)",
+      proc$is_alive(),
+      paste(proc$read_error_lines(), collapse = " | ")
+    )
+  )
+  if (!is.null(long_resp)) {
+    expect_equal(long_resp$id, 3)
+    expect_true(is.null(long_resp$error))
+    expect_match(long_resp$result$content[[1]]$text, "MCPRSEQ:LONG", fixed = TRUE)
   }
 })

@@ -6,8 +6,6 @@
 # The compiled routines are registered via R_registerRoutines/R_useDynamicSymbols(FALSE) in
 # src/init.c, so a plain .Call(..., PACKAGE = "MCPR") is the right way to reach them from R.
 skip_if_stdin_native_unavailable <- function() {
-  skip_on_os("windows")
-  ns <- asNamespace("MCPR")
   dll <- tryCatch(getLoadedDLLs()[["MCPR"]], error = function(e) NULL)
   skip_if(is.null(dll), "MCPR native DLL is not loaded")
 }
@@ -15,14 +13,14 @@ skip_if_stdin_native_unavailable <- function() {
 test_that("mcpr_stdin_start, mcpr_stdin_poll, mcpr_stdin_stop are registered and callable", {
   skip_if_stdin_native_unavailable()
 
-  # Starting the reader spins up a detached pthread reading real STDIN_FILENO.
+  # Starting the reader spins up a native thread reading the stdin OS handle.
   # Under `Rscript testthat.R` (and CI runners) stdin is not a live TTY, so this is safe:
-  # the thread just parks in read() until the process exits, and mcpr_stdin_stop below
-  # only tears down the queue (it does not join the thread by design - see mcpr-stdin.c).
-  expect_no_error(.Call("mcpr_stdin_start", PACKAGE = "MCPR"))
+  # the thread parks in raw input until mcpr_stdin_stop cancels and joins it.
+  expect_true(.Call("mcpr_stdin_start", PACKAGE = "MCPR"))
+  on.exit(.Call("mcpr_stdin_stop", PACKAGE = "MCPR"), add = TRUE)
 
   # Idempotent: calling start a second time must not error or spawn a second thread.
-  expect_no_error(.Call("mcpr_stdin_start", PACKAGE = "MCPR"))
+  expect_true(.Call("mcpr_stdin_start", PACKAGE = "MCPR"))
 
   # Non-blocking poll (timeout_ms = 0L) must return immediately, never hang. This is the
   # core deadlock guard at the unit level: a zero-timeout poll can never wait on the stdin
@@ -57,17 +55,16 @@ test_that("mcpr_stdin_poll returns NULL (not blocking) for a short bounded timeo
   expect_lt(elapsed, 2)
 })
 
-test_that("mcpr_watchdog_start is registered and callable without error", {
+test_that("mcpr_watchdog_start and stop are registered, callable, and idempotent", {
   skip_if_stdin_native_unavailable()
 
   # Idempotent by design (see mcpr-watchdog.c): a second call while already
   # started is a documented no-op, so this is safe to call from a test process.
   # Use this process's own pid so the watchdog's liveness checks are trivially
   # satisfied throughout the test run (it never observes an orphan condition).
-  expect_no_error(
-    .Call("mcpr_watchdog_start", as.integer(Sys.getpid()), 250L, PACKAGE = "MCPR")
-  )
-  expect_no_error(
-    .Call("mcpr_watchdog_start", as.integer(Sys.getpid()), 250L, PACKAGE = "MCPR")
-  )
+  expect_true(.Call("mcpr_watchdog_start", as.integer(Sys.getpid()), 250L, PACKAGE = "MCPR"))
+  on.exit(.Call("mcpr_watchdog_stop", PACKAGE = "MCPR"), add = TRUE)
+  expect_true(.Call("mcpr_watchdog_start", as.integer(Sys.getpid()), 250L, PACKAGE = "MCPR"))
+  expect_no_error(.Call("mcpr_watchdog_stop", PACKAGE = "MCPR"))
+  expect_no_error(.Call("mcpr_watchdog_stop", PACKAGE = "MCPR"))
 })

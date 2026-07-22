@@ -1,16 +1,6 @@
-get_local_or_installed_path <- function(...) {
-  candidates <- c(...)
-  existing <- candidates[file.exists(candidates)]
-  if (length(existing) > 0) existing[[1]] else NULL
-}
-
 .client_tools_env <- new.env(parent = asNamespace("MCPR"))
-.client_tools_path <- get_local_or_installed_path(
-  "R/mcpr-client-tools.R",
-  "../R/mcpr-client-tools.R",
-  "../../R/mcpr-client-tools.R"
-)
-source(.client_tools_path, local = .client_tools_env)
+.client_tools_env$normalize_args_by_type <- MCPR:::normalize_args_by_type
+.client_tools_env$encode_tool_results <- MCPR:::encode_tool_results
 
 test_that("normalize_args_by_type parses json_object strings into named lists", {
   schema <- list(
