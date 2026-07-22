@@ -131,12 +131,16 @@ mcprServer <- R6::R6Class("mcprServer",
     start = function() {
       check_not_interactive()
 
+      # Session sockets still fan in on this cv; stdin no longer rides it.
       private$.cv <- nanonext::cv()
-      private$.reader_socket <- nanonext::read_stdin()
-      self$register_cleanup(function() nanonext::reap(private$.reader_socket), "reader_socket")
-      nanonext::pipe_notify(private$.reader_socket, private$.cv, remove = TRUE, flag = TRUE)
 
-      client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
+      # Lock-free stdin reader (raw read() on STDIN_FILENO, no fgetc/flockfile),
+      # replacing nanonext::read_stdin() whose fgetc-based thread deadlocks R's
+      # main thread on the stdin FILE lock under any event-yielding user code.
+      .Call("mcpr_stdin_start", PACKAGE = "MCPR")
+      self$register_cleanup(function() .Call("mcpr_stdin_stop", PACKAGE = "MCPR"), "stdin_reader")
+      private$log_info("stdin reader started")
+
       private$setup_session_transport()
 
       # Orphan guard: record the launcher (parent) PID at startup. If the client
@@ -144,16 +148,30 @@ mcprServer <- R6::R6Class("mcprServer",
       # nanonext never delivers that EOF, so poll for it here each loop tick.
       launcher_pid <- private$parent_pid()
 
+      # Out-of-loop backstop: a native watchdog thread force-exits this process if
+      # it is orphaned, even when the R main thread is wedged in non-yielding user
+      # code and cannot reach the is_orphaned() check below (see harness S4b).
+      .Call("mcpr_watchdog_start", as.integer(launcher_pid), private$.stdin_tick_ms, PACKAGE = "MCPR")
+
       private$.running <- TRUE
       while (TRUE) {
-        # TRUE = event fired; FALSE = 5s sweep tick — either way check all listeners
-        nanonext::until(private$.cv, 5000L)
+        # Block up to the tick for a stdin line (immediate condvar wake on arrival);
+        # this bounds every iteration so orphan/EOF/sweep run at least this often.
+        line <- .Call("mcpr_stdin_poll", private$.stdin_tick_ms, PACKAGE = "MCPR")
 
         # Parent-death guard: reparented to init (PID 1) or launcher gone -> exit.
         if (private$is_orphaned(launcher_pid)) {
           self$stop()
           break
         }
+
+        # Drain all buffered stdin lines non-blocking, then handle EOF.
+        while (is.character(line)) {
+          private$handle_message_from_client(line)
+          line <- .Call("mcpr_stdin_poll", 0L, PACKAGE = "MCPR")
+        }
+        # FALSE sentinel means stdin closed (EOF from the reader thread).
+        if (isFALSE(line)) break
 
         if (!is.null(private$.session_reader) &&
             !nanonext::unresolved(private$.session_reader)) {
@@ -174,6 +192,11 @@ mcprServer <- R6::R6Class("mcprServer",
             } else {
               private$.daemon_listeners[[cid]] <- NULL
             }
+          } else if (!is.null(dl) && private$daemon_pipe_dropped(cid)) {
+            # Worker died without replying (e.g. SIGKILL): the recv_aio never
+            # resolves, so detect the lost pipe and fail every outstanding request.
+            private$handle_session_listener_resolved(NA, cid, "daemon")
+            private$.daemon_listeners[[cid]] <- NULL
           }
         }
         # Check user session listeners for responses
@@ -191,12 +214,6 @@ mcprServer <- R6::R6Class("mcprServer",
               private$.user_listeners[[sid_key]] <- NULL
             }
           }
-        }
-        if (!nanonext::unresolved(client)) {
-          # Non-character data means stdin closed (nanonext errorValue on EOF)
-          if (!is.character(client$data)) break
-          private$handle_message_from_client(client$data)
-          client <- nanonext::recv_aio(private$.reader_socket, mode = "string", cv = private$.cv)
         }
         if (length(private$.pending_requests) > 0) {
           private$sweep_pending_requests()
@@ -302,8 +319,8 @@ mcprServer <- R6::R6Class("mcprServer",
     }
   ),
   private = list(
-    .reader_socket = NULL,
     .cv = NULL,
+    .stdin_tick_ms = 250L,  # max time the loop blocks per iteration waiting for a stdin line
     .running = FALSE,
     .protocol_version = NULL,  # Negotiated protocol version for this connection
     .mcp_apps_supported = FALSE,
@@ -316,7 +333,7 @@ mcprServer <- R6::R6Class("mcprServer",
     .session_reader = NULL,
     .daemon_listeners = list(),
     .user_listeners = list(),
-    .pending_requests = list(),     # session_key → pending request info (one per session)
+    .pending_requests = list(),     # session_key → list(active = <record>|NULL, waiting = list(<record>))
     .timed_out_ids = character(0),  # JSON-RPC ids already sent a timeout error (to drop late responses)
     .execution_timeout_secs = 300L, # server-level default execution timeout
 
@@ -425,6 +442,23 @@ mcprServer <- R6::R6Class("mcprServer",
       reader
     },
 
+    # Detect a secondary worker that died without replying. nanonext's recv_aio
+    # does not resolve on a SIGKILLed peer, so we watch the socket's pipe count:
+    # once a connected daemon socket drops to zero pipes while a request is still
+    # outstanding on it, the worker is gone and the request must be failed.
+    daemon_pipe_dropped = function(client_id) {
+      state <- private$.pending_requests[[client_id]]
+      if (is.null(state) || is.null(state$active)) {
+        return(FALSE)
+      }
+      sock <- the$daemon_sockets[[client_id]]
+      if (is.null(sock)) {
+        return(TRUE)
+      }
+      pipes <- tryCatch(nanonext::stat(sock, "pipes"), error = function(e) NA_integer_)
+      isTRUE(!is.na(pipes) && pipes == 0L)
+    },
+
     # Forward a tool call request to a secondary session's socket.
     # Resolves the socket from the legacy registry and delegates to forward_to_socket.
     forward_request_to_daemon = function(data, client_id) {
@@ -435,8 +469,14 @@ mcprServer <- R6::R6Class("mcprServer",
           error = list(code = -32603, message = "Secondary session socket not found")
         )))
       }
-      private$register_pending_request(data, client_id)
-      private$forward_to_socket(data, sock, label = "TO DAEMON")
+      if (private$enqueue_pending_request(data, client_id)) {
+        private$forward_to_socket(data, sock, label = "TO DAEMON")
+      } else {
+        private$log_debug(sprintf(
+          "Queued request %s behind active request on session '%s'",
+          data$id, client_id
+        ))
+      }
     },
 
     # Connect to a secondary session using pipe_notify + until (mirai pattern).
@@ -593,13 +633,16 @@ mcprServer <- R6::R6Class("mcprServer",
             resp_id, session_key
           ))
           private$.timed_out_ids <- setdiff(private$.timed_out_ids, resp_id)
-          private$.pending_requests[[session_key]] <- NULL
           return()
         }
-        # Clear pending for this session now that a valid response arrived
-        pending <- private$.pending_requests[[session_key]]
-        if (!is.null(pending) && identical(as.character(pending$client_request_id), resp_id)) {
-          private$.pending_requests[[session_key]] <- NULL
+        # Clear the active record now that its valid response arrived, then promote
+        # the next queued request (if any) onto this session's current socket.
+        state <- private$.pending_requests[[session_key]]
+        active <- state$active
+        if (!is.null(active) && identical(as.character(active$client_request_id), resp_id)) {
+          state$active <- NULL
+          private$.pending_requests[[session_key]] <- state
+          private$dispatch_next(session_key, private$session_socket_for(session_key))
         }
       }
 
@@ -646,8 +689,14 @@ mcprServer <- R6::R6Class("mcprServer",
       if (is.null(private$.user_listeners[[sid_key]])) {
         private$arm_user_session_listener(sid_key, sock)
       }
-      private$register_pending_request(data, sid_key)
-      private$forward_to_socket(data, sock, label = "TO USER SESSION")
+      if (private$enqueue_pending_request(data, sid_key)) {
+        private$forward_to_socket(data, sock, label = "TO USER SESSION")
+      } else {
+        private$log_debug(sprintf(
+          "Queued request %s behind active request on user session '%s'",
+          data$id, sid_key
+        ))
+      }
     },
 
     # Shared forwarding logic: prepare tool call and send to a nanonext socket.
@@ -665,21 +714,89 @@ mcprServer <- R6::R6Class("mcprServer",
       nanonext::send_aio(sock, prepared, mode = "serial")
     },
 
-    # Record a forwarded request so sweep_pending_requests can detect hangs/timeouts.
+    # Enqueue a forwarded request and report whether it should be sent now.
     # session_key is the attached secondary key or the human session sid_key.
-    # Invariant: MCP clients are sequential (one tool/call round-trip at a time), so at
-    # most one request is in-flight per session. Concurrent calls to the same session are
-    # not supported and would silently overwrite the pending entry.
-    register_pending_request = function(data, session_key) {
+    # Each session tracks one `active` evaluation plus a FIFO `waiting` queue: a
+    # session evaluates one request at a time, so a second concurrent call is held
+    # here (queued) rather than forwarded to the busy worker. Only the active
+    # record has a deadline (sent_at); queued records are armed when promoted.
+    # Returns TRUE when the request became active (caller should forward it now),
+    # FALSE when it was queued (caller must not forward).
+    enqueue_pending_request = function(data, session_key) {
       timeout_secs <- as.integer(
         data$params$arguments$timeout %||% private$.execution_timeout_secs
       )
-      private$.pending_requests[[session_key]] <- list(
+      record <- list(
         client_request_id = data$id,
         session_key = session_key,
-        sent_at = Sys.time(),
-        timeout_secs = timeout_secs
+        data = data,
+        timeout_secs = timeout_secs,
+        sent_at = NULL
       )
+      state <- private$.pending_requests[[session_key]] %||% list(active = NULL, waiting = list())
+      if (is.null(state$active)) {
+        record$sent_at <- Sys.time()
+        state$active <- record
+        private$.pending_requests[[session_key]] <- state
+        return(TRUE)
+      }
+      state$waiting <- c(state$waiting, list(record))
+      private$.pending_requests[[session_key]] <- state
+      FALSE
+    },
+
+    # Promote the FIFO head of a session's queue to active and forward it to the
+    # session's CURRENT socket. No-op if nothing is waiting. `sock` is resolved by
+    # key so migrated (recycled) sessions reach the new worker.
+    dispatch_next = function(session_key, sock) {
+      state <- private$.pending_requests[[session_key]]
+      if (is.null(state) || length(state$waiting) == 0) {
+        return(invisible(NULL))
+      }
+      record <- state$waiting[[1L]]
+      state$waiting <- state$waiting[-1L]
+      if (is.null(sock)) {
+        # Socket vanished before the queued request could be promoted: fail it
+        # rather than block the queue behind an unreachable worker.
+        private$fail_pending_dead(record, session_key)
+        private$.pending_requests[[session_key]] <- state
+        private$dispatch_next(session_key, sock)
+        return(invisible(NULL))
+      }
+      record$sent_at <- Sys.time()
+      state$active <- record
+      private$.pending_requests[[session_key]] <- state
+      private$forward_to_socket(record$data, sock, label = "TO TARGET")
+      invisible(NULL)
+    },
+
+    # Resolve the current socket for a session_key. Secondary sessions live in the
+    # daemon registry (keyed by the binding key); human sessions in the user registry
+    # (keyed by the integer session id). Returns NULL if neither has it.
+    session_socket_for = function(session_key) {
+      sock <- the$daemon_sockets[[session_key]]
+      if (!is.null(sock)) {
+        return(sock)
+      }
+      get_user_session(suppressWarnings(as.integer(session_key)))
+    },
+
+    # Send a terminal dead-session error to a pending record's client.
+    fail_pending_dead = function(record, session_key) {
+      cat_json(jsonrpc_response(
+        record$client_request_id,
+        error = list(
+          code = -32603L,
+          message = sprintf(
+            paste0(
+              "Session '%s' is no longer responding — the R process may have exited. ",
+              "Run manage_r_sessions(action='list') to see active sessions, ",
+              "or manage_r_sessions(action='start') to open a new one."
+            ),
+            session_key
+          )
+        )
+      ))
     },
 
     # Called when a daemon or user session listener resolves.
@@ -691,23 +808,17 @@ mcprServer <- R6::R6Class("mcprServer",
           "Session '%s' (%s) connection closed (nanonext error %s)",
           session_key, session_type, as.character(data)
         ))
-        pending <- private$.pending_requests[[session_key]]
+        state <- private$.pending_requests[[session_key]]
         private$.session_manager$mark_dead(session_key)
-        if (!is.null(pending)) {
-          cat_json(jsonrpc_response(
-            pending$client_request_id,
-            error = list(
-              code = -32603L,
-              message = sprintf(
-                paste0(
-                  "Session '%s' is no longer responding — the R process may have exited. ",
-                  "Run manage_r_sessions(action='list') to see active sessions, ",
-                  "or manage_r_sessions(action='start') to open a new one."
-                ),
-                session_key
-              )
-            )
-          ))
+        # The socket is gone: every outstanding request on it is dead. Fail the
+        # active record and every queued one so none is silently lost.
+        if (!is.null(state)) {
+          if (!is.null(state$active)) {
+            private$fail_pending_dead(state$active, session_key)
+          }
+          for (record in state$waiting) {
+            private$fail_pending_dead(record, session_key)
+          }
           private$.pending_requests[[session_key]] <- NULL
         }
         return()
@@ -722,46 +833,71 @@ mcprServer <- R6::R6Class("mcprServer",
     sweep_pending_requests = function() {
       now <- Sys.time()
       for (key in names(private$.pending_requests)) {
-        req <- private$.pending_requests[[key]]
+        state <- private$.pending_requests[[key]]
+        req <- state$active
+        # Only the active record has a deadline; queued records are armed when promoted.
+        if (is.null(req)) {
+          next
+        }
         elapsed <- as.numeric(difftime(now, req$sent_at, units = "secs"))
-        if (elapsed > req$timeout_secs) {
-          private$log_warn(sprintf(
-            "Request %s to session '%s' timed out after %ds",
-            req$client_request_id, key, req$timeout_secs
-          ))
-          recovery <- private$.session_manager$recover_timeout(key)
-          recovery_text <- switch(
-            recovery$action %||% "none",
-            recycled = sprintf(
-              "The timed-out worker was recycled automatically; future calls will use session '%s'.",
-              recovery$new_session_id
-            ),
-            closed = "The timed-out worker was closed automatically. Start a new session to continue attached execution.",
-            detached = "MCPR detached from the timed-out human-owned session to avoid killing user work.",
-            marked_dead = "The timed-out session was marked dead.",
-            "The timed-out session state was cleared."
-          )
-          cat_json(jsonrpc_response(
-            req$client_request_id,
-            error = list(
-              code = -32603L,
-              message = sprintf(
-                paste0(
-                  "Code execution timed out after %ds in session '%s'. ",
-                  "For long-running computations, pass a larger timeout= value. ",
-                  "%s"
-                ),
-                req$timeout_secs, key, recovery_text
-              )
+        if (elapsed <= req$timeout_secs) {
+          next
+        }
+        private$log_warn(sprintf(
+          "Request %s to session '%s' timed out after %ds",
+          req$client_request_id, key, req$timeout_secs
+        ))
+        recovery <- private$.session_manager$recover_timeout(key)
+        recovery_text <- switch(
+          recovery$action %||% "none",
+          recycled = sprintf(
+            "The timed-out worker was recycled automatically; future calls will use session '%s'.",
+            recovery$new_session_id
+          ),
+          closed = "The timed-out worker was closed automatically. Start a new session to continue attached execution.",
+          detached = "MCPR detached from the timed-out human-owned session to avoid killing user work.",
+          marked_dead = "The timed-out session was marked dead.",
+          "The timed-out session state was cleared."
+        )
+        cat_json(jsonrpc_response(
+          req$client_request_id,
+          error = list(
+            code = -32603L,
+            message = sprintf(
+              paste0(
+                "Code execution timed out after %ds in session '%s'. ",
+                "For long-running computations, pass a larger timeout= value. ",
+                "%s"
+              ),
+              req$timeout_secs, key, recovery_text
             )
-          ))
-          # Track this id so any late response that eventually arrives is dropped.
-          # Cap at 500 to prevent unbounded growth over long server runs.
-          private$.timed_out_ids <- utils::tail(
-            c(private$.timed_out_ids, as.character(req$client_request_id)),
-            500L
           )
-          private$.pending_requests[[key]] <- NULL
+        ))
+        # Track this id so any late response that eventually arrives is dropped.
+        # Cap at 500 to prevent unbounded growth over long server runs.
+        private$.timed_out_ids <- utils::tail(
+          c(private$.timed_out_ids, as.character(req$client_request_id)),
+          500L
+        )
+
+        waiting <- state$waiting
+        private$.pending_requests[[key]] <- NULL
+        if (identical(recovery$action, "recycled")) {
+          # The worker was recycled onto a NEW key + socket. Migrate the queue to
+          # the new active binding and dispatch its head to the fresh worker.
+          new_key <- private$.session_manager$active_binding()$key %||% recovery$key
+          if (length(waiting) > 0) {
+            existing <- private$.pending_requests[[new_key]] %||% list(active = NULL, waiting = list())
+            existing$waiting <- c(existing$waiting, waiting)
+            private$.pending_requests[[new_key]] <- existing
+            private$dispatch_next(new_key, private$session_socket_for(new_key))
+          }
+        } else {
+          # No usable replacement (closed/detached/marked_dead/none): every queued
+          # request on the dead session is unrecoverable.
+          for (record in waiting) {
+            private$fail_pending_dead(record, key)
+          }
         }
       }
     },

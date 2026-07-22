@@ -65,10 +65,14 @@ test_that("pending timeout recycles an active secondary binding", {
   manager$handle_control("start")
   priv <- server$.__enclos_env__$private
   priv$.pending_requests[["daemon-51"]] <- list(
-    client_request_id = 510L,
-    session_key = "daemon-51",
-    sent_at = Sys.time() - 10,
-    timeout_secs = 1L
+    active = list(
+      client_request_id = 510L,
+      session_key = "daemon-51",
+      data = list(id = 510L),
+      sent_at = Sys.time() - 10,
+      timeout_secs = 1L
+    ),
+    waiting = list()
   )
 
   captured <- NULL

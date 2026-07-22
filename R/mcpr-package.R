@@ -16,6 +16,7 @@
 #' @importFrom processx process
 #' @importFrom promises as.promise
 #' @importFrom roxygen2 parse_file
+#' @useDynLib MCPR, .registration = TRUE
 #'
 #' @keywords internal
 "_PACKAGE"
