@@ -36,6 +36,12 @@ renv/
 vignettes/*.html
 .DS_Store
 
+# compiled native code artifacts
+src/*.o
+src/*.so
+src/*.dll
+src/symbols.rds
+
 # testthat generated artifacts
 tests/testthat/*.rds
 .gitignore

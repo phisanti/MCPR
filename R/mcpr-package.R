@@ -16,6 +16,7 @@
 #' @importFrom processx process
 #' @importFrom promises as.promise
 #' @importFrom roxygen2 parse_file
+#' @useDynLib MCPR, .registration = TRUE
 #'
 #' @keywords internal
 "_PACKAGE"
@@ -28,5 +29,15 @@
     Windows = file.path(R.home("bin"), "Rscript.exe"),
     file.path(R.home("bin"), "Rscript")
   )
+}
+
+.onUnload <- function(libpath) {
+  # A running mcprServer's own cleanup stops these via register_cleanup(), but
+  # that only fires on an orderly server stop. Package unload/detach (e.g. the
+  # pkgload::load_all() dev loop) bypasses that path entirely, so stop both
+  # native threads unconditionally here; both .Call targets are no-ops when
+  # never started or already stopped.
+  .Call("mcpr_stdin_stop", PACKAGE = "MCPR")
+  .Call("mcpr_watchdog_stop", PACKAGE = "MCPR")
 }
 # nocov end
