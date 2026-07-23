@@ -197,7 +197,7 @@ mcprServer <- R6::R6Class("mcprServer",
         }
 
         if (!is.null(private$.session_reader) &&
-            !nanonext::unresolved(private$.session_reader)) {
+              !nanonext::unresolved(private$.session_reader)) {
           private$handle_message_from_session(private$.session_reader$data)
           private$.session_reader <- private$arm_session_listener(previous = private$.session_reader)
         }
@@ -373,7 +373,7 @@ mcprServer <- R6::R6Class("mcprServer",
       ppid <- private$parent_pid()
       if (!is.na(ppid) && ppid <= 1L) return(TRUE)
       if (!is.na(launcher_pid) && launcher_pid > 1L &&
-          !isTRUE(tools::pskill(launcher_pid, signal = 0L))) {
+            !isTRUE(tools::pskill(launcher_pid, signal = 0L))) {
         return(TRUE)
       }
       FALSE
@@ -654,7 +654,7 @@ mcprServer <- R6::R6Class("mcprServer",
       if (!is.null(session_key)) {
         parsed <- tryCatch(jsonlite::parse_json(data), error = function(e) NULL)
         if (!is.list(parsed) || is.null(parsed$id) || length(parsed$id) != 1L ||
-            !is.atomic(parsed$id) || is.na(parsed$id)) {
+              !is.atomic(parsed$id) || is.na(parsed$id)) {
           private$log_warn(sprintf(
             "Dropping malformed response from session '%s': missing scalar id",
             session_key
@@ -923,7 +923,7 @@ mcprServer <- R6::R6Class("mcprServer",
     # MCPR-owned and are killed; human sessions are detached without killing R.
     retire_session_transport = function(session_key) {
       if (is_secondary_session_key(session_key) ||
-          !is.null(the$daemon_sockets[[session_key]])) {
+            !is.null(the$daemon_sockets[[session_key]])) {
         private$.daemon_listeners[[session_key]] <- NULL
         unregister_daemon(session_key)
         return(invisible(NULL))

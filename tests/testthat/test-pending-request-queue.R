@@ -4,6 +4,9 @@
 # the older of two concurrent forwarded requests to the same session.
 # Drives the private methods directly on a freshly constructed, never-started mcprServer.
 
+# Expose internal 'the' environment so tests can read/write the daemon socket registry.
+the <- MCPR:::the
+
 .pending_tools_dir <- system.file(package = "MCPR", mustWork = TRUE)
 
 # Build a bare JSON-RPC tools/call request envelope. enqueue_pending_request only reads
@@ -238,6 +241,96 @@ test_that("session responses with unowned ids are dropped without clearing activ
 
   expect_null(emitted)
   expect_false(is.null(priv$.pending_requests[["daemon-1"]]$active))
+})
+
+# --- daemon_pipe_dropped -----------------------------------------------------
+# Covers the SIGKILLed-worker detection path: nanonext's recv_aio never resolves
+# on a peer that dies without replying, so this is the only signal that catches it.
+
+test_that("daemon_pipe_dropped is FALSE when there is no pending state for the session", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+
+  expect_false(priv$daemon_pipe_dropped("daemon-none"))
+})
+
+test_that("daemon_pipe_dropped is FALSE when the session only has a waiting record (no active request)", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  priv$.pending_requests[["daemon-1"]] <- list(
+    active = NULL,
+    waiting = list(list(client_request_id = "waiting-id"))
+  )
+
+  expect_false(priv$daemon_pipe_dropped("daemon-1"))
+})
+
+test_that("daemon_pipe_dropped is TRUE when an active request exists but the daemon socket is already gone", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  priv$.pending_requests[["daemon-1"]] <- list(
+    active = list(client_request_id = "active-id"),
+    waiting = list()
+  )
+  old_sockets <- the$daemon_sockets
+  on.exit(the$daemon_sockets <- old_sockets, add = TRUE)
+  the$daemon_sockets <- list()
+
+  expect_true(priv$daemon_pipe_dropped("daemon-1"))
+})
+
+test_that("daemon_pipe_dropped is TRUE when the connected socket reports zero pipes (worker died without replying)", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  priv$.pending_requests[["daemon-1"]] <- list(
+    active = list(client_request_id = "active-id"),
+    waiting = list()
+  )
+  old_sockets <- the$daemon_sockets
+  on.exit(the$daemon_sockets <- old_sockets, add = TRUE)
+  the$daemon_sockets <- list("daemon-1" = "fake-socket")
+  local_mocked_bindings(
+    stat = function(object, which) 0L,
+    .package = "nanonext"
+  )
+
+  expect_true(priv$daemon_pipe_dropped("daemon-1"))
+})
+
+test_that("daemon_pipe_dropped is FALSE when the connected socket still has open pipes", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  priv$.pending_requests[["daemon-1"]] <- list(
+    active = list(client_request_id = "active-id"),
+    waiting = list()
+  )
+  old_sockets <- the$daemon_sockets
+  on.exit(the$daemon_sockets <- old_sockets, add = TRUE)
+  the$daemon_sockets <- list("daemon-1" = "fake-socket")
+  local_mocked_bindings(
+    stat = function(object, which) 1L,
+    .package = "nanonext"
+  )
+
+  expect_false(priv$daemon_pipe_dropped("daemon-1"))
+})
+
+test_that("daemon_pipe_dropped is FALSE when nanonext::stat errors (treated as unknown, not dropped)", {
+  server <- mcprServer$new(.tools_dir = .pending_tools_dir)
+  priv <- server$.__enclos_env__$private
+  priv$.pending_requests[["daemon-1"]] <- list(
+    active = list(client_request_id = "active-id"),
+    waiting = list()
+  )
+  old_sockets <- the$daemon_sockets
+  on.exit(the$daemon_sockets <- old_sockets, add = TRUE)
+  the$daemon_sockets <- list("daemon-1" = "fake-socket")
+  local_mocked_bindings(
+    stat = function(object, which) stop("boom"),
+    .package = "nanonext"
+  )
+
+  expect_false(priv$daemon_pipe_dropped("daemon-1"))
 })
 
 # --- sweep_pending_requests --------------------------------------------------
