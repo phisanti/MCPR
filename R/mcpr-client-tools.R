@@ -194,10 +194,45 @@ normalize_arg_by_type <- function(value, spec, path = "value") {
   )
 }
 
+#' Literal strings some clients send in place of JSON `null`
+#'
+#' Certain MCP clients serialise an omitted optional parameter as text rather
+#' than as JSON `null`, producing `{"contrast": "null"}` instead of
+#' `{"contrast": null}`. The value then reaches the tool as the string
+#' `"null"` and is validated as a real argument.
+#'
+#' Deliberately limited to the JSON and Python null literals. `"NA"` and `""`
+#' are excluded: both are plausible legitimate values for an R-facing tool, and
+#' the transport layer should not assume otherwise. Servers that know their own
+#' parameter vocabularies can widen this locally.
+#'
+#' @noRd
+.mcpr_null_sentinels <- c("null", "none")
+
+#' @noRd
+.is_null_sentinel <- function(value) {
+  is.character(value) &&
+    length(value) == 1L &&
+    !is.na(value) &&
+    tolower(trimws(value)) %in% .mcpr_null_sentinels
+}
+
 #' @noRd
 normalize_args_by_type <- function(args, schema) {
   if (!is.list(schema) || length(schema) == 0) {
     return(args)
+  }
+
+  # Drop schema-declared arguments whose value is a null sentinel, before the
+  # required-parameter check. Optional parameters then fall back to the tool
+  # function's own default, and a required parameter supplied this way is
+  # reported as missing rather than reaching the tool as the text "null".
+  declared <- intersect(names(args), names(schema))
+  if (length(declared) > 0) {
+    sentinels <- declared[vapply(args[declared], .is_null_sentinel, logical(1), USE.NAMES = FALSE)]
+    if (length(sentinels) > 0) {
+      args <- args[setdiff(names(args), sentinels)]
+    }
   }
 
   required_names <- names(schema)[vapply(schema, function(spec) inherits(spec, "mcpr_type") && isTRUE(spec$required), logical(1))]

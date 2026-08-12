@@ -333,3 +333,69 @@ test_that("encode_tool_results preserves _meta passthrough for image", {
   expect_equal(output$result$`_meta`$ui$resourceUri, "ui://mcpr/plots")
   expect_equal(output$result$content[[1]]$annotations$audience, list("user"))
 })
+
+test_that("normalize_args_by_type drops optional args sent as the string 'null'", {
+  schema <- list(
+    query = MCPR:::type_string(description = "Query", required = TRUE),
+    contrast = MCPR:::type_string(description = "Contrast", required = FALSE),
+    rank_by = MCPR:::type_string(description = "Sort key", required = FALSE)
+  )
+
+  args <- list(query = "TP53", contrast = "null", rank_by = "NULL")
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
+
+  expect_equal(result$query, "TP53")
+  expect_false("contrast" %in% names(result))
+  expect_false("rank_by" %in% names(result))
+})
+
+test_that("normalize_args_by_type treats 'none' as a null sentinel and is case-insensitive", {
+  schema <- list(
+    layer = MCPR:::type_string(description = "Layer", required = FALSE),
+    db = MCPR:::type_string(description = "Database", required = FALSE),
+    by = MCPR:::type_string(description = "Group by", required = FALSE)
+  )
+
+  args <- list(layer = "None", db = " null ", by = "NONE")
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
+
+  expect_length(result, 0)
+})
+
+test_that("normalize_args_by_type reports a required arg sent as 'null' as missing", {
+  schema <- list(
+    query = MCPR:::type_string(description = "Query", required = TRUE)
+  )
+
+  expect_error(
+    .client_tools_env$normalize_args_by_type(list(query = "null"), schema),
+    "Missing required parameter"
+  )
+})
+
+test_that("normalize_args_by_type leaves 'NA', empty strings and real values intact", {
+  schema <- list(
+    contrast = MCPR:::type_string(description = "Contrast", required = FALSE),
+    layer = MCPR:::type_string(description = "Layer", required = FALSE),
+    label = MCPR:::type_string(description = "Label", required = FALSE)
+  )
+
+  args <- list(contrast = "NA", layer = "", label = "nullable")
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
+
+  expect_equal(result$contrast, "NA")
+  expect_equal(result$layer, "")
+  expect_equal(result$label, "nullable")
+})
+
+test_that("normalize_args_by_type does not strip 'null' inside arrays or undeclared args", {
+  schema <- list(
+    terms = MCPR:::type_array(items = MCPR:::type_string(), description = "Terms", required = FALSE)
+  )
+
+  args <- list(terms = list("TP53", "null"), extra = "null")
+  result <- .client_tools_env$normalize_args_by_type(args, schema)
+
+  expect_equal(result$terms, c("TP53", "null"))
+  expect_equal(result$extra, "null")
+})
