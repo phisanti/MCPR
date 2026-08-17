@@ -44,6 +44,12 @@ src/symbols.rds
 
 # testthat generated artifacts
 tests/testthat/*.rds
+
+# testthat snapshots are reference data, not docs. The blanket *.md above would
+# otherwise swallow them and leave every expect_snapshot() inert on a fresh
+# clone: with no baseline committed, testthat writes one and passes.
+!tests/testthat/_snaps/
+!tests/testthat/_snaps/**/*.md
 .gitignore
 .renvignore
 renv.lock

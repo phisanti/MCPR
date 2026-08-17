@@ -147,7 +147,10 @@ ToolRegistry <- R6::R6Class("ToolRegistry",
           },
           error = function(e) {
             if (inherits(e, "mcpr_unsupported_type_error")) {
-              cli::cli_abort(conditionMessage(e), call = NULL)
+              # Re-raise the condition itself. Feeding its message back through
+              # cli_abort() would re-interpolate any braces the declaration
+              # contains, turning a schema typo into a glue parse error.
+              stop(e)
             }
             cli::cli_warn(
               "Failed to load {.file {basename(tool_file)}}: \\

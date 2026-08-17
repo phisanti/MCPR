@@ -357,7 +357,12 @@ test_that("mcpr_type_to_json_schema handles enum types", {
   result <- MCPR:::mcpr_type_to_json_schema(spec)
 
   expect_equal(result$type, "string")
-  expect_equal(result$enum, c("a", "b", "c"))
+  # I()-wrapped so auto_unbox cannot collapse a one-value enum to a bare string.
+  expect_equal(as.character(result$enum), c("a", "b", "c"))
+  expect_equal(
+    jsonlite::fromJSON(MCPR:::to_json(result), simplifyVector = FALSE)$enum,
+    list("a", "b", "c")
+  )
 })
 
 # --- convert_arguments_to_schema with list/object types ---

@@ -1,6 +1,7 @@
 # Type Conversion Utilities
 # Core serialization functions and type specifications for MCP protocol compatibility.
-# Provides high-level interface for JSON conversion and type system definitions.
+# Also owns the roxygen type-declaration grammar (`enum(...)`, `object{...}`) that
+# turns a @param tag into an mcpr_type; keep the whole parser in this file.
 
 #' Serialize R Object to JSON for MCP
 #'
@@ -115,7 +116,7 @@ stream_dataframe <- function(df, chunk_size = 1000, callback) {
 
 mcpr_supported_definition_types <- function(include_aliases = TRUE) {
   canonical <- c(
-    "string", "number", "integer", "boolean",
+    "string", "number", "integer", "boolean", "enum",
     "object", "array", "json_object", "json_array"
   )
 
@@ -126,28 +127,91 @@ mcpr_supported_definition_types <- function(include_aliases = TRUE) {
   c(canonical, "character", "numeric", "int", "logical", "bool", "list", "named_list")
 }
 
+# `enum` and `object` are the only tokens that take a refinement suffix, and
+# each takes exactly one delimiter: parens list the permitted values, braces
+# list the named fields.
+definition_refinement_delimiters <- c(enum = "(", object = "{")
+
+closing_delimiters <- c("(" = ")", "{" = "}")
+
+# The leading type name of a declaration. Shared by the two scanners below so
+# they cannot drift apart on what counts as a token.
+definition_token_pattern <- "^[A-Za-z_][A-Za-z0-9_]*"
+
+#' @noRd
+definition_type_context <- function(parameter_name = NULL,
+                                    function_name = NULL,
+                                    file_path = NULL) {
+  list(
+    parameter_name = parameter_name,
+    function_name = function_name,
+    file_path = file_path
+  )
+}
+
+#' @noRd
+definition_type_details <- function(ctx) {
+  details <- c(
+    if (!is.null(ctx$parameter_name)) paste("parameter =", ctx$parameter_name),
+    if (!is.null(ctx$function_name)) paste("function =", ctx$function_name),
+    if (!is.null(ctx$file_path)) paste("file =", ctx$file_path)
+  )
+
+  if (length(details) > 0) {
+    paste0(" (", paste(details, collapse = ", "), ")")
+  } else {
+    ""
+  }
+}
+
 #' @noRd
 abort_unsupported_mcpr_definition_type <- function(type_str,
                                                    parameter_name = NULL,
                                                    function_name = NULL,
                                                    file_path = NULL) {
   supported <- mcpr_supported_definition_types(include_aliases = FALSE)
-  details <- c(
-    if (!is.null(parameter_name)) paste("parameter =", parameter_name),
-    if (!is.null(function_name)) paste("function =", function_name),
-    if (!is.null(file_path)) paste("file =", file_path)
+  # A bare `enum` is itself an error, so advertise the form that actually
+  # works rather than sending the reader into a second, different abort.
+  supported[supported == "enum"] <- "enum(a|b)"
+  details_text <- definition_type_details(
+    definition_type_context(parameter_name, function_name, file_path)
   )
-  details_text <- if (length(details) > 0) {
-    paste0(" (", paste(details, collapse = ", "), ")")
-  } else {
-    ""
-  }
 
   cli::cli_abort(c(
     "Unsupported MCPR type declaration {.val {type_str}}{details_text}.",
     "i" = "Use one of the supported MCPR types in the first token of the declaration.",
     "i" = "Supported types: {.val {supported}}",
     "i" = "For arbitrary named-list / JSON payloads, use {.val json_object}. For arbitrary arrays, use {.val json_array}."
+  ), .subclass = "mcpr_unsupported_type_error")
+}
+
+#' @noRd
+# Raised when the type name is recognised but its refinement is malformed.
+# Shares the `mcpr_unsupported_type_error` class so `ToolRegistry` re-raises it
+# instead of warning and dropping the tool: a typo in a schema declaration must
+# never cost a tool silently.
+#' @noRd
+# Both declaration scanners report an unterminated refinement identically.
+abort_unterminated_definition_delimiter <- function(declaration, delimiter, ctx) {
+  abort_malformed_mcpr_definition_type(
+    declaration,
+    paste0("Unterminated `", delimiter, "` in the type declaration."),
+    ctx
+  )
+}
+
+#' @noRd
+abort_malformed_mcpr_definition_type <- function(declaration, reason, ctx) {
+  details_text <- definition_type_details(ctx)
+  syntax <- "enum(value1|value2) or object{field: type, optional?: type}"
+
+  # `reason`, `declaration` and `syntax` all routinely contain braces and
+  # backticks. They are interpolated as values, never spliced into the format
+  # string, so cli never tries to evaluate a fragment of a schema declaration.
+  cli::cli_abort(c(
+    "Malformed MCPR type declaration {.val {declaration}}{details_text}.",
+    "x" = "{reason}",
+    "i" = "Refine a type as {.code {syntax}}."
   ), .subclass = "mcpr_unsupported_type_error")
 }
 
@@ -465,26 +529,334 @@ map_definition_type_schema <- function(type_str,
                                        parameter_name = NULL,
                                        function_name = NULL,
                                        file_path = NULL) {
-  description <- description %||% ""
-  lower_type <- tolower(type_str)
+  build_definition_type(
+    type_str,
+    # Top-level parameters have always carried a description, empty or not.
+    description = description %||% "",
+    ctx = definition_type_context(parameter_name, function_name, file_path)
+  )
+}
+
+#' @noRd
+# Builds an mcpr_type from one type declaration. A declaration is a type name
+# optionally carrying a refinement suffix that describes what the type permits:
+# `enum(auto|exact)` lists values, `object{terms: array, mode?: enum(a|b)}`
+# lists named fields. Fields marked with a trailing `?` are optional.
+build_definition_type <- function(declaration, description, ctx, required = TRUE) {
+  parsed <- split_definition_refinement(declaration, ctx)
+  lower_type <- tolower(parsed$token)
 
   if (!lower_type %in% mcpr_supported_definition_types(include_aliases = TRUE)) {
     abort_unsupported_mcpr_definition_type(
-      type_str,
-      parameter_name = parameter_name,
-      function_name = function_name,
-      file_path = file_path
+      parsed$token,
+      parameter_name = ctx$parameter_name,
+      function_name = ctx$function_name,
+      file_path = ctx$file_path
     )
   }
 
-  dispatch_definition_type_schema(lower_type, description)
+  spec <- if (is.null(parsed$refinement)) {
+    if (identical(lower_type, "enum")) {
+      abort_malformed_mcpr_definition_type(
+        declaration,
+        "`enum` must list its permitted values, as in `enum(auto|exact|regex)`.",
+        ctx
+      )
+    }
+    dispatch_definition_type_schema(lower_type, description)
+  } else {
+    build_refined_definition_type(lower_type, parsed, description, ctx)
+  }
+
+  spec$required <- required
+  spec
+}
+
+#' @noRd
+build_refined_definition_type <- function(lower_type, parsed, description, ctx) {
+  expected <- unname(definition_refinement_delimiters[lower_type])
+
+  if (is.na(expected)) {
+    abort_malformed_mcpr_definition_type(
+      parsed$declaration,
+      paste0("`", lower_type, "` does not take a refinement."),
+      ctx
+    )
+  }
+  if (!identical(expected, parsed$delimiter)) {
+    abort_malformed_mcpr_definition_type(
+      parsed$declaration,
+      paste0("`", lower_type, "` refinements are delimited by `", expected, "`."),
+      ctx
+    )
+  }
+
+  switch(lower_type,
+    "enum" = build_enum_definition_type(parsed, description, ctx),
+    "object" = build_object_definition_type(parsed, description, ctx)
+  )
+}
+
+#' @noRd
+build_enum_definition_type <- function(parsed, description, ctx) {
+  values <- trimws(strsplit(parsed$refinement, "|", fixed = TRUE)[[1]])
+
+  # strsplit() drops a trailing empty field, so `enum(a|)` would otherwise read
+  # as a well-formed one-value enum. Test the raw text for the trailing bar.
+  if (length(values) == 0 || any(!nzchar(values)) ||
+    grepl("\\|\\s*$", parsed$refinement)) {
+    abort_malformed_mcpr_definition_type(
+      parsed$declaration,
+      "`enum` values must be a non-empty `|`-separated list.",
+      ctx
+    )
+  }
+
+  type_enum(values, description = description)
+}
+
+#' @noRd
+build_object_definition_type <- function(parsed, description, ctx) {
+  fields <- trimws(split_outside_delimiters(parsed$refinement, ","))
+  fields <- fields[nzchar(fields)]
+
+  if (length(fields) == 0) {
+    abort_malformed_mcpr_definition_type(
+      parsed$declaration,
+      "`object{}` declares no fields. Use a bare `object` for an open-ended payload.",
+      ctx
+    )
+  }
+
+  properties <- list()
+  for (field in fields) {
+    spec <- parse_object_field(field, parsed$declaration, ctx)
+
+    if (spec$name %in% names(properties)) {
+      abort_malformed_mcpr_definition_type(
+        parsed$declaration,
+        paste0("field `", spec$name, "` is declared more than once."),
+        ctx
+      )
+    }
+
+    field_ctx <- ctx
+    field_ctx$parameter_name <- paste(c(ctx$parameter_name, spec$name), collapse = ".")
+
+    properties[[spec$name]] <- build_definition_type(
+      spec$declaration,
+      # Prose for the fields belongs in the parameter's own description; a
+      # NULL here keeps the emitted field schemas free of empty descriptions.
+      description = NULL,
+      ctx = field_ctx,
+      required = spec$required
+    )
+  }
+
+  do.call(
+    type_object,
+    c(
+      list(.description = description, .additional_properties = FALSE),
+      properties
+    )
+  )
+}
+
+#' @noRd
+parse_object_field <- function(field, declaration, ctx) {
+  parts <- regmatches(
+    field,
+    regexec("^([A-Za-z_][A-Za-z0-9_]*)(\\?)?\\s*:\\s*(\\S.*)$", field)
+  )[[1]]
+
+  if (length(parts) == 0) {
+    abort_malformed_mcpr_definition_type(
+      declaration,
+      paste0("field `", field, "` is not of the form `name: type` or `name?: type`."),
+      ctx
+    )
+  }
+
+  list(
+    name = parts[2],
+    required = !nzchar(parts[3]),
+    declaration = trimws(parts[4])
+  )
+}
+
+#' Split a Roxygen Parameter Tail into Type Declaration and Description
+#'
+#' @title Split a Roxygen Parameter Tail into Type Declaration and Description
+#' @description Separates the leading type declaration from the prose that
+#' follows it. The declaration is a type name plus an optional refinement
+#' suffix (`enum(...)`, `object{...}`) which may itself contain whitespace, so
+#' the split is a delimiter-balanced scan rather than a token split.
+#'
+#' Lives beside `split_definition_refinement()` rather than in the registry
+#' helpers: the whole declaration grammar belongs in one file.
+#'
+#' @param type_and_desc Whitespace-normalised text following the parameter name
+#' @param ctx Definition context used for error reporting
+#' @return List with `type` and `description`, or NULL when no type declaration
+#'   is present. An unbalanced refinement aborts rather than returning NULL.
+#' @noRd
+split_definition_declaration <- function(type_and_desc, ctx) {
+  token_match <- regexpr(definition_token_pattern, type_and_desc)
+
+  if (token_match == -1) {
+    return(NULL)
+  }
+
+  token_end <- attr(token_match, "match.length")
+  end <- token_end
+  delimiter <- substr(type_and_desc, end + 1L, end + 1L)
+
+  if (nzchar(delimiter) && delimiter %in% names(closing_delimiters)) {
+    close <- find_matching_delimiter(type_and_desc, end + 1L)
+    if (is.na(close)) {
+      abort_unterminated_definition_delimiter(type_and_desc, delimiter, ctx)
+    }
+    end <- close
+  }
+
+  # `object {a: string}` — one stray space — would otherwise degrade silently
+  # to a bare open-ended object with the field list buried in the description.
+  # Refuse it instead of emitting a schema the author plainly did not mean.
+  if (end == token_end) {
+    token <- substr(type_and_desc, 1L, token_end)
+    expected <- unname(definition_refinement_delimiters[tolower(token)])
+    tail <- substring(type_and_desc, end + 1L)
+
+    if (!is.na(expected) && grepl(paste0("^\\s+\\", expected), tail)) {
+      abort_malformed_mcpr_definition_type(
+        type_and_desc,
+        paste0(
+          "A `", expected, "` refinement must follow `", token,
+          "` immediately, with no space before it."
+        ),
+        ctx
+      )
+    }
+  }
+
+  # A description must follow the declaration. Parameters documented with a
+  # bare type and no prose have always been rejected as incomplete.
+  if (!grepl("^\\s", substring(type_and_desc, end + 1L))) {
+    return(NULL)
+  }
+
+  list(
+    type = substring(type_and_desc, 1L, end),
+    description = trimws(substring(type_and_desc, end + 1L))
+  )
+}
+
+#' @noRd
+# Splits a type declaration into its type name and refinement. The refinement
+# must open immediately after the name, so that `object {a: string}` reads as
+# an unrefined `object` followed by a description rather than being ambiguous.
+split_definition_refinement <- function(declaration, ctx) {
+  token_match <- regexpr(definition_token_pattern, declaration)
+
+  if (token_match == -1) {
+    abort_malformed_mcpr_definition_type(declaration, "Expected a type name.", ctx)
+  }
+
+  token <- regmatches(declaration, token_match)
+  rest <- substring(declaration, attr(token_match, "match.length") + 1L)
+
+  if (!nzchar(rest)) {
+    return(list(declaration = declaration, token = token, delimiter = NULL, refinement = NULL))
+  }
+
+  delimiter <- substr(rest, 1L, 1L)
+  if (!delimiter %in% names(closing_delimiters)) {
+    abort_malformed_mcpr_definition_type(
+      declaration,
+      paste0("Unexpected text after the type name: `", rest, "`."),
+      ctx
+    )
+  }
+
+  close <- find_matching_delimiter(rest, 1L)
+  if (is.na(close)) {
+    abort_unterminated_definition_delimiter(declaration, delimiter, ctx)
+  }
+  if (close < nchar(rest)) {
+    abort_malformed_mcpr_definition_type(
+      declaration,
+      paste0("Unexpected text after `", closing_delimiters[[delimiter]], "`."),
+      ctx
+    )
+  }
+
+  list(
+    declaration = declaration,
+    token = token,
+    delimiter = delimiter,
+    refinement = substring(rest, 2L, close - 1L)
+  )
+}
+
+#' @noRd
+# Index of the delimiter closing the one at `open`, or NA if unterminated.
+find_matching_delimiter <- function(text, open) {
+  chars <- strsplit(text, "")[[1]]
+
+  # Both call sites guard on a non-empty opener, but an out-of-range `open`
+  # would make the loop below count down instead of up. Refuse it outright.
+  if (open > length(chars)) {
+    return(NA_integer_)
+  }
+
+  opener <- chars[open]
+  closer <- closing_delimiters[[opener]]
+  depth <- 0L
+
+  for (i in seq(open, length(chars))) {
+    if (chars[i] == opener) {
+      depth <- depth + 1L
+    } else if (chars[i] == closer) {
+      depth <- depth - 1L
+      if (depth == 0L) {
+        return(i)
+      }
+    }
+  }
+
+  NA_integer_
+}
+
+#' @noRd
+# Splits on `sep` only where no `(` or `{` group is open, so nested refinements
+# survive intact.
+split_outside_delimiters <- function(text, sep) {
+  chars <- strsplit(text, "")[[1]]
+  depth <- 0L
+  parts <- character()
+  start <- 1L
+
+  for (i in seq_along(chars)) {
+    if (chars[i] %in% names(closing_delimiters)) {
+      depth <- depth + 1L
+    } else if (chars[i] %in% closing_delimiters) {
+      depth <- depth - 1L
+    } else if (chars[i] == sep && depth == 0L) {
+      parts <- c(parts, substring(text, start, i - 1L))
+      start <- i + 1L
+    }
+  }
+
+  c(parts, substring(text, start))
 }
 
 #' @noRd
 dispatch_definition_type_schema <- function(lower_type, description) {
   switch(lower_type,
-    "json_object" = type_json_object(description = description),
-    "named_list" = type_json_object(description = description),
+    # `list` and `named_list` are R-side spellings of an arbitrary named list;
+    # all three share the json_object representation and its runtime coercion.
+    "json_object" = ,
+    "named_list" = ,
     "list" = type_json_object(description = description),
     "json_array" = type_json_array(description = description),
     "character" = ,
@@ -496,9 +868,15 @@ dispatch_definition_type_schema <- function(lower_type, description) {
     "logical" = ,
     "boolean" = ,
     "bool" = type_boolean(description = description),
-    "list" = ,
     "object" = type_object(.description = description, .additional_properties = TRUE),
     "array" = type_array(description = description, items = type_string()),
-    type_string(description = description)
+    # Unreachable: every caller checks membership in
+    # mcpr_supported_definition_types() first, and `enum` is diverted to
+    # build_enum_definition_type() before it gets here. Falling back to
+    # `type_string()` would silently mis-type a token this switch forgot.
+    cli::cli_abort(
+      "No schema mapping for definition type {.val {lower_type}}.",
+      .internal = TRUE
+    )
   )
 }

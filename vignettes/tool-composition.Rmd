@@ -233,6 +233,59 @@ The key elements:
 2. **`@param`** tags with type annotations — converted to JSON Schema for MCP clients
 3. **`@description`** — becomes the tool description that LLMs see
 
+### Parameter Types
+
+The first token after the parameter name is its type. The vocabulary is closed —
+an unrecognised token aborts the registry build rather than guessing:
+
+| Token | JSON Schema | Aliases |
+|---|---|---|
+| `string` | `string` | `character` |
+| `number` | `number` | `numeric` |
+| `integer` | `integer` | `int` |
+| `boolean` | `boolean` | `logical`, `bool` |
+| `enum(a\|b\|c)` | `string` with `enum` | — |
+| `array` | `array` of strings | — |
+| `object` | open-ended object | — |
+| `object{...}` | object with declared fields | — |
+| `json_object` | arbitrary named list | `named_list`, `list` |
+| `json_array` | arbitrary list | — |
+
+Two of these take a refinement suffix, written immediately after the token with
+no space. Parens list permitted values; braces list named fields:
+
+```{r}
+#' @param rank_by enum(q_asc|nes_desc|name) Sort key for the result table.
+#' @param query object{terms: array, mode?: enum(auto|exact|regex), max_hits?: integer} Structured search request. Terms are OR-matched.
+```
+
+A field marked with a trailing `?` is optional; every other field is required.
+Field types may themselves be refined, so objects nest. A declared field list is
+closed: the emitted schema carries `additionalProperties: false`, and a call
+passing an undeclared field is rejected.
+
+Prefer `enum(...)` over a plain `string` whenever the valid set is known and
+fixed. An agent cannot infer permitted values from prose, and a `string`
+parameter documented as "one of ..." is a routine source of invalid calls.
+
+Three things to watch:
+
+1. **Refinements must be balanced.** roxygen2 discards any `@param` with
+   mismatched braces or quotes before MCPR sees it. MCPR catches the resulting
+   gap and aborts, but the reported error is an undocumented parameter rather
+   than a syntax error — check your braces first.
+2. **No space before the refinement.** `object {a: string}` is an error, not an
+   open-ended `object` with `{a: string}` as its description. The space is
+   almost always a typo, so MCPR refuses it rather than emitting a schema you
+   did not write.
+3. **Field descriptions go in the parameter's own description.** The refinement
+   syntax carries names and types only. Describe the fields in the prose that
+   follows it.
+
+One `@param` may document several parameters that share a declaration, using
+roxygen2's comma form — `#' @param x,y integer Inclusive bounds.` — and each
+named parameter gets its own copy of the schema.
+
 ### Required vs Optional Parameters
 
 MCPR now follows two different patterns depending on how the tool is defined:

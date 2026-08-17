@@ -117,8 +117,26 @@ mcpr_type_to_json_schema <- function(spec) {
     "object" = {
       if (length(spec$properties) > 0) {
         base$properties <- lapply(spec$properties, mcpr_type_to_json_schema)
-      }
-      if (isTRUE(spec$additional_properties)) {
+        # A property may be a fallback value rather than an mcpr_type (see the
+        # guard at the top of this function), so probe for the field instead of
+        # indexing blind.
+        required <- names(spec$properties)[
+          vapply(
+            spec$properties,
+            function(prop) is.list(prop) && isTRUE(prop$required),
+            logical(1)
+          )
+        ]
+        # I() for the same reason as convert_arguments_to_schema(): auto_unbox
+        # would otherwise collapse a single required field to a bare string.
+        if (length(required) > 0) {
+          base$required <- I(required)
+        }
+        # A declared field list is closed, and normalize_arg_by_type() rejects
+        # anything else at call time. Say so, so the agent finds out from the
+        # schema rather than from a runtime error.
+        base$additionalProperties <- isTRUE(spec$additional_properties)
+      } else if (isTRUE(spec$additional_properties)) {
         base$additionalProperties <- TRUE
       }
       base
@@ -130,7 +148,15 @@ mcpr_type_to_json_schema <- function(spec) {
       base
     },
     "enum" = {
-      compact(list(type = "string", enum = spec$values, description = spec$description, `x-mcpr-error` = spec$error))
+      compact(list(
+        type = "string",
+        # I() for the same reason as `required` above: auto_unbox would
+        # otherwise collapse a single permitted value to a bare string, and
+        # JSON Schema requires `enum` to be an array.
+        enum = I(spec$values),
+        description = spec$description,
+        `x-mcpr-error` = spec$error
+      ))
     },
     base
   )

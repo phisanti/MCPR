@@ -46,6 +46,7 @@ create_tool_from_block <- function(block, env, file_path) {
     file_path = file_path
   )
   mcpr_args <- apply_formal_requiredness(mcpr_args, formals(func))
+  check_schema_covers_formals(mcpr_args, formals(func), func_name, file_path)
 
   # Check for companion annotations variable (.{func_name}_annotations)
   annotations_var <- paste0(".", func_name, "_annotations")
@@ -105,6 +106,48 @@ apply_formal_requiredness <- function(arguments, formals) {
   arguments
 }
 
+#' Check Roxygen Schema Covers Every Formal
+#'
+#' @title Check Roxygen Schema Covers Every Formal
+#' @description Aborts when the roxygen-derived argument schema does not line
+#' up with the function's formals. `tool()` rejects such a mismatch anyway, but
+#' it does so from inside `create_tool_from_block()`'s error handler, which
+#' downgrades the failure to a warning and drops the tool from the registry.
+#'
+#' The common cause is a `@param` roxygen2 refused to parse. roxygen2 requires
+#' braces and quotes inside a tag to be balanced, so an unterminated
+#' `object{...}` refinement makes it discard the whole tag — leaving the
+#' parameter undocumented and, without this check, the tool silently missing.
+#'
+#' @param arguments Named list of mcpr_type argument definitions
+#' @param formals Function formals pairlist
+#' @param function_name Name of the function being registered
+#' @param file_path Path of file being parsed (for error reporting)
+#' @return None (throws on mismatch)
+#' @noRd
+check_schema_covers_formals <- function(arguments, formals, function_name, file_path) {
+  # `...` names no single value, so it has no schema to be missing. Whether a
+  # tool may take it at all is `tool()`'s call, not this check's.
+  formal_names <- setdiff(names(formals), "...")
+  documented <- setdiff(names(arguments), "...")
+
+  undocumented <- setdiff(formal_names, documented)
+  unmatched <- setdiff(documented, formal_names)
+
+  if (length(undocumented) == 0 && length(unmatched) == 0) {
+    return(invisible(NULL))
+  }
+
+  cli::cli_abort(c(
+    "Roxygen tool schema does not match the formals of {.fn {function_name}} \\
+    (file = {file_path}).",
+    "x" = if (length(undocumented) > 0) "Undocumented parameter{?s}: {.val {undocumented}}",
+    "x" = if (length(unmatched) > 0) "Documented but not a parameter: {.val {unmatched}}",
+    "i" = "Every parameter needs a {.code @param <name> <type> <description>} tag.",
+    "i" = "roxygen2 silently discards a {.code @param} whose braces or quotes are unbalanced."
+  ), .subclass = "mcpr_unsupported_type_error")
+}
+
 #' Extract Description from Roxygen Block
 #'
 #' @title Extract Description from Roxygen Block
@@ -146,12 +189,6 @@ extract_description <- function(block) {
 #' @noRd
 convert_to_schema <- function(param_tags, function_name = NULL, file_path = NULL) {
   mcpr_args <- list()
-  supported_types <- mcpr_supported_definition_types(include_aliases = TRUE)
-  type_pattern <- paste0(
-    "^(",
-    paste(supported_types[order(nchar(supported_types), decreasing = TRUE)], collapse = "|"),
-    ")\\s+"
-  )
 
   for (param_tag in param_tags) {
     # Parse the val field which contains "param_name type description"
@@ -162,35 +199,45 @@ convert_to_schema <- function(param_tags, function_name = NULL, file_path = NULL
       next
     }
 
-    param_name <- val_parts[1]
+    # roxygen2 lets one tag document several parameters as `@param x,y ...`.
+    # They share a declaration, so build the spec once and bind it to each.
+    param_label <- val_parts[1]
+    param_names <- trimws(strsplit(param_label, ",", fixed = TRUE)[[1]])
+    param_names <- param_names[nzchar(param_names)]
+
+    if (length(param_names) == 0) {
+      next
+    }
+
     type_and_desc <- paste(val_parts[-1], collapse = " ")
 
-    # Extract type from beginning of type_and_desc
-    type_match <- regexpr(type_pattern, type_and_desc, ignore.case = TRUE)
+    declaration <- split_definition_declaration(
+      type_and_desc,
+      ctx = definition_type_context(param_label, function_name, file_path)
+    )
 
-    if (type_match != -1) {
-      type_str <- regmatches(type_and_desc, type_match)
-      type_str <- trimws(gsub("\\s+$", "", type_str))
-      param_desc <- sub(type_pattern, "", type_and_desc, ignore.case = TRUE)
-    } else {
-      observed_type <- val_parts[2]
+    if (is.null(declaration)) {
       abort_unsupported_mcpr_definition_type(
-        observed_type,
-        parameter_name = param_name,
+        val_parts[2],
+        parameter_name = param_label,
         function_name = function_name,
         file_path = file_path
       )
     }
 
     # Create proper mcpr_type objects directly
-    mcpr_args[[param_name]] <- map_type_schema(
-      type_str,
-      description = param_desc,
+    spec <- map_type_schema(
+      declaration$type,
+      description = declaration$description,
       input_type = "definition",
-      parameter_name = param_name,
+      parameter_name = param_label,
       function_name = function_name,
       file_path = file_path
     )
+
+    for (param_name in param_names) {
+      mcpr_args[[param_name]] <- spec
+    }
   }
 
   mcpr_args
