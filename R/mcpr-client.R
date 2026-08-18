@@ -138,11 +138,16 @@ mcprClient <- R6::R6Class("mcprClient",
       }
 
       properties <- tool$inputSchema$properties
+      required <- tool$inputSchema$required %||% character()
       mcpr_types <- list()
 
       for (prop_name in names(properties)) {
         prop <- properties[[prop_name]]
-        mcpr_types[[prop_name]] <- map_type_schema(prop, input_type = "json")
+        mcpr_types[[prop_name]] <- map_type_schema(
+          prop,
+          input_type = "json",
+          required = prop_name %in% required
+        )
       }
 
       mcpr_types

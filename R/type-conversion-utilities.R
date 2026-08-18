@@ -370,6 +370,7 @@ type_json_array <- function(description = NULL, required = TRUE, error = NULL) {
 #' @param type_str Type string (e.g., "character", "numeric") or JSON schema object
 #' @param description Parameter description (used for string input type)
 #' @param input_type Either "definition" for string-based input or "json" for JSON schema objects
+#' @param required Whether a JSON-schema-derived type is required by its parent object
 #' @return MCPR type object with appropriate specification
 #' @noRd
 map_type_schema <- function(type_str,
@@ -377,9 +378,10 @@ map_type_schema <- function(type_str,
                             input_type = "definition",
                             parameter_name = NULL,
                             function_name = NULL,
-                            file_path = NULL) {
+                            file_path = NULL,
+                            required = TRUE) {
   if (input_type == "json") {
-    return(map_json_type_schema(type_str))
+    return(map_json_type_schema(type_str, required = required))
   }
 
   map_definition_type_schema(
@@ -392,8 +394,8 @@ map_type_schema <- function(type_str,
 }
 
 #' @noRd
-map_json_type_schema <- function(schema) {
-  type_context <- json_type_context(schema)
+map_json_type_schema <- function(schema, required = TRUE) {
+  type_context <- json_type_context(schema, required = required)
 
   if (!is.null(type_context$extension_type)) {
     extension <- map_json_extension_type(type_context)
@@ -415,11 +417,11 @@ map_json_type_schema <- function(schema) {
 }
 
 #' @noRd
-json_type_context <- function(schema) {
+json_type_context <- function(schema, required = TRUE) {
   list(
     extension_type = schema[["x-mcpr-type"]] %||% NULL,
     description = schema$description %||% NULL,
-    required = TRUE,
+    required = required,
     error = schema[["x-mcpr-error"]] %||% NULL
   )
 }
@@ -492,8 +494,14 @@ map_json_array_schema <- function(schema, type_context) {
 
 #' @noRd
 map_json_object_schema <- function(schema, type_context) {
-  additional <- isTRUE(schema$additionalProperties)
-  props <- map_json_object_properties(schema$properties)
+  # JSON Schema permits additional properties unless explicitly told not to.
+  # A schema-valued additionalProperties is permissive here because mcpr_type
+  # can represent whether extra fields are accepted, but not their subschema.
+  additional <- !identical(schema$additionalProperties, FALSE)
+  props <- map_json_object_properties(
+    schema$properties,
+    required = schema$required %||% character()
+  )
 
   do.call(
     type_object,
@@ -510,14 +518,18 @@ map_json_object_schema <- function(schema, type_context) {
 }
 
 #' @noRd
-map_json_object_properties <- function(properties) {
+map_json_object_properties <- function(properties, required = character()) {
   if (is.null(properties)) {
     return(list())
   }
 
   props <- list()
   for (prop_name in names(properties)) {
-    props[[prop_name]] <- map_type_schema(properties[[prop_name]], input_type = "json")
+    props[[prop_name]] <- map_type_schema(
+      properties[[prop_name]],
+      input_type = "json",
+      required = prop_name %in% required
+    )
   }
 
   props
