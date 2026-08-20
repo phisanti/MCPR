@@ -28,6 +28,18 @@ test_that("register_daemon adds entry to the$daemon_sessions", {
   expect_equal(the$daemon_sessions, c("agent-a" = 5L))
 })
 
+test_that("owned_secondary_session_ids reports registered secondary ports", {
+  old_sessions <- the$daemon_sessions
+  on.exit(the$daemon_sessions <- old_sessions, add = TRUE)
+
+  the$daemon_sessions <- integer(0)
+  expect_equal(MCPR:::owned_secondary_session_ids(), integer(0))
+
+  MCPR:::register_daemon("daemon-12", 12L)
+  MCPR:::register_daemon("daemon-13", 13L)
+  expect_setequal(MCPR:::owned_secondary_session_ids(), c(12L, 13L))
+})
+
 test_that("unregister_daemon removes from all registries", {
   old_sessions <- the$daemon_sessions
   old_sockets <- the$daemon_sockets

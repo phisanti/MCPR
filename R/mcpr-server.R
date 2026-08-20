@@ -599,7 +599,13 @@ mcprServer <- R6::R6Class("mcprServer",
       ids <- vapply(matches, function(match) {
         if (length(match) >= 2L) as.integer(match[[2L]]) else NA_integer_
       }, integer(1))
-      ids[!is.na(ids)]
+      ids <- ids[!is.na(ids)]
+
+      # A secondary session this server started answers the discovery probe
+      # exactly like a human REPL does. Without this filter the server
+      # re-registers its own workers as human sessions, which shadows their
+      # secondary binding and makes them impossible to close.
+      setdiff(ids, owned_secondary_session_ids())
     },
 
     # Handle incoming messages from MCP clients

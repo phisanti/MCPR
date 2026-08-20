@@ -439,7 +439,7 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
       if (is.na(session_id)) {
         return(NULL)
       }
-      keys <- c(private$human_key(session_id), private$secondary_key(session_id))
+      keys <- c(private$secondary_key(session_id), private$human_key(session_id))
       existing <- keys[keys %in% names(private$.sessions)]
       if (length(existing) > 0L) {
         existing[[1L]]
@@ -448,16 +448,20 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
       }
     },
 
+    # An owned secondary binding is authoritative for its session id: this
+    # server started that worker, so it wins over any human binding discovery
+    # may have recorded for the same id.
     binding_for_session = function(session_id) {
-      human <- private$.sessions[[private$human_key(session_id)]]
-      if (!is.null(human)) {
-        return(human)
+      secondary <- private$.sessions[[private$secondary_key(session_id)]]
+      if (!is.null(secondary)) {
+        return(secondary)
       }
-      private$.sessions[[private$secondary_key(session_id)]]
+      private$.sessions[[private$human_key(session_id)]]
     },
 
     # Refresh the cache of attachable human sessions from the server callback.
-    # Discovery only adds missing bindings; it never assumes ownership.
+    # Discovery only adds missing bindings; it never assumes ownership, and it
+    # never shadows a secondary session this manager already owns.
     discover_human_sessions = function() {
       discover <- private$.callbacks$discover_human
       if (!is.function(discover)) {
@@ -469,6 +473,10 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
       }
       for (session_id in as.integer(discovered)) {
         if (is.na(session_id)) {
+          next
+        }
+        owned <- private$.sessions[[private$secondary_key(session_id)]]
+        if (!is.null(owned) && isTRUE(owned$owned)) {
           next
         }
         key <- private$human_key(session_id)

@@ -155,6 +155,55 @@ test_that("close rejects human sessions and closes only owned secondary sessions
   expect_equal(manager$active_label(), "private (local)")
 })
 
+test_that("discovery never shadows an owned secondary session", {
+  # Regression: socket discovery cannot tell an MCPR-owned worker from a human
+  # REPL, so it used to register a second, human binding for the same id. That
+  # binding shadowed the secondary one and close() refused forever, leaking the
+  # R process.
+  closed <- integer(0)
+  manager <- MCPR:::mcprSessionManager$new(
+    enabled = TRUE,
+    callbacks = list(
+      discover_human = function() 45L,
+      join_human = function(session_id) list(session_id = session_id),
+      start_secondary = function(working_dir = getwd()) list(session_id = 45L, key = "daemon-45"),
+      close_secondary = function(binding) { closed <<- c(closed, binding$session_id) }
+    )
+  )
+
+  manager$handle_control("start")
+  listing <- manager$handle_control("list")
+
+  expect_equal(lengths(regmatches(listing, gregexpr("- 45:", listing, fixed = TRUE))), 1L)
+  expect_match(listing, "- 45: secondary active", fixed = TRUE)
+
+  result <- manager$handle_control("close", session = 45L)
+  expect_match(result, "Secondary session 45 closed", fixed = TRUE)
+  expect_equal(closed, 45L)
+})
+
+test_that("an owned secondary binding wins over a stale human binding", {
+  closed <- integer(0)
+  manager <- MCPR:::mcprSessionManager$new(
+    enabled = TRUE,
+    callbacks = list(
+      discover_human = function() 46L,
+      join_human = function(session_id) list(session_id = session_id),
+      start_secondary = function(working_dir = getwd()) list(session_id = 46L, key = "daemon-46"),
+      close_secondary = function(binding) { closed <<- c(closed, binding$session_id) }
+    )
+  )
+
+  # Human binding recorded first (discovery ran before the worker was started),
+  # then the same id is started as an owned secondary.
+  manager$handle_control("list")
+  manager$handle_control("start")
+
+  result <- manager$handle_control("close", session = 46L)
+  expect_match(result, "Secondary session 46 closed", fixed = TRUE)
+  expect_equal(closed, 46L)
+})
+
 test_that("dead active attached binding resets to private/local", {
   manager <- MCPR:::mcprSessionManager$new(
     enabled = TRUE,

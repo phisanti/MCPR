@@ -82,6 +82,18 @@ is_secondary_session_key <- function(key) {
     startsWith(key, secondary_session_key_prefix)
 }
 
+#' List secondary session ids owned by this server
+#'
+#' @description Returns the socket port numbers currently registered as
+#' MCPR-owned secondary sessions. Socket discovery uses this to avoid
+#' advertising this server's own workers as attachable human sessions.
+#' @return Integer vector of owned session ids, possibly empty.
+#' @noRd
+owned_secondary_session_ids <- function() {
+  ids <- suppressWarnings(as.integer(the$daemon_sessions))
+  ids[!is.na(ids)]
+}
+
 #' Find an available secondary-session socket port
 #'
 #' @description Scans ports 2..1023 via nanonext::listen to find the first
