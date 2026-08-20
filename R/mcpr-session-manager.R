@@ -144,6 +144,7 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
     join = function(session) {
       session_id <- private$validate_session_id(session, "join")
       private$discover_human_sessions()
+      previous <- private$.active_binding
 
       key <- private$human_key(session_id)
       binding <- private$.sessions[[key]]
@@ -162,13 +163,16 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
 
       private$.active_binding <- binding
       sprintf(
-        "Attached to session %d.\nActive session: %s",
+        "Attached to session %d.%s\nActive session: %s",
         session_id,
+        private$displacement_notice(previous, binding),
         self$active_label()
       )
     },
 
-    #' @description Start and immediately attach an MCPR-owned secondary session.
+    #' @description Start an MCPR-owned secondary session. The new session is
+    #' attached only when nothing is attached yet; an existing attachment is
+    #' never displaced silently.
     #' @return User-facing status text.
     start_secondary = function() {
       started <- private$call_callback("start_secondary", working_dir = getwd())
@@ -184,8 +188,25 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
         label = sprintf("%d (attached secondary)", session_id)
       )
       private$.sessions[[key]] <- binding
-      private$.active_binding <- binding
 
+      # The active binding is server-wide. Stealing it here would silently
+      # reroute an attachment another caller made explicitly, so a start only
+      # attaches when nothing is attached yet.
+      if (!private$is_private_active()) {
+        return(sprintf(
+          paste(
+            "Secondary session %d started but not attached.",
+            "Active session is unchanged: %s",
+            "Use action='join' with session=%d to run code in the new session.",
+            sep = "\n"
+          ),
+          session_id,
+          self$active_label(),
+          session_id
+        ))
+      }
+
+      private$.active_binding <- binding
       sprintf(
         "Secondary session %d started and attached.\nActive session: %s",
         session_id,
@@ -412,6 +433,24 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
         cli::cli_abort("session must be a single integer")
       }
       as.integer(session)
+    },
+
+    is_private_active = function() {
+      identical(private$.active_binding$key, private$.private_binding$key)
+    },
+
+    # Attachment changes are server-wide, so any caller displaced by one has to
+    # be able to see it in the response text.
+    displacement_notice = function(previous, binding) {
+      if (is.null(previous) ||
+          identical(previous$key, binding$key) ||
+          identical(previous$key, private$.private_binding$key)) {
+        return("")
+      }
+      sprintf(
+        " This replaced previously attached session %s, which was active for every caller on this server.",
+        previous$session_id %||% previous$label
+      )
     },
 
     human_key = function(session_id) {

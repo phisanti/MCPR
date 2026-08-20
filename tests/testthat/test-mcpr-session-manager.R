@@ -155,6 +155,53 @@ test_that("close rejects human sessions and closes only owned secondary sessions
   expect_equal(manager$active_label(), "private (local)")
 })
 
+test_that("start does not displace an existing attachment", {
+  # Regression: the active binding is server-wide, so a second caller's start
+  # used to reroute a caller that had explicitly joined another session, with
+  # nothing in either response saying so.
+  started <- 60L
+  manager <- MCPR:::mcprSessionManager$new(
+    enabled = TRUE,
+    callbacks = list(
+      discover_human = function() integer(0),
+      join_human = function(session_id) list(session_id = session_id),
+      start_secondary = function(working_dir = getwd()) {
+        started <<- started + 1L
+        list(session_id = started, key = MCPR:::secondary_session_key(started))
+      },
+      close_secondary = function(binding) invisible(NULL)
+    )
+  )
+
+  first <- manager$handle_control("start")
+  expect_match(first, "Secondary session 61 started and attached", fixed = TRUE)
+  expect_equal(manager$active_binding()$session_id, 61L)
+
+  second <- manager$handle_control("start")
+  expect_match(second, "Secondary session 62 started but not attached", fixed = TRUE)
+  expect_match(second, "Active session is unchanged: 61 (attached secondary)", fixed = TRUE)
+  expect_equal(manager$active_binding()$session_id, 61L)
+
+  # The new session is real and reachable through an explicit join.
+  joined <- manager$handle_control("join", session = 62L)
+  expect_match(joined, "This replaced previously attached session 61", fixed = TRUE)
+  expect_equal(manager$active_binding()$session_id, 62L)
+})
+
+test_that("joining from the private session reports no displacement", {
+  manager <- MCPR:::mcprSessionManager$new(
+    enabled = TRUE,
+    callbacks = list(
+      discover_human = function() 8L,
+      join_human = function(session_id) list(session_id = session_id)
+    )
+  )
+
+  result <- manager$handle_control("join", session = 8L)
+  expect_match(result, "Attached to session 8.", fixed = TRUE)
+  expect_false(grepl("replaced", result, fixed = TRUE))
+})
+
 test_that("discovery never shadows an owned secondary session", {
   # Regression: socket discovery cannot tell an MCPR-owned worker from a human
   # REPL, so it used to register a second, human binding for the same id. That
