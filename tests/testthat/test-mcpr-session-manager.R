@@ -188,6 +188,70 @@ test_that("start does not displace an existing attachment", {
   expect_equal(manager$active_binding()$session_id, 62L)
 })
 
+test_that("join attaches an owned secondary instead of re-joining it as human", {
+  # Regression: start's own instruction text points at join, and join used to
+  # resolve every id through join_human. That dialled a second socket to this
+  # server's own worker, labelled it human, and left close() unable to reset
+  # the active binding, so execution kept forwarding to a killed process.
+  joined_as_human <- integer(0)
+  manager <- MCPR:::mcprSessionManager$new(
+    enabled = TRUE,
+    callbacks = list(
+      discover_human = function() integer(0),
+      join_human = function(session_id) {
+        joined_as_human <<- c(joined_as_human, session_id)
+        list(session_id = session_id, socket = "human-socket")
+      },
+      start_secondary = local({
+        n <- 70L
+        function(working_dir = getwd()) {
+          n <<- n + 1L
+          list(session_id = n, key = MCPR:::secondary_session_key(n))
+        }
+      }),
+      close_secondary = function(binding) invisible(NULL),
+      forward_human = function(data, binding) "human",
+      forward_secondary = function(data, binding) "secondary"
+    )
+  )
+
+  manager$handle_control("start")
+  manager$handle_control("start")
+  manager$handle_control("join", session = 72L)
+
+  expect_equal(joined_as_human, integer(0))
+  expect_equal(manager$active_binding()$type, "secondary")
+  expect_equal(manager$active_label(), "72 (attached secondary)")
+  expect_equal(manager$execute(list()), "secondary")
+
+  listing <- manager$handle_control("list")
+  expect_equal(lengths(regmatches(listing, gregexpr("- 72:", listing, fixed = TRUE))), 1L)
+
+  manager$handle_control("close", session = 72L)
+  expect_equal(manager$active_label(), "private (local)")
+})
+
+test_that("starting a secondary drops a stale discovered human binding", {
+  manager <- MCPR:::mcprSessionManager$new(
+    enabled = TRUE,
+    callbacks = list(
+      discover_human = function() 80L,
+      join_human = function(session_id) list(session_id = session_id, socket = "s"),
+      start_secondary = function(working_dir = getwd()) {
+        list(session_id = 80L, key = MCPR:::secondary_session_key(80L))
+      },
+      close_secondary = function(binding) invisible(NULL)
+    )
+  )
+
+  manager$handle_control("list")
+  manager$handle_control("start")
+  listing <- manager$handle_control("list")
+
+  expect_equal(lengths(regmatches(listing, gregexpr("- 80:", listing, fixed = TRUE))), 1L)
+  expect_match(listing, "- 80: secondary active", fixed = TRUE)
+})
+
 test_that("joining from the private session reports no displacement", {
   manager <- MCPR:::mcprSessionManager$new(
     enabled = TRUE,

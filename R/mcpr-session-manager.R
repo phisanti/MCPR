@@ -146,19 +146,25 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
       private$discover_human_sessions()
       previous <- private$.active_binding
 
-      key <- private$human_key(session_id)
-      binding <- private$.sessions[[key]]
-      if (is.null(binding) || is.null(binding$socket)) {
-        joined <- private$call_callback("join_human", session_id)
-        binding <- private$new_binding(
-          type = "human",
-          session_id = session_id,
-          key = key,
-          socket = joined$socket,
-          owned = FALSE,
-          label = sprintf("%d (attached human)", session_id)
-        )
-        private$.sessions[[key]] <- binding
+      # A worker this server started is attached directly. Falling through to
+      # join_human here would dial a second socket to our own secondary, label
+      # it human, and leave close() unable to reset the active binding.
+      binding <- private$.sessions[[private$secondary_key(session_id)]]
+      if (is.null(binding) || !isTRUE(binding$owned)) {
+        key <- private$human_key(session_id)
+        binding <- private$.sessions[[key]]
+        if (is.null(binding) || is.null(binding$socket)) {
+          joined <- private$call_callback("join_human", session_id)
+          binding <- private$new_binding(
+            type = "human",
+            session_id = session_id,
+            key = key,
+            socket = joined$socket,
+            owned = FALSE,
+            label = sprintf("%d (attached human)", session_id)
+          )
+          private$.sessions[[key]] <- binding
+        }
       }
 
       private$.active_binding <- binding
@@ -188,6 +194,11 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
         label = sprintf("%d (attached secondary)", session_id)
       )
       private$.sessions[[key]] <- binding
+
+      # Discovery may already have recorded this id as an available human
+      # session before the worker existed. This server owns it now, so the
+      # stale entry has to go or it will shadow the binding again.
+      private$.sessions[[private$human_key(session_id)]] <- NULL
 
       # The active binding is server-wide. Stealing it here would silently
       # reroute an attachment another caller made explicitly, so a start only
@@ -442,14 +453,20 @@ mcprSessionManager <- R6::R6Class("mcprSessionManager",
     # Attachment changes are server-wide, so any caller displaced by one has to
     # be able to see it in the response text.
     displacement_notice = function(previous, binding) {
-      if (is.null(previous) ||
-          identical(previous$key, binding$key) ||
-          identical(previous$key, private$.private_binding$key)) {
+      if (is.null(previous)) {
+        return("")
+      }
+      unchanged <- identical(previous$key, binding$key)
+      from_private <- identical(previous$key, private$.private_binding$key)
+      if (unchanged || from_private) {
         return("")
       }
       sprintf(
-        " This replaced previously attached session %s, which was active for every caller on this server.",
-        previous$session_id %||% previous$label
+        paste(
+          " This replaced previously attached session %s,",
+          "which was active for every caller on this server."
+        ),
+        previous$session_id
       )
     },
 
