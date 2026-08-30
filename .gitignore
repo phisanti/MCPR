@@ -16,6 +16,12 @@ AGENTS.md
 *.md
 reports/
 
+# Package files the blanket rules above would otherwise swallow.
+# `scripts/` is unanchored, so it also matches inst/scripts/.
+!inst/scripts/
+!inst/scripts/**
+!NEWS.md
+
 # Auto-generated README preview (keep README.md but ignore HTML preview)
 README.html
 devutils/

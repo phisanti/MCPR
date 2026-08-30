@@ -25,7 +25,7 @@ Encoding: UTF-8
 NeedsCompilation: yes
 Roxygen: list(markdown = TRUE, roclets = c("collate", "namespace", "rd"))
 RoxygenNote: 7.3.3.9000
-Depends: 
+Depends:
     R (>= 4.0.0)
 Imports:
     R6,
@@ -44,7 +44,7 @@ Imports:
     grDevices,
     methods,
     stats
-Suggests: 
+Suggests:
     testthat (>= 3.0.0),
     pkgload,
     httpgd,
@@ -52,11 +52,17 @@ Suggests:
     withr,
     mockery,
     knitr,
-    rmarkdown
+    rmarkdown,
+    htmlwidgets,
+    plotly,
+    chromote,
+    png
 Remotes: nx10/httpgd
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-SystemRequirements: Unix sockets (Unix), Named pipes (Windows)
+SystemRequirements: Unix sockets (Unix), Named pipes (Windows). A Chromium-based
+    browser (Chrome, Chromium, Brave, or Edge) is optional and only required for
+    channel_plot(target = "agent") on plotly/htmlwidget objects.
 Collate:
     'aaa.R'
     'inspect-object-classes.R'

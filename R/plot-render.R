@@ -1,11 +1,18 @@
 # Plot Rendering Primitives and Public Routing API
-# Pure rendering functions plus deferred capture helpers for side-effect plotting workflows.
-# Exports channel_plot() and capture_plot() to keep plot routing device-agnostic.
+# Pure rendering functions plus deferred capture helpers for plotting workflows.
+# Exports channel_plot() and capture_plot() to keep routing device-agnostic.
+
+# Plot classes that respond to print() on a graphics device. Interactive
+# widgets (plotly/htmlwidget) are deliberately absent - they have no print
+# method that draws to a device, which is why they need the browser path.
+PRINTABLE_CLASSES <- c(
+  "gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot"
+)
 
 #' Detect the best available local graphics device
 #'
 #' Returns the device channel for static plot rendering in non-MCP-App contexts.
-#' Checks httpgd availability, interactive session, or falls back to file export.
+#' Checks httpgd availability, interactive session, or falls back to export.
 #'
 #' @return Character string: "httpgd", "device", or "file"
 #' @noRd
@@ -81,7 +88,9 @@ print.captured_plot <- function(x, ...) {
 #' @noRd
 show_widget_in_browser <- function(widget) {
   if (!requireNamespace("htmlwidgets", quietly = TRUE)) {
-    cli::cli_abort("htmlwidgets package is required to display interactive widgets")
+    cli::cli_abort(
+      "htmlwidgets package is required to display interactive widgets"
+    )
   }
 
   tmp <- tempfile(fileext = ".html")
@@ -99,11 +108,9 @@ show_widget_in_browser <- function(widget) {
 #' @param plot_obj A plot object (ggplot, recordedplot, grob, gtable, trellis,
 #'   or captured_plot)
 #' @param device_channel One of "httpgd", "device", or "file"
-#' @return A list with `channel` (character) and `info` (URL, path, or confirmation)
+#' @return A list with `channel` (character) and `info` (URL, path, or msg)
 #' @noRd
 render_static_plot <- function(plot_obj, device_channel) {
-  printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot")
-
   switch(device_channel,
     httpgd = {
       dev_name <- names(grDevices::dev.cur())
@@ -113,7 +120,7 @@ render_static_plot <- function(plot_obj, device_channel) {
         httpgd::hgd(silent = TRUE)
       }
 
-      if (inherits(plot_obj, printable_classes)) {
+      if (inherits(plot_obj, PRINTABLE_CLASSES)) {
         print(plot_obj)
       }
 
@@ -126,11 +133,14 @@ render_static_plot <- function(plot_obj, device_channel) {
     },
 
     device = {
-      if (inherits(plot_obj, printable_classes)) {
+      if (inherits(plot_obj, PRINTABLE_CLASSES)) {
         print(plot_obj)
       }
 
-      list(channel = "device", info = "Plot displayed on active graphics device.")
+      list(
+        channel = "device",
+        info = "Plot displayed on active graphics device."
+      )
     },
 
     file = {
@@ -138,7 +148,7 @@ render_static_plot <- function(plot_obj, device_channel) {
       grDevices::png(tmp, width = 800, height = 600)
       on.exit(grDevices::dev.off(), add = TRUE)
 
-      if (inherits(plot_obj, printable_classes)) {
+      if (inherits(plot_obj, PRINTABLE_CLASSES)) {
         print(plot_obj)
       }
 
@@ -176,8 +186,7 @@ show_plot_via_mcp_app <- function(plot_obj) {
   grDevices::png(tmp, width = 800, height = 600)
   device_open <- TRUE
 
-  printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot")
-  if (inherits(plot_obj, printable_classes)) {
+  if (inherits(plot_obj, PRINTABLE_CLASSES)) {
     print(plot_obj)
   }
 
@@ -187,7 +196,10 @@ show_plot_via_mcp_app <- function(plot_obj) {
   # Base64-encode the PNG - guard against empty/partial files
   file_size <- file.info(tmp)$size
   if (is.na(file_size) || file_size == 0) {
-    cli::cli_abort("Plot produced an empty image file - the plot object may not generate visible output.")
+    cli::cli_abort(c(
+      "Plot produced an empty image file.",
+      "i" = "The plot object may not generate visible output."
+    ))
   }
   raw_data <- readBin(tmp, "raw", file_size)
   b64_data <- base64enc::base64encode(raw_data)
@@ -280,7 +292,8 @@ setup_graphics_device <- function(format = "png", width = 800, height = 600) {
 #' @param height Height in pixels
 #' @return Image response with base64 encoded plot and token count
 #' @noRd
-get_plot_data <- function(device_info, format = "png", width = 800, height = 600) {
+get_plot_data <- function(device_info, format = "png", width = 800,
+                          height = 600) {
   # Register cleanup first so the temp file is always removed, even if
   # response_image() or base64 encoding throws before we reach the end.
   on.exit(unlink(device_info$file), add = TRUE)
@@ -299,19 +312,31 @@ get_plot_data <- function(device_info, format = "png", width = 800, height = 600
       error = function(e) {
         switch(format,
           "png" = {
-            grDevices::dev.copy(grDevices::png, device_info$file, width = width, height = height)
+            grDevices::dev.copy(
+              grDevices::png, device_info$file, width = width,
+              height = height
+            )
             grDevices::dev.off()
           },
           "jpeg" = {
-            grDevices::dev.copy(grDevices::jpeg, device_info$file, width = width, height = height, quality = 90)
+            grDevices::dev.copy(
+              grDevices::jpeg, device_info$file, width = width,
+              height = height, quality = 90
+            )
             grDevices::dev.off()
           },
           "pdf" = {
-            grDevices::dev.copy(grDevices::pdf, device_info$file, width = width / 100, height = height / 100)
+            grDevices::dev.copy(
+              grDevices::pdf, device_info$file, width = width / 100,
+              height = height / 100
+            )
             grDevices::dev.off()
           },
           "svg" = {
-            grDevices::dev.copy(grDevices::svg, device_info$file, width = width / 100, height = height / 100)
+            grDevices::dev.copy(
+              grDevices::svg, device_info$file, width = width / 100,
+              height = height / 100
+            )
             grDevices::dev.off()
           }
         )
@@ -321,6 +346,38 @@ get_plot_data <- function(device_info, format = "png", width = 800, height = 600
     grDevices::dev.off()
   }
 
+  encode_agent_image(device_info$file, width, height, format)
+}
+
+#' Encode a finished image file for agent delivery
+#'
+#' Takes an image file already written to disk (from a graphics device or a
+#' subprocess renderer) and produces the base64 content item consumed by
+#' `.channel_plot_agent()`. Token accounting is pixel-based - it reflects what
+#' a vision model is actually charged for a rendered image block, not the
+#' length of the base64 text produced by encoding it.
+#'
+#' @param file Path to the rendered image file
+#' @param width Width in pixels the image was rendered at
+#' @param height Height in pixels the image was rendered at
+#' @param format Output format: "png", "jpeg", "pdf", or "svg"
+#' @return A list with `type` ("image"), `content` (base64 URI), `tokens`
+#' @noRd
+encode_agent_image <- function(file, width, height, format = "png") {
+  file_size <- file.info(file)$size
+  if (is.na(file_size) || file_size == 0) {
+    cli::cli_abort(c(
+      "Plot produced an empty image file.",
+      "i" = "The plot object may not generate visible output."
+    ))
+  }
+  if (file_size > 5 * 1024^2) {
+    cli::cli_abort(c(
+      "Rendered image is {round(file_size / 1024^2, 1)} MB.",
+      "i" = "Exceeds the 5 MB payload limit for agent delivery."
+    ))
+  }
+
   mime_type <- switch(format,
     "png" = "image/png",
     "jpeg" = "image/jpeg",
@@ -328,12 +385,8 @@ get_plot_data <- function(device_info, format = "png", width = 800, height = 600
     "svg" = "image/svg+xml"
   )
 
-  image_response <- response_image(device_info$file, mime_type)
-
-  base64_content <- sub("^data:[^,]*,", "", image_response$content)
-  actual_tokens <- ceiling(nchar(base64_content) / 4)
-
-  image_response$tokens <- actual_tokens
+  image_response <- response_image(file, mime_type)
+  image_response$tokens <- ceiling(width * height / 750)
 
   image_response
 }
@@ -350,7 +403,9 @@ get_plot_data <- function(device_info, format = "png", width = 800, height = 600
 #' @param current_format Current format used
 #' @return Character vector of suggestions
 #' @noRd
-generate_optimization_suggestions <- function(current_width, current_height, current_tokens, target_tokens, current_format = "png") {
+generate_optimization_suggestions <- function(current_width, current_height,
+                                              current_tokens, target_tokens,
+                                              current_format = "png") {
   suggestions <- character()
 
   reduction_needed <- (current_tokens - target_tokens) / current_tokens
@@ -370,12 +425,18 @@ generate_optimization_suggestions <- function(current_width, current_height, cur
     new_height <- round(current_height * 0.9)
     suggestions <- c(
       suggestions,
-      sprintf("Reduce resolution to %dx%d (saves ~20%% tokens)", new_width, new_height)
+      sprintf(
+        "Reduce resolution to %dx%d (saves ~20%% tokens)",
+        new_width, new_height
+      )
     )
   }
 
   if (current_format == "png" && current_tokens > target_tokens * 0.8) {
-    suggestions <- c(suggestions, "Consider JPEG format for ~20% token savings (slightly lower quality)")
+    suggestions <- c(
+      suggestions,
+      "Consider JPEG format for ~20% token savings (lower quality)"
+    )
   }
 
   suggestions
@@ -406,9 +467,9 @@ response_image <- function(file, mime_type = "image/png") {
 #'
 #' @param plot_obj A plot object (ggplot, plotly, htmlwidget, recordedplot,
 #'   grob, gtable, trellis, or captured_plot)
-#' @param mcp_apps_supported Logical; whether the client supports MCP App structuredContent
-#' @param target Character; who sees the plot: "user" (display) or "agent" (base64 for analysis)
-#' @return Varies by path: text confirmation, structuredContent list, or image response
+#' @param mcp_apps_supported Logical; MCP App structuredContent support
+#' @param target Character; "user" (display) or "agent" (base64 analysis)
+#' @return Varies by path: text, structuredContent list, or image response
 #' @examples
 #' \dontrun{
 #' captured <- capture_plot(plot(cars))
@@ -420,20 +481,23 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
   target <- match.arg(target)
 
   # Validate plot_obj class
-  valid_classes <- c("gg", "ggplot", "plotly", "htmlwidget", "recordedplot", "grob", "gtable", "trellis", "captured_plot")
+  valid_classes <- c(
+    "gg", "ggplot", "plotly", "htmlwidget", "recordedplot", "grob",
+    "gtable", "trellis", "captured_plot"
+  )
   if (!inherits(plot_obj, valid_classes)) {
     cli::cli_abort(
-      "Expected a plot object ({paste(valid_classes, collapse = ', ')}), got {paste(class(plot_obj), collapse = '/')}"
+      "Expected a plot object ({paste(valid_classes, collapse = ', ')}), ",
+      "got {paste(class(plot_obj), collapse = '/')}"
     )
   }
 
   is_interactive <- inherits(plot_obj, c("htmlwidget", "plotly"))
 
   if (target == "agent") {
-    return(.channel_plot_agent(plot_obj))
+    return(.channel_plot_agent(plot_obj, is_interactive))
   }
 
-  # target == "user"
   if (mcp_apps_supported) {
     if (is_interactive) {
       return(show_plotly_via_mcp_app(plot_obj))
@@ -444,7 +508,12 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
   # Local rendering
   if (is_interactive) {
     path <- show_widget_in_browser(plot_obj)
-    return(list(type = "text", content = sprintf("Interactive widget opened in browser: %s", path)))
+    return(list(
+      type = "text",
+      content = sprintf(
+        "Interactive widget opened in browser: %s", path
+      )
+    ))
   }
 
   device_channel <- detect_local_device()
@@ -452,45 +521,219 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
   list(
     type = "text",
     content = switch(render_result$channel,
-      httpgd = sprintf("Plot displayed to user via httpgd at %s", render_result$info),
+      httpgd = sprintf(
+        "Plot displayed to user via httpgd at %s",
+        render_result$info
+      ),
       device = render_result$info,
-      file = sprintf("Plot saved to file: %s (headless environment, no display available).", render_result$info)
+      file = sprintf(
+        "Plot saved to file: %s (headless environment).",
+        render_result$info
+      )
     )
   )
 }
 
+#' Capture an htmlwidget as a static PNG for agent analysis
+#'
+#' Renders a plotly/htmlwidget object in an isolated headless-Chrome
+#' subprocess and returns the path to the resulting PNG. MCPR's own
+#' `later`/nanonext event loop is never touched, and Chrome cannot outlive
+#' the call. Chrome discovery honours `chromote::find_chrome()`; set
+#' `CHROMOTE_CHROME` env var to point at a specific binary if needed.
+#'
+#' @param plot_obj A plotly object
+#' @param width Screenshot width in pixels
+#' @param height Screenshot height in pixels
+#' @param format Image format written by the renderer (currently "png")
+#' @param timeout Seconds to wait for render subprocess before aborting
+#' @return Character scalar - path to the rendered PNG on disk
+#' @noRd
+capture_widget_for_agent <- function(plot_obj, width = 900L, height = 650L,
+                                     format = "png", timeout = 45) {
+  if (!requireNamespace("htmlwidgets", quietly = TRUE)) {
+    cli::cli_abort(c(
+      "htmlwidgets package required to render interactive plots.",
+      "i" = "Use `target = \"user\"` to display the widget instead."
+    ))
+  }
+
+  tmp_html <- tempfile(fileext = ".html")
+  tmp_out <- tempfile(fileext = paste0(".", format))
+  # tmp_out is the return value and is owned by the caller - cleaning it
+  # up here would delete the PNG before the caller ever sees it.
+  on.exit({
+    unlink(tmp_html)
+    unlink(
+      paste0(tools::file_path_sans_ext(tmp_html), "_files"),
+      recursive = TRUE
+    )
+  }, add = TRUE)
+
+  htmlwidgets::saveWidget(plot_obj, tmp_html, selfcontained = FALSE)
+
+  rscript <- file.path(
+    R.home("bin"),
+    if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"
+  )
+  helper <- system.file("scripts/render-widget.R", package = "MCPR")
+  # Rscript itself exits 2 when it cannot open its script file, which would
+  # otherwise be indistinguishable from the helper's own NO_CHROME status.
+  if (!nzchar(helper) || !file.exists(helper)) {
+    cli::cli_abort(
+      "Renderer script is missing from the installed MCPR package.",
+      .internal = TRUE
+    )
+  }
+  # Give the helper a shorter deadline than the process-level timeout so its
+  # clean TIMEOUT exit wins the race against processx killing it outright.
+  deadline_s <- max(5, timeout - 5)
+
+  res <- processx::run(
+    rscript,
+    c(
+      "--no-save", "--no-restore", helper, tmp_html, tmp_out,
+      as.character(width), as.character(height),
+      as.character(deadline_s * 1000)
+    ),
+    # --vanilla would imply --no-init-file, which stops renv activating from
+    # .Rprofile and hides a renv-installed chromote from the child.
+    env = c(
+      "current",
+      R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep)
+    ),
+    timeout = timeout,
+    # NB: cleanup_tree = TRUE would also reap an orphaned Chrome on a timeout
+    # kill, but it errors on the normal path here ("failed to send signal")
+    # when part of the tree has already exited. The helper's own
+    # on.exit(b$close()) covers every non-SIGKILL exit; see MCPR-3uq.
+    error_on_status = FALSE
+  )
+
+  # The child writes diagnostics to stderr on every failure path; surface them
+  # rather than discarding the only description of what actually went wrong.
+  stderr_txt <- if (is.null(res$stderr)) "" else trimws(res$stderr)
+  detail <- if (nzchar(stderr_txt)) {
+    c("i" = "Renderer said: {stderr_txt}")
+  } else {
+    character()
+  }
+
+  if (isTRUE(res$timeout)) {
+    cli::cli_abort(c(
+      "Rendering the interactive plot timed out after {timeout}s.",
+      "i" = "Use `target = \"user\"` to display the widget instead.",
+      detail
+    ))
+  }
+
+  if (identical(res$status, 0L)) {
+    if (file.exists(tmp_out) && file.info(tmp_out)$size > 0) {
+      return(tmp_out)
+    }
+    cli::cli_abort(
+      "Render subprocess reported success but produced no file.",
+      .internal = TRUE
+    )
+  }
+
+  msg <- switch(as.character(res$status),
+    "2" = c(
+      "No Chromium-based browser found.",
+      "i" = "Check `chromote::find_chrome()` or set the CHROMOTE_CHROME env var.",
+      "i" = "Or use `target = \"user\"` to display in a browser."
+    ),
+    "5" = c(
+      "The chromote package is required to render interactive plots.",
+      "i" = "Install it, or use `target = \"user\"` to display the widget."
+    ),
+    "3" = c(
+      "Page loaded but no plotly plot element appeared.",
+      "i" = "Only plotly widgets can be rendered for `target = \"agent\"`.",
+      "i" = "Use `target = \"user\"` for other htmlwidget types."
+    ),
+    "4" = c(
+      "Rendering did not settle within {deadline_s}s.",
+      "i" = "Very large or complex plots may need `target = \"user\"`."
+    ),
+    c("Render subprocess failed (exit {res$status}).")
+  )
+  cli::cli_abort(c(msg, detail))
+}
+
 #' Render a plot for agent analysis as base64-encoded image
 #'
-#' Internal helper called by channel_plot() for agent target. Uses hardcoded
-#' defaults (600x450, png, 25000 token limit, 20000 warn threshold).
+#' Internal helper called by channel_plot() for agent target. Static plots
+#' (ggplot, base R, etc.) render at 600x450 on a graphics device. plotly
+#' objects render at 900x650 via an isolated headless Chrome subprocess.
+#'
+#' Token accounting is pixel-based, so the thresholds below are expressed in
+#' those terms: 3000 tokens is roughly 1500x1500 px. They are deliberately
+#' reachable - the previous base64-length limit of 25000 could not be crossed
+#' by any dimensions this function produces.
 #'
 #' @param plot_obj A plot object
+#' @param is_interactive Logical; whether plot_obj is an htmlwidget/plotly,
+#'   as already determined by `channel_plot()`
 #' @return Image response with base64-encoded plot and optimization metadata
 #' @noRd
-.channel_plot_agent <- function(plot_obj) {
-  width <- 600L
-  height <- 450L
+.channel_plot_agent <- function(plot_obj,
+                                is_interactive = inherits(
+                                  plot_obj, c("htmlwidget", "plotly")
+                                )) {
   format <- "png"
-  token_limit <- 25000
-  warn_threshold <- 20000
+  token_limit <- 3000
+  warn_threshold <- 2000
+
+  # The renderer looks for `.js-plotly-plot`, so a leaflet/DT/visNetwork
+  # widget would spin until the deadline and then be blamed for failing to
+  # render. Reject it up front with a message naming the real limitation.
+  if (is_interactive && !inherits(plot_obj, "plotly")) {
+    cli::cli_abort(c(
+      "Only plotly widgets can be rendered for `target = \"agent\"`.",
+      "i" = "Got {.cls {class(plot_obj)[1]}}.",
+      "i" = "Use `target = \"user\"` to display this widget interactively."
+    ))
+  }
+
+  if (is_interactive) {
+    width <- 900L
+    height <- 650L
+  } else {
+    width <- 600L
+    height <- 450L
+  }
 
   tryCatch(
     {
-      device_info <- setup_graphics_device(format, width, height)
+      if (is_interactive) {
+        out_file <- capture_widget_for_agent(plot_obj, width, height)
+        on.exit(unlink(out_file), add = TRUE)
+        image_response <- encode_agent_image(out_file, width, height, format)
+      } else {
+        device_info <- setup_graphics_device(format, width, height)
 
-      # Print the plot object to the open device
-      printable_classes <- c("gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot")
-      if (inherits(plot_obj, printable_classes)) {
-        print(plot_obj)
+        # Print the plot object to the open device
+        if (inherits(plot_obj, PRINTABLE_CLASSES)) {
+          print(plot_obj)
+        }
+
+        image_response <- get_plot_data(device_info, format, width, height)
       }
 
-      image_response <- get_plot_data(device_info, format, width, height)
       actual_tokens <- image_response$tokens
 
       if (actual_tokens > token_limit) {
-        suggestions <- generate_optimization_suggestions(width, height, actual_tokens, token_limit, format)
+        suggestions <- generate_optimization_suggestions(
+          width, height, actual_tokens, token_limit, format
+        )
         error_msg <- sprintf(
-          "Plot too large for agent analysis: %s tokens exceeds %s token limit.\nTry these optimizations:\n- %s\nOr use show_plot with target='user' to display directly to the user instead.",
+          c(
+            "Plot too large for agent analysis: %s tokens exceeds %s.",
+            "\nTry these optimizations:",
+            "\n- %s",
+            "\nOr use `target = 'user'` to display directly."
+          ),
           format(actual_tokens, big.mark = ","),
           format(token_limit, big.mark = ","),
           paste(suggestions, collapse = "\n- ")
@@ -500,9 +743,16 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
 
       optimization_warning <- NULL
       if (actual_tokens > warn_threshold) {
-        suggestions <- generate_optimization_suggestions(width, height, actual_tokens, warn_threshold, format)
+        suggestions <- generate_optimization_suggestions(
+          width, height, actual_tokens, warn_threshold, format
+        )
         optimization_warning <- sprintf(
-          "WARNING: HIGH TOKEN USAGE: %s tokens (%.1f%% of limit)\nConsider optimizing for better efficiency:\n- %s\nOr use show_plot with target='user' to display directly to the user instead.",
+          c(
+            "HIGH TOKEN USAGE: %s tokens (%.1f%% of limit)",
+            "\nConsider optimizations:",
+            "\n- %s",
+            "\nOr use `target = 'user'` to display directly."
+          ),
           format(actual_tokens, big.mark = ","),
           (actual_tokens / token_limit) * 100,
           paste(suggestions, collapse = "\n- ")
@@ -514,8 +764,14 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
         actual_tokens = actual_tokens,
         dimensions = paste0(width, "x", height),
         format = format,
-        optimization_applied = if (!is.null(optimization_warning)) "Warning issued" else "None",
-        token_efficiency = sprintf("%.1f%% of limit used", (actual_tokens / token_limit) * 100)
+        optimization_applied = if (!is.null(optimization_warning))
+          "Warning issued"
+        else
+          "None",
+        token_efficiency = sprintf(
+          "%.1f%% of limit used",
+          (actual_tokens / token_limit) * 100
+        )
       )
 
       if (!is.null(optimization_warning)) {
@@ -525,10 +781,19 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
       image_response
     },
     error = function(e) {
-      if (grDevices::dev.cur() != 1) {
+      # The interactive branch never opens a graphics device - closing "the
+      # active device" here would be spurious and could clobber a device the
+      # caller has open for unrelated reasons.
+      if (!is_interactive && grDevices::dev.cur() != 1) {
         try(grDevices::dev.off(), silent = TRUE)
       }
-      cli::cli_abort("Error creating plot: {e$message}")
+      # Carry `e$body` through: the remediation bullets ("use target = user",
+      # "set CHROMOTE_CHROME") live there, and rewrapping on the message alone
+      # silently discards every actionable hint the agent needs.
+      cli::cli_abort(
+        c("Error creating plot: {conditionMessage(e)}", e$body),
+        call = NULL
+      )
     }
   )
 }

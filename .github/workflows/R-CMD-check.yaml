@@ -39,8 +39,22 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck, nx10/httpgd
+          extra-packages: any::rcmdcheck, any::chromote, any::png, nx10/httpgd
           needs: check
+
+      # The interactive-render tests skip when no Chromium binary is present.
+      # Record availability per platform so a silent skip is never mistaken
+      # for passing coverage of the plotly agent path.
+      - name: Probe Chromium availability for chromote
+        run: |
+          cat(
+            "runner:", Sys.getenv("RUNNER_OS"),
+            "chrome:", tryCatch(chromote::find_chrome(),
+                                error = function(e) "NOT FOUND"),
+            "\n"
+          )
+        shell: Rscript {0}
+        continue-on-error: true
 
       - uses: r-lib/actions/check-r-package@v2
         with:
