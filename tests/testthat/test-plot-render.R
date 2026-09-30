@@ -249,7 +249,8 @@ test_that("channel_plot target='agent' returns image response for ggplot", {
 
   result <- MCPR::channel_plot(plot_obj, target = "agent")
   expect_equal(result$type, "image")
-  expect_match(result$content, "^data:image/png;base64,")
+  expect_equal(result$mimeType, "image/png")
+  expect_match(result$data, "^iVBORw0KGgo")
   expect_true(!is.null(result$metadata))
   expect_equal(result$metadata$format, "png")
   expect_equal(result$metadata$dimensions, "600x450")
@@ -316,7 +317,8 @@ test_that("response_image creates base64 encoded response", {
 
   result <- MCPR:::response_image(tmp)
   expect_equal(result$type, "image")
-  expect_match(result$content, "^data:image/png;base64,")
+  expect_equal(result$mimeType, "image/png")
+  expect_match(result$data, "^iVBORw0KGgo")
 
   unlink(tmp)
 })
@@ -340,7 +342,8 @@ test_that("encode_agent_image counts tokens from pixels, not base64 length", {
   result <- MCPR:::encode_agent_image(tmp, 900, 650)
 
   expect_equal(result$type, "image")
-  expect_true(grepl("^data:image/png;base64,", result$content))
+  expect_equal(result$mimeType, "image/png")
+  expect_false(grepl("^data:", result$data))
   # 900 * 650 / 750 -- independent of base64 payload size
   expect_equal(result$tokens, 780)
 })

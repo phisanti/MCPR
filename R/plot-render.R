@@ -391,7 +391,7 @@ get_plot_data <- function(device_info, format = "png", width = 800,
 #' @param width Width in pixels the image was rendered at
 #' @param height Height in pixels the image was rendered at
 #' @param format Output format: "png", "jpeg", "pdf", or "svg"
-#' @return A list with `type` ("image"), `content` (base64 URI), `tokens`
+#' @return A list with `type` ("image"), `data` (base64), `mimeType`, `tokens`
 #' @noRd
 encode_agent_image <- function(file, width, height, format = "png") {
   file_size <- file.info(file)$size
@@ -476,7 +476,9 @@ generate_optimization_suggestions <- function(current_width, current_height,
 #'
 #' @param file Path to the image file
 #' @param mime_type MIME type of the image (default: "image/png")
-#' @return A list with image content in base64 format
+#' @return A list with `type` ("image"), `data` (raw base64, no data-URI
+#'   prefix) and `mimeType` - the shape `encode_tool_results()` turns into an
+#'   MCP image content block
 #' @noRd
 response_image <- function(file, mime_type = "image/png") {
   if (!file.exists(file)) {
@@ -485,7 +487,8 @@ response_image <- function(file, mime_type = "image/png") {
 
   list(
     type = "image",
-    content = base64enc::dataURI(file = file, mime = mime_type)
+    data = base64enc::base64encode(file),
+    mimeType = mime_type
   )
 }
 
