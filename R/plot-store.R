@@ -1,6 +1,6 @@
-# Plot Store and Owned Graphics Device
+# Plot Store and Display Devices
 # Records every plot page a session draws as a replayable recordedplot, addressable as plot:N.
-# Also owns one persistent httpgd device per session; invisible pdf(NULL) fallback without httpgd.
+# Also owns the display side: device selection, one persistent httpgd device, user-facing draws.
 
 #' Maximum number of plot pages retained by the store
 #' @noRd
@@ -195,17 +195,19 @@ plot_hook_table <- function() {
   )
 }
 
-#' before.plot.new hook: finish the previous page when a new one starts
+#' Finish the previous page when a new one starts on the current device
 #'
-#' Multi-panel layouts (`par(mfrow)`) call plot.new per panel but only start a
-#' new page when `par("page")` is TRUE; those panels stay one entry.
+#' Graphics hooks run inside try(); failures are swallowed here so recording
+#' can never print errors into the user's console or break their plot.
+#'
+#' @param starts_page Function returning TRUE when this call starts a new page
 #' @noRd
-plot_hook_before_base <- function() {
+plot_hook_finish_page <- function(starts_page) {
   if (plot_recording_suspended()) {
     return(invisible(NULL))
   }
   tryCatch({
-    if (grDevices::dev.cur() != 1L && isTRUE(graphics::par("page"))) {
+    if (grDevices::dev.cur() != 1L && isTRUE(starts_page())) {
       plot_store_snapshot()
       plot_store_close_page()
     }
@@ -213,22 +215,19 @@ plot_hook_before_base <- function() {
   invisible(NULL)
 }
 
-#' before.grid.newpage hook: finish the previous page when grid starts a new one
+#' before.plot.new hook
 #'
-#' Graphics hooks run inside try(); failures are swallowed here so recording
-#' can never print errors into the user's console or break their plot.
+#' Multi-panel layouts (`par(mfrow)`) call plot.new per panel but only start a
+#' new page when `par("page")` is TRUE; those panels stay one entry.
+#' @noRd
+plot_hook_before_base <- function() {
+  plot_hook_finish_page(function() graphics::par("page"))
+}
+
+#' before.grid.newpage hook: grid.newpage always starts a new page
 #' @noRd
 plot_hook_before_grid <- function() {
-  if (plot_recording_suspended()) {
-    return(invisible(NULL))
-  }
-  tryCatch({
-    if (grDevices::dev.cur() != 1L) {
-      plot_store_snapshot()
-      plot_store_close_page()
-    }
-  }, error = function(e) NULL)
-  invisible(NULL)
+  plot_hook_finish_page(function() TRUE)
 }
 
 #' Install the page-boundary hooks once
@@ -393,7 +392,8 @@ owned_plot_device <- function() {
 #' first time a given device is shown.
 #'
 #' @return list(url, open_browser) where open_browser is TRUE once per device,
-#'   or NULL in an owned session whose display is disabled
+#'   or NULL when no httpgd viewer is available (owned display disabled, or
+#'   httpgd failed to start)
 #' @noRd
 activate_display_device <- function() {
   if (!is.null(the$plot_state)) {
@@ -417,10 +417,11 @@ activate_display_device <- function() {
     return(list(url = display$url, open_browser = FALSE))
   }
 
-  the$display_device <- list(
-    device = start_httpgd_device(),
-    url = httpgd::hgd_url()
-  )
+  device <- tryCatch(start_httpgd_device(), error = function(e) NULL)
+  if (is.null(device)) {
+    return(NULL)
+  }
+  the$display_device <- list(device = device, url = httpgd::hgd_url())
   list(url = the$display_device$url, open_browser = TRUE)
 }
 
@@ -467,7 +468,60 @@ draw_on_display_device <- function(plot_obj) {
   invisible(NULL)
 }
 
+#' Detect the best available local graphics device
+#'
+#' Returns the device channel for static plot rendering in non-MCP-App contexts.
+#' Checks httpgd availability, interactive session, or falls back to export.
+#'
+#' @return Character string: "none", "httpgd", "device", or "file"
+#' @noRd
+detect_local_device <- function() {
+  # MCPR-owned session without httpgd: static display is deliberately skipped
+  if (owned_display_disabled()) {
+    return("none")
+  }
+
+  # httpgd already the active device?
+  dev_name <- names(grDevices::dev.cur())
+  if (dev_name %in% c("httpgd", "unigd")) {
+    return("httpgd")
+  }
+
+  # httpgd available but not active?
+  if (requireNamespace("httpgd", quietly = TRUE)) {
+    return("httpgd")
+  }
+
+  # Interactive with a display?
+  if (interactive()) {
+    return("device")
+  }
+
+  # Headless fallback
+  "file"
+}
+
+#' Whether a recorded plot is already the active device's current page
+#'
+#' Plots drawn directly on the owned httpgd device are already in its history;
+#' replaying them again would only add a duplicate page.
+#'
+#' @param plot_obj A plot object
+#' @return Logical scalar
+#' @noRd
+is_current_page <- function(plot_obj) {
+  if (!inherits(plot_obj, "recordedplot") || grDevices::dev.cur() == 1L) {
+    return(FALSE)
+  }
+  current <- tryCatch(grDevices::recordPlot(), error = function(e) NULL)
+  !is.null(current) && identical(current[[1L]], plot_obj[[1L]])
+}
+
 #' Whether this process is an MCPR-owned session with no static display
+#'
+#' Pure check: an owned device not created yet counts as disabled only when
+#' httpgd is missing. If httpgd later fails to start, activate_display_device()
+#' returns NULL and the caller falls back to the same "none" channel.
 #' @noRd
 owned_display_disabled <- function() {
   state <- the$plot_state
@@ -475,7 +529,7 @@ owned_display_disabled <- function() {
     return(FALSE)
   }
   if (identical(state$mode, "uninitialized")) {
-    state <- owned_plot_device()
+    return(!requireNamespace("httpgd", quietly = TRUE))
   }
   identical(state$mode, "none")
 }

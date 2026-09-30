@@ -227,6 +227,31 @@ test_that("httpgd keeps every replayed page renderable", {
   expect_equal(nrow(MCPR:::plot_store_list()), 3L)
 })
 
+test_that("owned_display_disabled checks without opening a device", {
+  skip_if_not_installed("httpgd")
+  local_plot_sandbox()
+  MCPR:::configure_owned_graphics()
+  before <- grDevices::dev.list()
+
+  expect_false(MCPR:::owned_display_disabled())
+  expect_identical(grDevices::dev.list(), before)
+  expect_equal(MCPR:::the$plot_state$mode, "uninitialized")
+})
+
+test_that("a joined session falls back when httpgd fails to start", {
+  local_plot_sandbox()
+  .the$plot_state <- NULL
+  .the$display_device <- NULL
+  local_mocked_bindings(
+    start_httpgd_device = function() cli::cli_abort("port in use"),
+    .package = "MCPR"
+  )
+
+  expect_null(MCPR:::activate_display_device())
+  res <- MCPR:::render_static_plot(MCPR::capture_plot(plot(cars)), "httpgd")
+  expect_equal(res$channel, "none")
+})
+
 test_that("is_current_page detects the page already on the device", {
   local_plot_sandbox()
   run_captured(plot(cars))

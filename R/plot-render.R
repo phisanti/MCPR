@@ -9,39 +9,6 @@ PRINTABLE_CLASSES <- c(
   "gg", "ggplot", "grob", "gtable", "trellis", "recordedplot", "captured_plot"
 )
 
-#' Detect the best available local graphics device
-#'
-#' Returns the device channel for static plot rendering in non-MCP-App contexts.
-#' Checks httpgd availability, interactive session, or falls back to export.
-#'
-#' @return Character string: "none", "httpgd", "device", or "file"
-#' @noRd
-detect_local_device <- function() {
-  # MCPR-owned session without httpgd: static display is deliberately skipped
-  if (owned_display_disabled()) {
-    return("none")
-  }
-
-  # httpgd already the active device?
-  dev_name <- names(grDevices::dev.cur())
-  if (dev_name %in% c("httpgd", "unigd")) {
-    return("httpgd")
-  }
-
-  # httpgd available but not active?
-  if (requireNamespace("httpgd", quietly = TRUE)) {
-    return("httpgd")
-  }
-
-  # Interactive with a display?
-  if (interactive()) {
-    return("device")
-  }
-
-  # Headless fallback
-  "file"
-}
-
 #' Capture a plotting expression for deferred display
 #'
 #' @description Capture an unevaluated plotting expression for later display on
@@ -120,7 +87,7 @@ render_static_plot <- function(plot_obj, device_channel) {
     none = {
       list(
         channel = "none",
-        info = "Plot display skipped: httpgd is not installed in this session."
+        info = "Plot display skipped: no httpgd viewer is available in this session."
       )
     },
 
@@ -168,22 +135,6 @@ render_static_plot <- function(plot_obj, device_channel) {
       list(channel = "file", info = tmp)
     }
   )
-}
-
-#' Whether a recorded plot is already the active device's current page
-#'
-#' Plots drawn directly on the owned httpgd device are already in its history;
-#' replaying them again would only add a duplicate page.
-#'
-#' @param plot_obj A plot object
-#' @return Logical scalar
-#' @noRd
-is_current_page <- function(plot_obj) {
-  if (!inherits(plot_obj, "recordedplot") || grDevices::dev.cur() == 1L) {
-    return(FALSE)
-  }
-  current <- tryCatch(grDevices::recordPlot(), error = function(e) NULL)
-  !is.null(current) && identical(current[[1L]], plot_obj[[1L]])
 }
 
 #' Display a static plot via MCP App inline viewer
