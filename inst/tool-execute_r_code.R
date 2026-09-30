@@ -39,6 +39,9 @@ execute_r_code <- function(code, timeout = 300L) {
 
   # Record every plot page the code draws, even if it later errors
   plot_token <- MCPR:::plot_capture_begin("agent")
+  # An interrupt skips the normal end; restore capture state regardless
+  capture_open <- TRUE
+  on.exit(if (capture_open) MCPR:::plot_capture_end(plot_token), add = TRUE)
 
   # Capture console output
   output_capture <- utils::capture.output(
@@ -74,6 +77,7 @@ execute_r_code <- function(code, timeout = 300L) {
   )
 
   plot_ids <- MCPR:::plot_capture_end(plot_token)
+  capture_open <- FALSE
   MCPR:::activity_record(
     source = "agent",
     code = code,

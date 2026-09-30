@@ -85,16 +85,6 @@ plot_store_list <- function() {
   )
 }
 
-#' Ids recorded during a capture that are still retained
-#'
-#' @param touched Integer vector of ids recorded while the code ran
-#' @return Sorted unique ids that still exist in the store
-#' @noRd
-plot_store_touched <- function(touched) {
-  ids <- sort(unique(as.integer(touched)))
-  ids[as.character(ids) %in% names(plot_store()$entries)]
-}
-
 # ---- recording ----
 
 #' Snapshot the current device page into the store
@@ -309,7 +299,9 @@ plot_capture_end <- function(token) {
     the$plot_capture_touched <- token$touched
   }, add = TRUE)
   plot_store_snapshot(the$plot_capture_source)
-  plot_store_touched(the$plot_capture_touched)
+  # Ids recorded while capturing that the bounded store still retains
+  ids <- sort(unique(as.integer(the$plot_capture_touched)))
+  ids[as.character(ids) %in% names(plot_store()$entries)]
 }
 
 #' Open an invisible device that keeps a display list for recording
@@ -346,12 +338,16 @@ format_plot_capture <- function(ids) {
 #' fallback) instead of Rplots.pdf, and installs the page-boundary hooks.
 #' @noRd
 configure_owned_graphics <- function() {
-  the$plot_state <- list(
-    mode = "uninitialized", device = NULL, url = NULL, browser_opened = FALSE
-  )
+  the$plot_state <- new_plot_state()
   options(device = function(...) owned_plot_device())
   plot_hooks_install()
   invisible(NULL)
+}
+
+#' Initial owned plot device state
+#' @noRd
+new_plot_state <- function() {
+  list(mode = "uninitialized", device = NULL, url = NULL, browser_opened = FALSE)
 }
 
 #' Activate the owned plot device, creating it once
@@ -363,9 +359,7 @@ configure_owned_graphics <- function() {
 #' @return The plot state list (mode, device, url, browser_opened)
 #' @noRd
 owned_plot_device <- function() {
-  state <- the$plot_state %||% list(
-    mode = "uninitialized", device = NULL, url = NULL, browser_opened = FALSE
-  )
+  state <- the$plot_state %||% new_plot_state()
   devices <- grDevices::dev.list()
 
   if (!is.null(state$device) && state$device %in% devices) {
@@ -374,13 +368,10 @@ owned_plot_device <- function() {
   }
 
   if (!identical(state$mode, "none") && requireNamespace("httpgd", quietly = TRUE)) {
-    started <- tryCatch({
-      httpgd::hgd(silent = TRUE)
-      TRUE
-    }, error = function(e) FALSE)
-    if (started) {
+    device <- tryCatch(start_httpgd_device(), error = function(e) NULL)
+    if (!is.null(device)) {
       state$mode <- "httpgd"
-      state$device <- unname(grDevices::dev.cur())
+      state$device <- device
       state$url <- httpgd::hgd_url()
       state$browser_opened <- FALSE
       the$plot_state <- state
@@ -426,12 +417,54 @@ activate_display_device <- function() {
     return(list(url = display$url, open_browser = FALSE))
   }
 
-  httpgd::hgd(silent = TRUE)
   the$display_device <- list(
-    device = unname(grDevices::dev.cur()),
+    device = start_httpgd_device(),
     url = httpgd::hgd_url()
   )
   list(url = the$display_device$url, open_browser = TRUE)
+}
+
+#' Start a new httpgd device that keeps every page resizable
+#'
+#' Non-interactive R opens devices with the display list inhibited; httpgd
+#' then has nothing to re-render when the viewer resizes or revisits a page.
+#'
+#' @return The new device number
+#' @noRd
+start_httpgd_device <- function() {
+  httpgd::hgd(silent = TRUE)
+  grDevices::dev.control(displaylist = "enable")
+  unname(grDevices::dev.cur())
+}
+
+#' Draw a plot object on the display device for the user
+#'
+#' Never recorded, and closes the store's open page so the next drawing starts
+#' a new entry instead of overwriting the page this display replaced.
+#'
+#' unigd files a page when the next one starts, but replayPlot() swaps in the
+#' new display list before its first operation starts that page, so the page
+#' being left would be filed with the replayed content. A real page break
+#' first files it correctly; the extra page it leaves is then removed.
+#'
+#' @param plot_obj A printable plot object
+#' @return NULL, invisibly
+#' @noRd
+draw_on_display_device <- function(plot_obj) {
+  on.exit(plot_store_close_page(), add = TRUE)
+  without_plot_recording({
+    dev <- grDevices::dev.cur()
+    replay_on_unigd <- inherits(plot_obj, "recordedplot") &&
+      names(dev) %in% c("httpgd", "unigd")
+    if (replay_on_unigd) {
+      graphics::plot.new()
+    }
+    print(plot_obj)
+    if (replay_on_unigd) {
+      unigd::ugd_remove(page = unigd::ugd_state(which = dev)$hsize - 1L, which = dev)
+    }
+  })
+  invisible(NULL)
 }
 
 #' Whether this process is an MCPR-owned session with no static display

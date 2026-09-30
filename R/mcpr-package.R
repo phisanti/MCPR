@@ -12,7 +12,6 @@
 #' @include logger.R
 #' @description Configures platform-specific socket URLs when package loads into R session
 #'
-#' @importFrom base64enc dataURI
 #' @importFrom processx process
 #' @importFrom promises as.promise
 #' @importFrom roxygen2 parse_file

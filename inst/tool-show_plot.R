@@ -34,8 +34,8 @@
 #' @param width integer Optional render width in pixels (100-4000) for target='agent' and inline viewers. Default 600 for agent images.
 #' @param height integer Optional render height in pixels (100-4000) for target='agent' and inline viewers. Default 450 for agent images.
 #' @keywords mcpr_tool
-#' @return For target='user': a text confirmation or structuredContent. For target='agent': image
-#'   response with base64-encoded plot and optimization metadata.
+#' @return For target='user': a text confirmation or structuredContent. For target='agent': an
+#'   image block, followed by a text warning when token usage is high.
 show_plot <- function(plot, target = "user", width = NULL, height = NULL) {
   # Validate: must be a single non-empty string
   if (!is.character(plot) || length(plot) != 1 || nchar(trimws(plot)) == 0) {

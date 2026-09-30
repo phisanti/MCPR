@@ -134,7 +134,7 @@ render_static_plot <- function(plot_obj, device_channel) {
 
       if (inherits(plot_obj, PRINTABLE_CLASSES) &&
             !is_current_page(plot_obj)) {
-        print(plot_obj)
+        draw_on_display_device(plot_obj)
       }
 
       if (isTRUE(display$open_browser)) {
@@ -146,7 +146,7 @@ render_static_plot <- function(plot_obj, device_channel) {
 
     device = {
       if (inherits(plot_obj, PRINTABLE_CLASSES)) {
-        print(plot_obj)
+        draw_on_display_device(plot_obj)
       }
 
       list(
@@ -722,7 +722,7 @@ capture_widget_for_agent <- function(plot_obj, width = 900L, height = 650L,
 #' @param is_interactive Logical; whether plot_obj is an htmlwidget/plotly,
 #'   as already determined by `channel_plot()`
 #' @param width,height Optional render size overriding the defaults
-#' @return Image response with base64-encoded plot and optimization metadata
+#' @return Image response; `metadata` stays R-side, `optimization_warning` reaches the agent as text
 #' @noRd
 .channel_plot_agent <- function(plot_obj,
                                 is_interactive = inherits(

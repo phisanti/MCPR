@@ -123,7 +123,7 @@ test_that("recorded plots replay for the agent at the requested size", {
 
   expect_equal(small$metadata$dimensions, "300x200")
   expect_equal(large$metadata$dimensions, "1000x700")
-  expect_gt(nchar(large$content), nchar(small$content))
+  expect_gt(nchar(large$data), nchar(small$data))
 })
 
 test_that("channel_plot validates width and height", {
@@ -190,6 +190,41 @@ test_that("closed owned device is recreated", {
   second <- MCPR:::owned_plot_device()
   expect_equal(second$mode, "httpgd")
   expect_true(second$device %in% grDevices::dev.list())
+})
+
+test_that("showing an older plot to the user never overwrites a stored page", {
+  local_plot_sandbox()
+  run_captured(plot(1:3, main = "ONE"))
+  run_captured(hist(rnorm(50), main = "TWO"))
+  before <- MCPR:::plot_store_get("plot:2")$record
+
+  MCPR:::render_static_plot(MCPR:::plot_store_get("plot:1")$record, "device")
+  ids <- run_captured(x <- 1)
+
+  expect_length(ids, 0L)
+  expect_identical(MCPR:::plot_store_get("plot:2")$record[[1L]], before[[1L]])
+  expect_equal(nrow(MCPR:::plot_store_list()), 2L)
+})
+
+test_that("httpgd keeps every replayed page renderable", {
+  skip_if_not_installed("httpgd")
+  local_plot_sandbox()
+  run_captured(plot(1:3, main = "ONE"))
+  run_captured(plot(3:1, main = "TWO"))
+  run_captured(plot(2:4, main = "THREE"))
+
+  MCPR:::start_httpgd_device()
+  dev <- grDevices::dev.cur()
+  for (ref in c("plot:1", "plot:2", "plot:3")) {
+    MCPR:::draw_on_display_device(MCPR:::plot_store_get(ref)$record)
+  }
+
+  expect_equal(unigd::ugd_state(which = dev)$hsize, 3L)
+  for (i in 1:3) {
+    svg <- unigd::ugd_render(page = i, width = 400, height = 300, as = "svg", which = dev)
+    expect_match(svg, c("ONE", "TWO", "THREE")[[i]], fixed = TRUE)
+  }
+  expect_equal(nrow(MCPR:::plot_store_list()), 3L)
 })
 
 test_that("is_current_page detects the page already on the device", {

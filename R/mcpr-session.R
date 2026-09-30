@@ -400,6 +400,9 @@ mcpr_session_start <- function(timeout_seconds = 900) {
 #' @export
 mcpr_session_stop <- function() {
   activity_tracking_stop()
+  # Release recorded pages and the log; nothing reads them once detached
+  plot_store_reset()
+  activity_reset()
   if (!is.null(the$mcpr_session)) {
     the$mcpr_session$stop()
     the$mcpr_session <- NULL

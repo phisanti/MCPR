@@ -432,7 +432,7 @@ test_that("channel_plot renders plotly to non-blank image for agent", {
   # Assert the image actually contains a drawing by counting pixels.
   tmp <- tempfile(fileext = ".png")
   on.exit(unlink(tmp))
-  b64_str <- sub("^data:[^,]*,", "", result$content)
+  b64_str <- result$data
   writeBin(base64enc::base64decode(b64_str), tmp)
   pixels <- png::readPNG(tmp)
   expect_gt(length(unique(as.vector(pixels[, , 1]))), 10)
@@ -483,7 +483,7 @@ test_that("channel_plot renders every common plotly trace type", {
 
     tmp <- tempfile(fileext = ".png")
     writeBin(
-      base64enc::base64decode(sub("^data:[^,]*,", "", result$content)), tmp
+      base64enc::base64decode(result$data), tmp
     )
     pixels <- png::readPNG(tmp)
     unlink(tmp)

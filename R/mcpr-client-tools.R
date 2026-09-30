@@ -272,6 +272,7 @@ apply_default_audience <- function(item, default_audience = "assistant") {
 #' @param annotations Optional content annotations.
 #' @param default_audience Audience to add when annotations omit one.
 #' @param is_error Whether the tool result is an error.
+#' @param note Optional text appended as a second, assistant-facing item.
 #' @return JSON-RPC response object.
 #' @noRd
 encode_content_item_response <- function(id,
@@ -279,12 +280,20 @@ encode_content_item_response <- function(id,
                                          meta = NULL,
                                          annotations = NULL,
                                          default_audience = "assistant",
-                                         is_error = FALSE) {
+                                         is_error = FALSE,
+                                         note = NULL) {
   if (!is.null(annotations)) item$annotations <- annotations
   item <- apply_default_audience(item, default_audience)
+  content <- list(item)
+  # Trailing text for the agent, e.g. a high-token warning next to an image
+  if (!is.null(note)) {
+    content[[2L]] <- apply_default_audience(
+      list(type = "text", text = note), "assistant"
+    )
+  }
 
   response_result <- list(
-    content = list(item),
+    content = content,
     isError = is_error
   )
   if (!is.null(meta)) response_result[["_meta"]] <- meta
@@ -374,7 +383,8 @@ encode_tool_results <- function(data, result) {
       meta = result$`_meta`,
       annotations = result$annotations,
       default_audience = default_audience,
-      is_error = is_error
+      is_error = is_error,
+      note = result$optimization_warning
     ))
   }
 
