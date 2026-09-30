@@ -249,7 +249,8 @@ test_that("channel_plot target='agent' returns image response for ggplot", {
 
   result <- MCPR::channel_plot(plot_obj, target = "agent")
   expect_equal(result$type, "image")
-  expect_match(result$content, "^data:image/png;base64,")
+  expect_equal(result$mimeType, "image/png")
+  expect_match(result$data, "^iVBORw0KGgo")
   expect_true(!is.null(result$metadata))
   expect_equal(result$metadata$format, "png")
   expect_equal(result$metadata$dimensions, "600x450")
@@ -316,7 +317,8 @@ test_that("response_image creates base64 encoded response", {
 
   result <- MCPR:::response_image(tmp)
   expect_equal(result$type, "image")
-  expect_match(result$content, "^data:image/png;base64,")
+  expect_equal(result$mimeType, "image/png")
+  expect_match(result$data, "^iVBORw0KGgo")
 
   unlink(tmp)
 })
@@ -340,7 +342,8 @@ test_that("encode_agent_image counts tokens from pixels, not base64 length", {
   result <- MCPR:::encode_agent_image(tmp, 900, 650)
 
   expect_equal(result$type, "image")
-  expect_true(grepl("^data:image/png;base64,", result$content))
+  expect_equal(result$mimeType, "image/png")
+  expect_false(grepl("^data:", result$data))
   # 900 * 650 / 750 -- independent of base64 payload size
   expect_equal(result$tokens, 780)
 })
@@ -429,7 +432,7 @@ test_that("channel_plot renders plotly to non-blank image for agent", {
   # Assert the image actually contains a drawing by counting pixels.
   tmp <- tempfile(fileext = ".png")
   on.exit(unlink(tmp))
-  b64_str <- sub("^data:[^,]*,", "", result$content)
+  b64_str <- result$data
   writeBin(base64enc::base64decode(b64_str), tmp)
   pixels <- png::readPNG(tmp)
   expect_gt(length(unique(as.vector(pixels[, , 1]))), 10)
@@ -480,7 +483,7 @@ test_that("channel_plot renders every common plotly trace type", {
 
     tmp <- tempfile(fileext = ".png")
     writeBin(
-      base64enc::base64decode(sub("^data:[^,]*,", "", result$content)), tmp
+      base64enc::base64decode(result$data), tmp
     )
     pixels <- png::readPNG(tmp)
     unlink(tmp)

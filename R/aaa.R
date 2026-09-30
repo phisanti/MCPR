@@ -44,3 +44,41 @@ the$daemon_processes <- list()
 #' @description Named list of nanonext sockets for joined interactive user sessions.
 #' Keys are session IDs (character), values are nanonext socket objects.
 the$user_sessions <- list()
+
+#' Plot Store
+#'
+#' @name plot_store
+#' @description Environment of recorded plot pages (`recordedplot`) addressable
+#' as `plot:N`; created lazily by `plot_store()`.
+the$plot_store <- NULL
+
+#' Owned Plot Device State
+#'
+#' @name plot_state
+#' @description List (`mode`, `device`, `url`, `browser_opened`) for the single
+#' plot device owned by an MCPR-owned session; NULL in other processes.
+the$plot_state <- NULL
+
+#' Session Activity Log
+#'
+#' @name activity_log
+#' @description Bounded list of user console commands and agent code runs.
+the$activity_log <- NULL
+
+#' Plot Capture State
+#'
+#' @name plot_capture_state
+#' @description `the$plot_capture_source` ("agent"/"user") labels pages recorded
+#' during an execute_r_code capture, `the$plot_capture_touched` collects their
+#' ids, and `the$plot_recording_suspended` disables recording for MCPR's own
+#' renders. All are NULL outside a capture.
+the$plot_capture_source <- NULL
+the$plot_capture_touched <- NULL
+the$plot_recording_suspended <- NULL
+
+#' Joined-Session Display Device
+#'
+#' @name display_device
+#' @description List (`device`, `url`) for the httpgd device MCPR opened in a
+#' joined user session; NULL until the first user-facing plot.
+the$display_device <- NULL

@@ -381,6 +381,9 @@ mcpr_session_start <- function(timeout_seconds = 900) {
   the$mcpr_session <- mcprSession$new(timeout_seconds = timeout_seconds)
   the$mcpr_session$start()
 
+  # Record console commands and plots so the agent can see what the user did
+  activity_tracking_start()
+
   invisible(the$mcpr_session)
 }
 
@@ -396,6 +399,10 @@ mcpr_session_start <- function(timeout_seconds = 900) {
 #' mcpr_session_stop()
 #' @export
 mcpr_session_stop <- function() {
+  activity_tracking_stop()
+  # Release recorded pages and the log; nothing reads them once detached
+  plot_store_reset()
+  activity_reset()
   if (!is.null(the$mcpr_session)) {
     the$mcpr_session$stop()
     the$mcpr_session <- NULL
@@ -439,9 +446,14 @@ mcp_session <- function(session_id = NULL, timeout_seconds = 900, working_dir = 
   # Daemon mode: Keep process alive with event loop
   # Non-daemon mode: Legacy blocking loop for manual invocation
   if (daemon || !rlang::is_interactive()) {
+    # Owned session: one persistent plot device and recorded plot history
+    configure_owned_graphics()
     parent_pid <- suppressWarnings(as.integer(Sys.getenv("MCPR_PARENT_PID", "0")))
     repeat {
-      later::run_now(timeout = 0.5)
+      # Sys.sleep() services R input handlers (unigd/httpgd redraws on Unix);
+      # later::run_now(timeout) waits on later's own queue and starves them.
+      Sys.sleep(0.1)
+      later::run_now()
       info <- the$mcpr_session$get_info()
       if (!isTRUE(info$is_running)) break
       # Exit if the spawning server process has died (orphan guard)

@@ -181,6 +181,20 @@ test_that("encode_tool_results handles image content with explicit audience", {
   expect_equal(output$result$content[[1]]$annotations$audience, list("mcp_app"))
 })
 
+test_that("encode_tool_results appends an image's optimization warning as text", {
+  image_result <- list(
+    type = "image", data = "xyz", mimeType = "image/png",
+    optimization_warning = "HIGH TOKEN USAGE: 2,400 tokens"
+  )
+
+  output <- .client_tools_env$encode_tool_results(list(id = 8), image_result)
+
+  expect_length(output$result$content, 2L)
+  expect_equal(output$result$content[[1]]$type, "image")
+  expect_equal(output$result$content[[2]]$type, "text")
+  expect_match(output$result$content[[2]]$text, "HIGH TOKEN USAGE")
+})
+
 test_that("encode_tool_results defaults audience to assistant for image content", {
   test_data <- list(id = 6)
   image_result <- list(type = "image", data = "xyz", mimeType = "image/png")

@@ -243,6 +243,11 @@ mcprServer <- R6::R6Class("mcprServer",
           private$sweep_pending_requests()
         }
         if (!private$.running) break
+
+        # mcpr_stdin_poll blocks in C, so R input handlers never run on their
+        # own; httpgd/unigd renders viewer requests from one. Sys.sleep() runs
+        # them on Unix, else the viewer hangs on every /plot request.
+        Sys.sleep(0.001)
       }
     },
 
