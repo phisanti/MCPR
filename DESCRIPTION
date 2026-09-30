@@ -93,6 +93,8 @@ Collate:
     'mcpr-server.R'
     'mcpr-session.R'
     'plot-render.R'
+    'plot-store.R'
+    'session-activity.R'
     'view-utils.R'
     'view-session-state.R'
     'view-system-info.R'

@@ -4,18 +4,28 @@
 \alias{channel_plot}
 \title{Route a plot object to the appropriate display channel}
 \usage{
-channel_plot(plot_obj, mcp_apps_supported = FALSE, target = c("user", "agent"))
+channel_plot(
+  plot_obj,
+  mcp_apps_supported = FALSE,
+  target = c("user", "agent"),
+  width = NULL,
+  height = NULL
+)
 }
 \arguments{
 \item{plot_obj}{A plot object (ggplot, plotly, htmlwidget, recordedplot,
 grob, gtable, trellis, or captured_plot)}
 
-\item{mcp_apps_supported}{Logical; whether the client supports MCP App structuredContent}
+\item{mcp_apps_supported}{Logical; MCP App structuredContent support}
 
-\item{target}{Character; who sees the plot: "user" (display) or "agent" (base64 for analysis)}
+\item{target}{Character; "user" (display) or "agent" (base64 analysis)}
+
+\item{width, height}{Optional render size in pixels (100-4000) for the agent
+image and the MCP App viewer. Recorded plots (\code{recordedplot}) replay at
+any size. Ignored by the responsive httpgd viewer.}
 }
 \value{
-Varies by path: text confirmation, structuredContent list, or image response
+Varies by path: text, structuredContent list, or image response
 }
 \description{
 Central routing function for displaying R plot objects.

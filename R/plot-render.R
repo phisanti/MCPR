@@ -14,9 +14,14 @@ PRINTABLE_CLASSES <- c(
 #' Returns the device channel for static plot rendering in non-MCP-App contexts.
 #' Checks httpgd availability, interactive session, or falls back to export.
 #'
-#' @return Character string: "httpgd", "device", or "file"
+#' @return Character string: "none", "httpgd", "device", or "file"
 #' @noRd
 detect_local_device <- function() {
+  # MCPR-owned session without httpgd: static display is deliberately skipped
+  if (owned_display_disabled()) {
+    return("none")
+  }
+
   # httpgd already the active device?
   dev_name <- names(grDevices::dev.cur())
   if (dev_name %in% c("httpgd", "unigd")) {
@@ -107,29 +112,36 @@ show_widget_in_browser <- function(widget) {
 #'
 #' @param plot_obj A plot object (ggplot, recordedplot, grob, gtable, trellis,
 #'   or captured_plot)
-#' @param device_channel One of "httpgd", "device", or "file"
+#' @param device_channel One of "none", "httpgd", "device", or "file"
 #' @return A list with `channel` (character) and `info` (URL, path, or msg)
 #' @noRd
 render_static_plot <- function(plot_obj, device_channel) {
   switch(device_channel,
-    httpgd = {
-      dev_name <- names(grDevices::dev.cur())
-      already_active <- dev_name %in% c("httpgd", "unigd")
+    none = {
+      list(
+        channel = "none",
+        info = "Plot display skipped: httpgd is not installed in this session."
+      )
+    },
 
-      if (!already_active) {
-        httpgd::hgd(silent = TRUE)
+    httpgd = {
+      # One persistent device per session: every plot joins the same viewer
+      # history, and the browser opens only when the device is first shown.
+      display <- activate_display_device()
+      if (is.null(display)) {
+        return(render_static_plot(plot_obj, "none"))
       }
 
-      if (inherits(plot_obj, PRINTABLE_CLASSES)) {
+      if (inherits(plot_obj, PRINTABLE_CLASSES) &&
+            !is_current_page(plot_obj)) {
         print(plot_obj)
       }
 
-      url <- httpgd::hgd_url()
-      if (!already_active) {
+      if (isTRUE(display$open_browser)) {
         httpgd::hgd_browse()
       }
 
-      list(channel = "httpgd", info = url)
+      list(channel = "httpgd", info = display$url)
     },
 
     device = {
@@ -145,16 +157,33 @@ render_static_plot <- function(plot_obj, device_channel) {
 
     file = {
       tmp <- tempfile(fileext = ".png")
-      grDevices::png(tmp, width = 800, height = 600)
-      on.exit(grDevices::dev.off(), add = TRUE)
-
-      if (inherits(plot_obj, PRINTABLE_CLASSES)) {
-        print(plot_obj)
-      }
+      without_plot_recording({
+        grDevices::png(tmp, width = 800, height = 600)
+        tryCatch(
+          if (inherits(plot_obj, PRINTABLE_CLASSES)) print(plot_obj),
+          finally = grDevices::dev.off()
+        )
+      })
 
       list(channel = "file", info = tmp)
     }
   )
+}
+
+#' Whether a recorded plot is already the active device's current page
+#'
+#' Plots drawn directly on the owned httpgd device are already in its history;
+#' replaying them again would only add a duplicate page.
+#'
+#' @param plot_obj A plot object
+#' @return Logical scalar
+#' @noRd
+is_current_page <- function(plot_obj) {
+  if (!inherits(plot_obj, "recordedplot") || grDevices::dev.cur() == 1L) {
+    return(FALSE)
+  }
+  current <- tryCatch(grDevices::recordPlot(), error = function(e) NULL)
+  !is.null(current) && identical(current[[1L]], plot_obj[[1L]])
 }
 
 #' Display a static plot via MCP App inline viewer
@@ -165,9 +194,10 @@ render_static_plot <- function(plot_obj, device_channel) {
 #'
 #' @param plot_obj A plot object (ggplot, recordedplot, grob, gtable, trellis,
 #'   plotly, htmlwidget, or captured_plot)
+#' @param width,height Render size in pixels
 #' @return A single content item descriptor for encode_tool_results()
 #' @noRd
-show_plot_via_mcp_app <- function(plot_obj) {
+show_plot_via_mcp_app <- function(plot_obj, width = 800L, height = 600L) {
   # Delegate interactive plots to the plotly path
   if (inherits(plot_obj, c("htmlwidget", "plotly"))) {
     return(show_plotly_via_mcp_app(plot_obj))
@@ -183,7 +213,7 @@ show_plot_via_mcp_app <- function(plot_obj) {
   }, add = TRUE)
 
   # Open device BEFORE printing so side-effect plots (recordedplot) are captured
-  grDevices::png(tmp, width = 800, height = 600)
+  grDevices::png(tmp, width = width, height = height)
   device_open <- TRUE
 
   if (inherits(plot_obj, PRINTABLE_CLASSES)) {
@@ -469,6 +499,9 @@ response_image <- function(file, mime_type = "image/png") {
 #'   grob, gtable, trellis, or captured_plot)
 #' @param mcp_apps_supported Logical; MCP App structuredContent support
 #' @param target Character; "user" (display) or "agent" (base64 analysis)
+#' @param width,height Optional render size in pixels (100-4000) for the agent
+#'   image and the MCP App viewer. Recorded plots (`recordedplot`) replay at
+#'   any size. Ignored by the responsive httpgd viewer.
 #' @return Varies by path: text, structuredContent list, or image response
 #' @examples
 #' \dontrun{
@@ -477,8 +510,11 @@ response_image <- function(file, mime_type = "image/png") {
 #' }
 #' @export
 channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
-                         target = c("user", "agent")) {
+                         target = c("user", "agent"),
+                         width = NULL, height = NULL) {
   target <- match.arg(target)
+  width <- validate_plot_dimension(width, "width")
+  height <- validate_plot_dimension(height, "height")
 
   # Validate plot_obj class
   valid_classes <- c(
@@ -494,15 +530,21 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
 
   is_interactive <- inherits(plot_obj, c("htmlwidget", "plotly"))
 
+  # Temporary render devices below are not session plots: keep them out of
+  # the plot store and away from the session device's page tracking.
   if (target == "agent") {
-    return(.channel_plot_agent(plot_obj, is_interactive))
+    return(without_plot_recording(
+      .channel_plot_agent(plot_obj, is_interactive, width, height)
+    ))
   }
 
   if (mcp_apps_supported) {
     if (is_interactive) {
       return(show_plotly_via_mcp_app(plot_obj))
     }
-    return(show_plot_via_mcp_app(plot_obj))
+    return(without_plot_recording(
+      show_plot_via_mcp_app(plot_obj, width %||% 800L, height %||% 600L)
+    ))
   }
 
   # Local rendering
@@ -525,6 +567,7 @@ channel_plot <- function(plot_obj, mcp_apps_supported = FALSE,
         "Plot displayed to user via httpgd at %s",
         render_result$info
       ),
+      none = render_result$info,
       device = render_result$info,
       file = sprintf(
         "Plot saved to file: %s (headless environment).",
@@ -675,12 +718,14 @@ capture_widget_for_agent <- function(plot_obj, width = 900L, height = 650L,
 #' @param plot_obj A plot object
 #' @param is_interactive Logical; whether plot_obj is an htmlwidget/plotly,
 #'   as already determined by `channel_plot()`
+#' @param width,height Optional render size overriding the defaults
 #' @return Image response with base64-encoded plot and optimization metadata
 #' @noRd
 .channel_plot_agent <- function(plot_obj,
                                 is_interactive = inherits(
                                   plot_obj, c("htmlwidget", "plotly")
-                                )) {
+                                ),
+                                width = NULL, height = NULL) {
   format <- "png"
   token_limit <- 3000
   warn_threshold <- 2000
@@ -697,11 +742,11 @@ capture_widget_for_agent <- function(plot_obj, width = 900L, height = 650L,
   }
 
   if (is_interactive) {
-    width <- 900L
-    height <- 650L
+    width <- width %||% 900L
+    height <- height %||% 650L
   } else {
-    width <- 600L
-    height <- 450L
+    width <- width %||% 600L
+    height <- height %||% 450L
   }
 
   tryCatch(

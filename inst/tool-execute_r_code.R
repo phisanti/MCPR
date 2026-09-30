@@ -1,10 +1,10 @@
 # Execute R Code Tool
 # Runs arbitrary R code inside the current session with persistent workspace state.
-# Captures results, output, warnings, and errors for iterative agent workflows.
+# Captures results, output, warnings, errors, and plot pages (as plot:N) for agent workflows.
 
 #' Execute R code in the current session
 #'
-#' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only - invisible to the user. Note that cat() and message() calls also have no visible side-effect to the user; their output is captured and returned to the agent only. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat.
+#' @description Execute R code in the current R session. Variables persist in the global environment across calls. Returns results, output, warnings, and errors. IMPORTANT: Output goes to the agent context only - invisible to the user. Note that cat() and message() calls also have no visible side-effect to the user; their output is captured and returned to the agent only. Avoid comments, headers, and decorative print statements in code. Communicate findings to the user via chat. Any plot the code draws is recorded and reported as plot:N; view it with show_plot(plot = "plot:N") instead of wrapping code in capture_plot().
 #' @param code character The R code to execute. Can be a single expression or multiple statements.
 #' @param timeout integer Seconds to wait for the session to respond before returning a timeout error (default: 300). Increase for long-running computations such as model fitting or large data processing. If you receive a timeout error, retry with a higher value (e.g. timeout=600).
 #' @keywords mcpr_tool
@@ -37,6 +37,9 @@ execute_r_code <- function(code, timeout = 300L) {
     invokeRestart("muffleWarning")
   }
 
+  # Record every plot page the code draws, even if it later errors
+  plot_token <- MCPR:::plot_capture_begin("agent")
+
   # Capture console output
   output_capture <- utils::capture.output(
     {
@@ -68,6 +71,16 @@ execute_r_code <- function(code, timeout = 300L) {
       )
     },
     type = "output"
+  )
+
+  plot_ids <- MCPR:::plot_capture_end(plot_token)
+  MCPR:::activity_record(
+    source = "agent",
+    code = code,
+    ok = result$success,
+    value_class = if (result$success && result$visible) class(result$result) else NULL,
+    plots = plot_ids,
+    error = result$error
   )
 
   # Store captured output
@@ -139,6 +152,11 @@ execute_r_code <- function(code, timeout = 300L) {
       response_parts,
       paste("Error:", result$error)
     )
+  }
+
+  plot_note <- MCPR:::format_plot_capture(plot_ids)
+  if (!is.null(plot_note)) {
+    response_parts <- c(response_parts, plot_note)
   }
 
   return(paste(response_parts, collapse = "\n\n"))
