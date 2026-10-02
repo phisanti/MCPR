@@ -7,10 +7,37 @@
 #'
 #' @include type-conversion-from-json.R
 #' @include utils.R
-#' Vector of MCP protocol versions supported by this server, in chronological order.
-#' New versions should be appended to maintain version history.
+#' Vector of handshake-era MCP protocol versions negotiated through `initialize`,
+#' in chronological order. Stateless versions live in `MODERN_VERSIONS`.
 #' @noRd
 SUPPORTED_VERSIONS <- c("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
+
+#' Stateless MCP protocol versions (no `initialize` handshake).
+#'
+#' Requests carry their version, client info, and client capabilities in
+#' `params$_meta`; servers advertise these versions through `server/discover`.
+#' @noRd
+MODERN_VERSIONS <- c("2026-07-28")
+
+#' Reserved `_meta` keys used by stateless MCP versions.
+#' @noRd
+MCP_META_PROTOCOL_VERSION <- "io.modelcontextprotocol/protocolVersion"
+MCP_META_CLIENT_INFO <- "io.modelcontextprotocol/clientInfo"
+MCP_META_CLIENT_CAPABILITIES <- "io.modelcontextprotocol/clientCapabilities"
+MCP_META_SERVER_INFO <- "io.modelcontextprotocol/serverInfo"
+
+#' MCP error codes that differ between protocol eras.
+#' @noRd
+MCP_ERROR_UNSUPPORTED_PROTOCOL_VERSION <- -32022L
+MCP_ERROR_RESOURCE_NOT_FOUND_LEGACY <- -32002L
+
+#' Default cache hints for `CacheableResult` responses (2026-07-28+).
+#' Tool, prompt, and resource listings are fixed for the server process lifetime.
+#' @noRd
+MCP_CACHE_TTL_MS <- 3600000L
+
+MCPR_SERVER_NAME <- "R MCPR server"
+MCPR_SERVER_INSTRUCTIONS <- "This provides information about a running R session."
 
 #' Version-Capability Feature Matrix
 #'
@@ -46,6 +73,13 @@ VERSION_CAPABILITIES <- list(
     tools = list(listChanged = FALSE),
     supports_tasks = TRUE,
     supports_elicitation = TRUE
+  ),
+  "2026-07-28" = list(
+    prompts = list(listChanged = FALSE),
+    resources = list(subscribe = FALSE, listChanged = FALSE),
+    tools = list(listChanged = FALSE),
+    supports_tasks = FALSE,  # tasks moved to the io.modelcontextprotocol/tasks extension
+    supports_elicitation = FALSE
   )
 )
 
@@ -112,7 +146,89 @@ negotiate_protocol_version <- function(client_version,
 #' @param x The object to convert to JSON and print.
 #' @noRd
 cat_json <- function(x) {
-  nanonext::write_stdout(to_json(x))
+  nanonext::write_stdout(to_json(finalize_result_message(x)))
+}
+
+#' Stamp result-level fields required by stateless MCP versions
+#'
+#' Adds `resultType = "complete"` and `_meta["io.modelcontextprotocol/serverInfo"]`
+#' to every JSON-RPC result. Both are additive, so handshake-era clients ignore them.
+#'
+#' @param x A parsed JSON-RPC message (list).
+#' @param server_version MCPR version reported in serverInfo.
+#' @return The message with result fields stamped; non-result messages unchanged.
+#' @noRd
+finalize_result_message <- function(x, server_version = mcpr_package_version()) {
+  if (!is.list(x) || !"result" %in% names(x) || !is.list(x$result)) {
+    return(x)
+  }
+  result <- x$result
+  if (is.null(result$resultType)) {
+    result$resultType <- "complete"
+  }
+  meta <- result[["_meta"]]
+  if (!is.list(meta)) {
+    meta <- list()
+  }
+  if (is.null(meta[[MCP_META_SERVER_INFO]])) {
+    meta[[MCP_META_SERVER_INFO]] <- list(name = MCPR_SERVER_NAME, version = server_version)
+  }
+  result[["_meta"]] <- meta
+  x$result <- result
+  x
+}
+
+#' Extract the stateless protocol version from a request
+#'
+#' @param data A parsed JSON-RPC request.
+#' @return The `_meta` protocol version string, or NULL for handshake-era requests.
+#' @noRd
+request_protocol_version <- function(data) {
+  params <- if (is.list(data)) data$params else NULL
+  meta <- if (is.list(params)) params[["_meta"]] else NULL
+  version <- if (is.list(meta)) meta[[MCP_META_PROTOCOL_VERSION]] else NULL
+  if (is.character(version) && length(version) == 1L && nzchar(version)) version else NULL
+}
+
+#' Mark a result as cacheable (2026-07-28 `CacheableResult`)
+#'
+#' @param result Result list for a list/read/discover response.
+#' @param scope Either "public" or "private".
+#' @param ttl_ms Freshness hint in milliseconds.
+#' @return The result with `ttlMs` and `cacheScope` set.
+#' @noRd
+as_cacheable_result <- function(result, scope = "public", ttl_ms = MCP_CACHE_TTL_MS) {
+  result$ttlMs <- ttl_ms
+  result$cacheScope <- scope
+  result
+}
+
+#' Create a `server/discover` result
+#'
+#' @param server_version MCPR version (serverInfo is stamped by `cat_json`).
+#' @return A `DiscoverResult` list.
+#' @noRd
+create_discover_result <- function(server_version = mcpr_package_version()) {
+  caps <- create_capabilities(max(MODERN_VERSIONS), server_version = server_version)
+  as_cacheable_result(list(
+    supportedVersions = as.list(MODERN_VERSIONS),
+    capabilities = caps$capabilities,
+    instructions = caps$instructions
+  ))
+}
+
+#' Create an `UnsupportedProtocolVersionError` response
+#'
+#' @param id Request ID.
+#' @param requested The protocol version the client asked for.
+#' @return JSON-RPC error response list.
+#' @noRd
+unsupported_protocol_version_response <- function(id, requested) {
+  jsonrpc_response(id, error = list(
+    code = MCP_ERROR_UNSUPPORTED_PROTOCOL_VERSION,
+    message = paste("Unsupported protocol version:", requested),
+    data = list(supported = as.list(MODERN_VERSIONS), requested = requested)
+  ))
 }
 
 #' Create MCP Tool Call Request
@@ -223,12 +339,12 @@ clear_mcpr_request_context <- function() {
 #' features and protocol compliance. Enables proper MCP protocol establishment.
 #'
 #' @param version Protocol version string (e.g., "2025-11-25"). Must be in SUPPORTED_VERSIONS.
-#' @param server_name Server name for serverInfo (default: "R MCPR server")
+#' @param server_name Server name for serverInfo (default: `MCPR_SERVER_NAME`)
 #' @param server_version Server version for serverInfo (default: installed MCPR version)
 #' @return Capabilities list with protocol version and feature support
 #' @noRd
 create_capabilities <- function(version,
-                                server_name = "R MCPR server",
+                                server_name = MCPR_SERVER_NAME,
                                 server_version = mcpr_package_version()) {
   # Validate version
   if (!version %in% names(VERSION_CAPABILITIES)) {
@@ -252,7 +368,7 @@ create_capabilities <- function(version,
       name = server_name,
       version = server_version
     ),
-    instructions = "This provides information about a running R session."
+    instructions = MCPR_SERVER_INSTRUCTIONS
   )
 }
 

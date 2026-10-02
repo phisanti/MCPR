@@ -25,7 +25,7 @@ mcpr_forwarding_daemon_pipe_dropped <- function(private, client_id) {
 
 # Correlate an attached-session response with its active forwarded request.
 # Restores the client request ID, drops terminal or foreign responses, and advances the queue.
-# Unkeyed responses from the primary session pass directly to the MCP client.
+# Unkeyed responses from the primary session pass to the MCP client with result fields stamped.
 mcpr_forwarding_handle_message <- function(private, data, session_key = NULL) {
   if (!is.character(data)) {
     return()
@@ -58,7 +58,7 @@ mcpr_forwarding_handle_message <- function(private, data, session_key = NULL) {
     active_wire_id <- active$wire_request_id %||% as.character(active$client_request_id %||% "")
     if (!is.null(active) && identical(active_wire_id, resp_id)) {
       parsed$id <- active$client_request_id
-      data <- to_json(parsed)
+      data <- to_json(finalize_result_message(parsed), null = "null")
       state$active <- NULL
       if (length(state$waiting) == 0L) {
         private$.pending_requests[[session_key]] <- NULL
@@ -73,6 +73,11 @@ mcpr_forwarding_handle_message <- function(private, data, session_key = NULL) {
       ))
       return()
     }
+  } else {
+    parsed <- tryCatch(jsonlite::parse_json(data), error = function(e) NULL)
+    if (is.list(parsed) && !is.null(parsed$result)) {
+      data <- to_json(finalize_result_message(parsed), null = "null")
+    }
   }
 
   nanonext::write_stdout(data)
@@ -86,10 +91,11 @@ mcpr_forwarding_prepare_request <- function(private, data) {
   if (is.list(prepared) && !is.null(prepared$error)) {
     return(prepared)
   }
+  context <- private$client_context_for(data)
   prepared$mcpr_request_context <- as_mcpr_request_context(
-    mcp_apps_supported = private$.mcp_apps_supported,
-    interface = private$.client_interface,
-    client_name = private$.client_name
+    mcp_apps_supported = context$mcp_apps_supported,
+    interface = context$interface,
+    client_name = context$client_name
   )
   prepared
 }

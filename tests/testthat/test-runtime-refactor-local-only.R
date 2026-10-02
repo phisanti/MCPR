@@ -116,8 +116,8 @@ test_that("local-only registry remains isolated after built-in server constructi
     local_server,
     runtime_refactor_tool_call(3L, "manage_r_sessions", list(action = "list"))
   )
-  expect_equal(response$error$code, -32601)
-  expect_equal(response$error$message, "Method not found")
+  expect_equal(response$error$code, -32602)
+  expect_equal(response$error$message, "Unknown tool: manage_r_sessions")
 })
 
 test_that("local-only ordinary tools persist private workspace state without session", {

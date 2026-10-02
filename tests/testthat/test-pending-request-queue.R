@@ -158,7 +158,7 @@ test_that("unknown forwarded tools fail before pending state is created", {
   priv$forward_request_to_user(request, 52L, sock = "unused")
 
   expect_equal(captured$id, 9L)
-  expect_equal(captured$error$code, -32601L)
+  expect_equal(captured$error$code, -32602L)
   expect_null(priv$.pending_requests[["52"]])
 })
 
