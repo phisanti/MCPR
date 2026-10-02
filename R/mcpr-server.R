@@ -309,7 +309,7 @@ mcprServer <- R6::R6Class("mcprServer",
       # Thin wrapper around create_capabilities from protocol.R
       create_capabilities(
         version = version %||% max(SUPPORTED_VERSIONS),
-        server_name = "R MCPR server",
+        server_name = MCPR_SERVER_NAME,
         server_version = private$.mcpr_version
       )
     },
@@ -634,6 +634,15 @@ mcprServer <- R6::R6Class("mcprServer",
         )))
       }
 
+      # Stateless (2026-07-28+) requests declare their version per request;
+      # reject versions we cannot serve so the client can pick another one.
+      requested <- request_protocol_version(data)
+      if (!is.null(requested) && !is.null(data$id) &&
+            !identical(data$method, "initialize") &&
+            !requested %in% MODERN_VERSIONS) {
+        return(cat_json(unsupported_protocol_version_response(data$id, requested)))
+      }
+
       handlers <- make_mcpr_server_handlers(self, private)
 
       # Route message and send response
@@ -654,10 +663,11 @@ mcprServer <- R6::R6Class("mcprServer",
       result <- if (is.list(prepared) && !is.null(prepared$error)) {
         prepared
       } else {
+        context <- private$client_context_for(data)
         set_mcpr_request_context(as_mcpr_request_context(
-          mcp_apps_supported = private$.mcp_apps_supported,
-          interface = private$.client_interface,
-          client_name = private$.client_name
+          mcp_apps_supported = context$mcp_apps_supported,
+          interface = context$interface,
+          client_name = context$client_name
         ))
         on.exit(clear_mcpr_request_context(), add = TRUE)
         execute_tool_call(prepared)
@@ -753,6 +763,35 @@ mcprServer <- R6::R6Class("mcprServer",
       mcpr_forwarding_sweep_pending(private)
     },
 
+    # Resolve the MCP client context for one request. Stateless requests carry
+    # client info and capabilities in params$_meta and MUST NOT inherit them from
+    # earlier requests; handshake-era requests reuse what initialize recorded.
+    client_context_for = function(data) {
+      version <- request_protocol_version(data)
+      if (is.null(version) || identical(data$method, "initialize")) {
+        return(list(
+          modern = FALSE,
+          protocol_version = private$.protocol_version,
+          mcp_apps_supported = private$.mcp_apps_supported,
+          interface = private$.client_interface,
+          client_name = private$.client_name
+        ))
+      }
+      meta <- data$params[["_meta"]]
+      params <- list(
+        capabilities = meta[[MCP_META_CLIENT_CAPABILITIES]] %||% list(),
+        clientInfo = meta[[MCP_META_CLIENT_INFO]] %||% list()
+      )
+      apps <- detect_mcp_apps_support(params)
+      list(
+        modern = TRUE,
+        protocol_version = version,
+        mcp_apps_supported = apps,
+        interface = if (apps) "mcp_app" else "cli",
+        client_name = as.character(params$clientInfo$name %||% "unknown")
+      )
+    },
+
     # Routes incoming JSON-RPC messages to appropriate handlers
     route_message = function(data, handlers) {
       method <- data$method
@@ -776,9 +815,10 @@ mcprServer <- R6::R6Class("mcprServer",
       }
       tool_name <- data$params$name
       if (!tool_name %in% names(private$.tools)) {
+        # Unknown tools are invalid params of tools/call, not unknown methods.
         return(jsonrpc_response(
           data$id,
-          error = list(code = -32601, message = "Method not found")
+          error = list(code = -32602, message = paste("Unknown tool:", tool_name))
         ))
       }
       tooldef <- private$.tools[[tool_name]]

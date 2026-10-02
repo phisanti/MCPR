@@ -108,10 +108,13 @@ mcprClient <- R6::R6Class("mcprClient",
       server_process <- private$.servers[[server]]$process
       private$send_and_receive(
         server_process,
-        private$mcp_request_tool_call(
-          id = private$jsonrpc_id(server),
-          tool = tool,
-          arguments = list(...)
+        private$with_request_meta(
+          private$mcp_request_tool_call(
+            id = private$jsonrpc_id(server),
+            tool = tool,
+            arguments = list(...)
+          ),
+          private$.servers[[server]]$protocol_version
         )
       )
     },
@@ -186,17 +189,81 @@ mcprClient <- R6::R6Class("mcprClient",
 
     # Initialize and register MCP server with handshake and tool discovery
     add_mcp_server = function(process, name) {
-      response_initialize <- private$send_and_receive(process, private$mcp_request_initialize())
-      response_tools_list <- private$send_and_receive(process, private$mcp_request_tools_list())
+      protocol_version <- private$discover_protocol_version(process)
+      if (is.null(protocol_version)) {
+        private$send_and_receive(process, private$mcp_request_initialize())
+      }
+      response_tools_list <- private$send_and_receive(
+        process,
+        private$with_request_meta(private$mcp_request_tools_list(), protocol_version)
+      )
 
       private$.servers[[name]] <- list(
         name = name,
         process = process,
         tools = response_tools_list$result,
+        protocol_version = protocol_version,
         id = 3
       )
 
       private$.servers[[name]]
+    },
+
+    # Probe a stdio server with server/discover (2026-07-28 backward-compat rule).
+    # Returns the stateless version to use, or NULL when the server is
+    # handshake-era and needs initialize. Recognized modern errors never fall back.
+    discover_protocol_version = function(process) {
+      response <- private$send_and_receive(process, private$mcp_request_discover())
+      offered <- unlist(response$result$supportedVersions)
+      if (is.null(offered) &&
+            identical(as.integer(response$error$code), MCP_ERROR_UNSUPPORTED_PROTOCOL_VERSION)) {
+        offered <- unlist(response$error$data$supported)
+        if (is.null(offered)) offered <- character()
+      }
+      if (is.null(offered)) {
+        return(NULL)
+      }
+      common <- intersect(MODERN_VERSIONS, offered)
+      if (length(common) == 0) {
+        cli::cli_abort(c(
+          "MCP server offers no protocol version this client supports.",
+          "i" = "Server: {.val {offered}}; client: {.val {MODERN_VERSIONS}}."
+        ))
+      }
+      max(common)
+    },
+
+    # Stateless request metadata: version, client identity, and capabilities.
+    request_meta = function(protocol_version) {
+      meta <- list()
+      meta[[MCP_META_PROTOCOL_VERSION]] <- protocol_version
+      meta[[MCP_META_CLIENT_INFO]] <- list(
+        name = "MCPR Client",
+        version = mcpr_package_version()
+      )
+      meta[[MCP_META_CLIENT_CAPABILITIES]] <- stats::setNames(list(), character())
+      meta
+    },
+
+    # Attach stateless _meta to a request; handshake-era requests pass unchanged.
+    with_request_meta = function(message, protocol_version) {
+      if (is.null(protocol_version)) {
+        return(message)
+      }
+      params <- message$params %||% stats::setNames(list(), character())
+      params[["_meta"]] <- c(params[["_meta"]], private$request_meta(protocol_version))
+      message$params <- params
+      message
+    },
+
+    # Create JSON-RPC server/discover probe message
+    mcp_request_discover = function() {
+      list(
+        jsonrpc = "2.0",
+        id = 0,
+        method = "server/discover",
+        params = list(`_meta` = private$request_meta(max(MODERN_VERSIONS)))
+      )
     },
 
     # Create function reference for remote tool execution

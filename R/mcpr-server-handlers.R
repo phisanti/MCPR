@@ -11,15 +11,19 @@ make_mcpr_server_handlers <- function(self, private) {
     "initialize" = function(data) {
       handle_mcpr_server_initialize(data, self, private)
     },
+    "server/discover" = function(data) {
+      jsonrpc_response(data$id, create_discover_result(private$.mcpr_version))
+    },
     "tools/list" = function(data) {
       jsonrpc_response(
         data$id,
-        list(tools = self$get_tools("json"))
+        as_cacheable_result(list(tools = self$get_tools("json")))
       )
     },
     "resources/list" = function(data) {
-      resources <- private$.resource_registry$list(private$.mcp_apps_supported)
-      jsonrpc_response(data$id, list(resources = resources))
+      context <- private$client_context_for(data)
+      resources <- private$.resource_registry$list(context$mcp_apps_supported)
+      jsonrpc_response(data$id, as_cacheable_result(list(resources = resources)))
     },
     "resources/read" = function(data) {
       handle_mcpr_server_resource_read(data, private)
@@ -27,7 +31,7 @@ make_mcpr_server_handlers <- function(self, private) {
     "prompts/list" = function(data) {
       jsonrpc_response(
         data$id,
-        list(prompts = list())
+        as_cacheable_result(list(prompts = list()))
       )
     },
     "tools/call" = function(data) {
@@ -67,8 +71,9 @@ handle_mcpr_server_initialize <- function(data, self, private) {
 
 handle_mcpr_server_resource_read <- function(data, private) {
   uri <- data$params$uri
+  context <- private$client_context_for(data)
   result <- tryCatch(
-    private$.resource_registry$read(uri, private$.mcp_apps_supported),
+    private$.resource_registry$read(uri, context$mcp_apps_supported),
     error = function(e) e
   )
   if (inherits(result, "error")) {
@@ -82,14 +87,16 @@ handle_mcpr_server_resource_read <- function(data, private) {
     ))
   }
   if (is.null(result)) {
+    # 2026-07-28 aligned resource-not-found with JSON-RPC Invalid Params.
+    code <- if (context$modern) -32602L else MCP_ERROR_RESOURCE_NOT_FOUND_LEGACY
     return(jsonrpc_response(
       data$id,
-      error = list(code = -32002L, message = paste("Resource not found:", uri),
+      error = list(code = code, message = paste("Resource not found:", uri),
                    data = list(uri = uri))
     ))
   }
 
-  jsonrpc_response(data$id, result)
+  jsonrpc_response(data$id, as_cacheable_result(result))
 }
 
 handle_mcpr_server_tool_call <- function(data, private) {

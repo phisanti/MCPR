@@ -312,7 +312,7 @@ test_that("mcprServer private method append_tool_fn validates tool existence", {
   )
   result <- server$.__enclos_env__$private$append_tool_fn(data)
   expect_true("error" %in% names(result))
-  expect_equal(result$error$code, -32601)
+  expect_equal(result$error$code, -32602)
 })
 
 test_that("mcprServer handles invalid request structure", {
@@ -486,8 +486,8 @@ test_that("mcprServer handles tools/call for non-existent tool", {
   )
   result <- server$.__enclos_env__$private$append_tool_fn(data)
   expect_true("error" %in% names(result))
-  expect_equal(result$error$code, -32601)
-  expect_equal(result$error$message, "Method not found")
+  expect_equal(result$error$code, -32602)
+  expect_equal(result$error$message, "Unknown tool: non_existent_tool")
 })
 
 test_that("mcprServer handles empty messages gracefully", {
