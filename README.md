@@ -161,6 +161,17 @@ The intended workflow is simple and user-centric.
     until `manage_r_sessions('detach')` returns execution to
     private/local.
 
+## Community resources
+
+- **[mcpr-skill](https://github.com/GijsVliegen/mcpr-skill)** by
+  [Gijs](https://github.com/GijsVliegen): a `SKILL.md` that teaches
+  agents to use MCPR well. It covers co-working in your live console and
+  analysis in the agent’s private session, and keeps printed output
+  short to save context. Thanks, Gijs!
+
+Built something on top of MCPR? Open an issue or PR and we’ll add it
+here.
+
 ## Agent tools
 
 The philosophy in the development of the MCPR package is to provide the

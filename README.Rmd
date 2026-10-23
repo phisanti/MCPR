@@ -111,6 +111,11 @@ The intended workflow is simple and user-centric.
 3. If the user wants collaboration inside an existing R console, they run `mcpr_session_start()` in that console.
 4. The agent uses `manage_r_sessions('list')` and `manage_r_sessions('join', session=ID)` to attach. Ordinary tools still omit `session`; the runtime sends them to the active session until `manage_r_sessions('detach')` returns execution to private/local.
 
+## Community resources
+- **[mcpr-skill](https://github.com/GijsVliegen/mcpr-skill)** by [Gijs](https://github.com/GijsVliegen): a `SKILL.md` that teaches agents to use MCPR well. It covers co-working in your live console and analysis in the agent's private session, and keeps printed output short to save context. Thanks, Gijs!
+
+Built something on top of MCPR? Open an issue or PR and we'll add it here.
+
 ## Agent tools
 The philosophy in the development of the MCPR package is to provide the agent with few, well-defined tools that can be composed to perform complex tasks. The goal was to give the agent a persistent private R workspace by default, optional attachment controls (`manage_r_sessions`), code execution (`execute_r_code`), graphical data (`show_plot`), and session inspection (`view`). Ordinary tools do not take a `session` argument; attachment is controlled separately. See the details below.
 
